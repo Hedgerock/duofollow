@@ -26,7 +26,15 @@ jobs:
       - run: npm test
       - name: Check formatting
         run: npm run format:check
-      - run: npm run build
+      - name: Build for GitHub Pages
+        env:
+          VITE_DUOFOLLOW_EXTENSION_ID: ${{ vars.VITE_DUOFOLLOW_EXTENSION_ID }}
+        run: |
+          if [ -z "$VITE_DUOFOLLOW_EXTENSION_ID" ]; then
+            echo "::error::Set the VITE_DUOFOLLOW_EXTENSION_ID repository variable to the distributed extension ID."
+            exit 1
+          fi
+          npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

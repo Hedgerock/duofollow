@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "DuoFollow Connector",
+  "version": "0.1.0",
+  "description": "Connects DuoFollow with its browser extension.",
+  "host_permissions": ["https://www.duolingo.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "externally_connectable": {
+    "matches": ["https://hedgerock.github.io/*", "http://localhost/*", "http://127.0.0.1/*"]
+  }
+}

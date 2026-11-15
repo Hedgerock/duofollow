@@ -1,62 +1,146 @@
-import { useEffect, useMemo, useState } from 'react';
-import { demoClient } from './data/demo';
-import { findNonMutualFollowing, type DuoUser } from './domain/users';
+import { DuoFollowConnector } from './api/extension/DuoFollowConnector.ts';
+import type {
+  FollowingComparison,
+  FollowingComparisonResult,
+} from '../extension/src/dto/DuolingoFollowingDto';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { NotificationViewport, useNotifications } from './notifications';
+import { VirtualFollowingList } from './VirtualFollowingList';
 
-type Filter = 'nonmutual' | 'all' | 'mutual';
+type ComparisonRequest = { username: string };
+
+const ACCOUNT_STORAGE_KEY = 'duofollow.accountUsername';
+const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSION_ID);
+
+function readSavedUsername(): string {
+  try {
+    return window.localStorage.getItem(ACCOUNT_STORAGE_KEY)?.trim() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function saveUsername(username: string): void {
+  try {
+    window.localStorage.setItem(ACCOUNT_STORAGE_KEY, username);
+  } catch {
+    // Браузер может блокировать доступ к хранилищу.
+  }
+}
 
 export default function App() {
-  const [following, setFollowing] = useState<DuoUser[]>([]);
-  const [followers, setFollowers] = useState<DuoUser[]>([]);
-  const [filter, setFilter] = useState<Filter>('nonmutual');
-  const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [status, setStatus] = useState('Загрузка демоданных…');
-  useEffect(() => {
-    Promise.all([demoClient.getFollowing(), demoClient.getFollowers()])
-      .then(([nextFollowing, nextFollowers]) => {
-        setFollowing(nextFollowing);
-        setFollowers(nextFollowers);
-        setStatus('Демонстрационный режим · реальные аккаунты не затрагиваются');
-      })
-      .catch(() => setStatus('Не удалось загрузить данные'));
-  }, []);
-  const nonmutual = useMemo(
-    () => findNonMutualFollowing(following, followers),
-    [following, followers],
+  const [accountUsername, setAccountUsername] = useState(readSavedUsername);
+  const [request, setRequest] = useState<ComparisonRequest | null>(() =>
+    accountUsername ? { username: accountUsername } : null,
   );
-  const followerIds = useMemo(() => new Set(followers.map((user) => user.id)), [followers]);
-  const visible = following.filter((user) => {
-    const mutual = followerIds.has(user.id);
-    return (
-      (filter === 'all' || (filter === 'mutual' ? mutual : !mutual)) &&
-      `${user.username} ${user.displayName}`.toLowerCase().includes(query.toLowerCase())
+  const [isLoading, setIsLoading] = useState(request !== null);
+  const [comparison, setComparison] = useState<FollowingComparison | null>(null);
+  const [nonMutualQuery, setNonMutualQuery] = useState('');
+  const pendingRequest = useRef<{
+    request: ComparisonRequest;
+    result: Promise<FollowingComparisonResult>;
+  } | null>(null);
+  const { visible: notifications, notify, dismiss } = useNotifications();
+
+  useEffect(() => {
+    if (!request) return;
+
+    let active = true;
+    const pending = pendingRequest.current;
+    if (pending?.request !== request) {
+      notify({
+        group: 'comparison',
+        kind: 'info',
+        title: 'Сравниваем подписки',
+        message: `Загружаем данные для ${request.username}.`,
+      });
+    }
+    const result =
+      pending?.request === request
+        ? pending.result
+        : connector.getFollowingSummary(request.username);
+
+    pendingRequest.current = { request, result };
+
+    void result.then(
+      (response) => {
+        if (!active) return;
+
+        pendingRequest.current = null;
+        setIsLoading(false);
+
+        if (!response.success) {
+          notify({
+            group: 'comparison',
+            kind: 'error',
+            title: 'Не удалось сравнить подписки',
+            message: response.error,
+          });
+          return;
+        }
+
+        const data = response.comparison;
+        saveUsername(data.accountUsername);
+        setComparison(data);
+        setAccountUsername(data.accountUsername);
+        setNonMutualQuery('');
+        notify({
+          group: 'comparison',
+          kind: 'success',
+          title: 'Сравнение завершено',
+          message: `@${data.accountUsername} · проверено ${data.checkedFollowing} из ${data.totalFollowing} подписок.`,
+        });
+      },
+      (error: unknown) => {
+        if (!active) return;
+
+        pendingRequest.current = null;
+        setIsLoading(false);
+        notify({
+          group: 'comparison',
+          kind: 'error',
+          title: 'Не удалось сравнить подписки',
+          message: error instanceof Error ? error.message : 'Не удалось связаться с расширением',
+        });
+      },
     );
-  });
-  function toggle(id: string) {
-    setSelected((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+
+    return () => {
+      active = false;
+    };
+  }, [notify, request]);
+
+  function compareFollowing() {
+    const username = accountUsername.trim();
+    if (!username || isLoading) return;
+
+    setIsLoading(true);
+    setRequest({ username });
   }
-  function selectVisible() {
-    setSelected((current) => {
-      const next = new Set(current);
-      visible.forEach((user) => next.add(user.id));
-      return next;
-    });
-  }
+
+  const nonMutualFollowing = comparison?.nonMutualFollowing;
+  const searchTerm = nonMutualQuery.trim().replace(/^@/, '').toLowerCase();
+  const visibleNonMutual = useMemo(() => {
+    const users = nonMutualFollowing ?? [];
+
+    return searchTerm
+      ? users.filter(
+          ({ displayName, username }) =>
+            displayName.toLowerCase().includes(searchTerm) ||
+            username.toLowerCase().includes(searchTerm),
+        )
+      : users;
+  }, [nonMutualFollowing, searchTerm]);
+
   return (
     <div className="page">
       <header className="topbar">
         <div className="brand">
-          <span className="brand-icon">D</span>
+          <img className="brand-icon" src={`${import.meta.env.BASE_URL}duofollow.svg`} alt="" />
           <span>
             DuoFollow <small>Subscription Manager</small>
           </span>
         </div>
-        <span className="pill">● Demo mode</span>
       </header>
       <main>
         <section className="hero">
@@ -66,122 +150,154 @@ export default function App() {
             <br />
             <em>без лишних усилий.</em>
           </h1>
-          <p>
-            Найди пользователей, которые не подписаны на тебя взаимно. Пока доступен безопасный
-            демонстрационный режим.
-          </p>
-        </section>
-        <section className="stats">
-          <article>
-            <span>Подписки</span>
-            <strong>{following.length}</strong>
-            <small>Following</small>
-          </article>
-          <article>
-            <span>Подписчики</span>
-            <strong>{followers.length}</strong>
-            <small>Followers</small>
-          </article>
-          <article className="accent">
-            <span>Не подписаны взаимно</span>
-            <strong>{nonmutual.length}</strong>
-            <small>Not following back</small>
-          </article>
-        </section>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <h2>Мои подписки</h2>
-              <p>{status}</p>
-            </div>
-            <span className="count">{visible.length} пользователей</span>
-          </div>
-          <div className="toolbar">
-            <div className="tabs">
-              <button
-                className={filter === 'nonmutual' ? 'active' : ''}
-                onClick={() => setFilter('nonmutual')}
-              >
-                Невзаимные
-              </button>
-              <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>
-                Все
-              </button>
-              <button
-                className={filter === 'mutual' ? 'active' : ''}
-                onClick={() => setFilter('mutual')}
-              >
-                Взаимные
-              </button>
-            </div>
+
+          <h2>DuoFollow</h2>
+
+          <form
+            className="toolbar comparison-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              compareFollowing();
+            }}
+          >
+            <label htmlFor="duolingo-username">Имя аккаунта, открытого в Duolingo</label>
             <input
-              aria-label="Поиск пользователей"
-              placeholder="Поиск по имени…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              id="duolingo-username"
+              type="text"
+              placeholder="Имя пользователя"
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              value={accountUsername}
+              disabled={isLoading}
+              onChange={(event) => setAccountUsername(event.target.value)}
             />
-          </div>
-          <div className="bulk">
-            <label>
-              <input
-                type="checkbox"
-                checked={visible.length > 0 && visible.every((u) => selected.has(u.id))}
-                onChange={(e) =>
-                  e.target.checked
-                    ? selectVisible()
-                    : setSelected((current) => {
-                        const next = new Set(current);
-                        visible.forEach((u) => next.delete(u.id));
-                        return next;
-                      })
-                }
-              />{' '}
-              Выбрать отображаемых
-            </label>
-            <span>Выбрано: {selected.size}</span>
-          </div>
-          <div className="users">
-            {visible.length === 0 ? (
-              <p className="empty">Ничего не найдено</p>
-            ) : (
-              visible.map((user) => (
-                <div className="user" key={user.id}>
-                  <input
-                    aria-label={`Выбрать ${user.username}`}
-                    type="checkbox"
-                    checked={selected.has(user.id)}
-                    onChange={() => toggle(user.id)}
-                  />
-                  <div className="avatar">{user.displayName.slice(0, 1)}</div>
-                  <div className="user-info">
-                    <strong>{user.displayName}</strong>
-                    <span>@{user.username}</span>
+            <button type="submit" disabled={!accountUsername.trim() || isLoading}>
+              {isLoading ? 'Сравниваем…' : 'Сравнить мои подписки'}
+            </button>
+          </form>
+
+          {comparison && <p>Результат для @{comparison.accountUsername}</p>}
+        </section>
+        <div className="comparison-results" aria-busy={isLoading}>
+          {isLoading && <ComparisonSkeleton />}
+          <div
+            className="comparison-content"
+            aria-hidden={isLoading || undefined}
+            inert={isLoading}
+          >
+            {comparison && (
+              <section className="stats comparison-reveal" aria-label="Результат проверки подписок">
+                <article>
+                  <span>Подписки проверены</span>
+                  <strong>{comparison.checkedFollowing}</strong>
+                  <small>из {comparison.totalFollowing}</small>
+                </article>
+                <article>
+                  <span>Взаимные</span>
+                  <strong>{comparison.mutualUsers}</strong>
+                  <small>среди проверенных</small>
+                </article>
+                <article className="accent">
+                  <span>Невзаимные</span>
+                  <strong>{comparison.nonMutualUsers ?? '—'}</strong>
+                  <small>
+                    {comparison.nonMutualUsers === null
+                      ? 'Список подписчиков неполный'
+                      : 'среди проверенных'}
+                  </small>
+                </article>
+              </section>
+            )}
+            {comparison && nonMutualFollowing && (
+              <section
+                className="panel live-following comparison-reveal"
+                aria-labelledby="non-mutual-following-title"
+              >
+                <div className="panel-heading">
+                  <div>
+                    <h2 id="non-mutual-following-title">Невзаимные подписки Duolingo</h2>
+                    <p>
+                      Проверено {comparison.checkedFollowing} из {comparison.totalFollowing}{' '}
+                      подписок.
+                    </p>
                   </div>
-                  <span className={`status ${followerIds.has(user.id) ? 'mutual' : ''}`}>
-                    {followerIds.has(user.id) ? '✓ Взаимно' : 'Не взаимно'}
+                  <span className="count" aria-live="polite">
+                    {searchTerm
+                      ? `${visibleNonMutual.length} из ${nonMutualFollowing.length}`
+                      : nonMutualFollowing.length}
                   </span>
                 </div>
-              ))
+
+                {nonMutualFollowing.length > 0 && (
+                  <div className="toolbar">
+                    <input
+                      type="search"
+                      aria-label="Поиск по невзаимным подпискам"
+                      placeholder="Имя или @username"
+                      value={nonMutualQuery}
+                      onChange={(event) => setNonMutualQuery(event.target.value)}
+                    />
+                  </div>
+                )}
+
+                <VirtualFollowingList
+                  key={comparison.accountUsername}
+                  users={visibleNonMutual}
+                  filterKey={searchTerm}
+                  emptyMessage={
+                    searchTerm
+                      ? 'По этому запросу никого не найдено.'
+                      : 'Среди проверенных подписок невзаимных нет.'
+                  }
+                />
+              </section>
             )}
           </div>
-          <div className="actions">
-            <button
-              disabled={selected.size === 0}
-              onClick={() =>
-                window.alert(
-                  `Dry-run: выбрано ${selected.size} пользователей. Реальная отписка отключена.`,
-                )
-              }
-            >
-              Проверить отписку ({selected.size})
-            </button>
-            <span>Безопасный dry-run · без изменений аккаунта</span>
-          </div>
-        </section>
-        <footer>
-          Неофициальный проект. Не связан с Duolingo. API-интеграция пока не реализована.
-        </footer>
+        </div>
+        <footer>Неофициальный проект. Не связан с Duolingo.</footer>
       </main>
+      <NotificationViewport notifications={notifications} dismiss={dismiss} />
+    </div>
+  );
+}
+
+function ComparisonSkeleton() {
+  return (
+    <div className="comparison-skeleton" aria-hidden="true" inert>
+      <div className="stats">
+        {[0, 1, 2].map((index) => (
+          <article key={index}>
+            <span className="skeleton-bar skeleton-label" />
+            <span className="skeleton-bar skeleton-value" />
+            <span className="skeleton-bar skeleton-caption" />
+          </article>
+        ))}
+      </div>
+
+      <div className="panel live-following">
+        <div className="panel-heading">
+          <div className="skeleton-heading">
+            <span className="skeleton-bar skeleton-title" />
+            <span className="skeleton-bar skeleton-caption" />
+          </div>
+        </div>
+
+        <div className="toolbar">
+          <span className="skeleton-bar skeleton-search" />
+        </div>
+
+        <ul className="users live-following-list virtual-following">
+          {[0, 1, 2, 3, 4, 5, 6].map((index) => (
+            <li className="user" key={index}>
+              <div className="user-info">
+                <span className="skeleton-bar skeleton-label" />
+                <span className="skeleton-bar skeleton-caption" />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

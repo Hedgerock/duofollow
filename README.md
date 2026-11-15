@@ -1,28 +1,90 @@
 # DuoFollow
 
-An unofficial React + TypeScript demo for finding Duolingo accounts that do not follow you back.
+Неофициальное приложение на React и TypeScript для поиска невзаимных подписок Duolingo. Расширение Chrome на Manifest V3
+выполняет запросы в контексте действующей сессии Duolingo. Сайт получает результат через `chrome.runtime.sendMessage`.
 
-**Current status:** demo-only. No Duolingo API requests, credentials, or real unfollow actions are implemented.
+## Текущее состояние
 
-## Local development
+- Имя своего аккаунта вводится в форме. Расширение разрешает имя в числовой ID и запрашивает Following и Followers.
+- Взаимность определяется пересечением по `userId`. Если в Following получена часть подписок, интерфейс показывает охват.
+  Если Followers неполный, приложение показывает найденные совпадения, а количество и список невзаимных отмечает как неизвестные.
+- Список поддерживает поиск по имени и `@username`, ссылки на профили и виртуальную прокрутку. Имя и идентификатор можно выделить в строке.
+- В `localStorage` хранится имя последнего успешно проверенного аккаунта. Обновление страницы запускает повторную проверку,
+  а редактирование поля сохраняет текущий результат до успешного нового запроса.
+- Скелет показывается при каждом сравнении, включая повторный запрос. Уведомления о ходе, успехе и ошибке появляются сверху,
+  с таймером, ручным закрытием и очередью до трёх одновременно видимых сообщений.
+- Интеграция API поддерживает чтение. Путь для записи и интерфейс отписки запланированы. Основной интерфейс сейчас на русском.
+
+### Запросы расширения
+
+| Данные    | Метод и путь на `www.duolingo.com`                 |
+| --------- | -------------------------------------------------- |
+| Поиск ID  | `GET /2023-05-23/users`                            |
+| Following | `GET /2017-06-30/friends/users/<userId>/following` |
+| Followers | `GET /2023-05-23/friends/users/<userId>/followers` |
+
+Оба запроса списков используют `pageSize=500` и `viewerId` аккаунта, введённого в форме. Первый ответ может включать курсор.
+В проверенных прогонах передача курсора повторяла выборку, поэтому сейчас каждый список запрашивается один раз. Вводи имя
+своего аккаунта из активной сессии Chrome. JWT и cookies в форму не передаются.
+
+## Запуск локально
+
+Понадобится Node.js 22. Из корня проекта:
 
 ```bash
-npm install
-npm run dev
+npm ci
+npm --prefix extension ci
+npm --prefix extension run build
+```
+
+В `chrome://extensions` включи режим разработчика и загрузи распакованное расширение из `extension/dist`. Скопируй его
+ID в корневой файл `.env.local`:
+
+```dotenv
+VITE_DUOFOLLOW_EXTENSION_ID=<ID установленного расширения>
+```
+
+Запусти `npm run dev -- --strictPort` и открой `http://localhost:5173/duofollow/`. Войди в Duolingo в том же профиле Chrome
+и укажи имя своего аккаунта. Если изменился `.env.local`, перезапусти Vite. После правок расширения пересобери его и
+нажми «Перезагрузить» в `chrome://extensions`.
+
+Для проверки собранного сайта сначала выполни `npm run build`, затем запусти `npm run preview`. Preview обслуживает содержимое `dist`;
+после изменения иконки в этой папке должны появиться `duofollow.svg` и ссылка на неё в `index.html`.
+
+## Проверки
+
+```bash
 npm test
+npm --prefix extension run typecheck
+npm run format:check
 npm run build
 ```
 
-## GitHub Pages
+Vitest проверяет реальные обработчики приложения и расширения с подставными ответами Chrome и Duolingo. Проверяются полный
+и неполный Followers, дедупликация, ошибки API и транспорта, тайм-аут, сохранение аккаунта, поиск, очередь уведомлений,
+таймеры и окно виртуализации на 10 000 записях. Тесты интерфейса используют имитацию хуков в Node.
+Проверку браузерной сессии, стилей и реального клавиатурного фокуса выполняй в Chrome.
 
-Create a repository named `duofollow`, push this project to its `main` branch, then open **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+## Поддержка браузеров
 
-The configured Vite base is `/duofollow/`. Change `base` in `vite.config.ts` if your repository has a different name.
+| Браузер              | Статус   | Цель                                                                                      |
+| -------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| Google Chrome (ПК)   | Работает | Основная сборка расширения Manifest V3 и текущая связь с сайтом DuoFollow.                |
+| Microsoft Edge (ПК)  | В плане  | Проверить текущую Chromium-сборку в `edge://extensions` и выбрать способ распространения. |
+| Mozilla Firefox (ПК) | В плане  | Подготовить сборку WebExtensions и канал связи с интерфейсом для Firefox.                 |
 
-## Architecture
+- **Edge.** Проверить установку распакованного расширения, фактический ID, передачу сообщений и запросы Duolingo с сессией Edge.
+  Для публикации заранее сверить ID расширения, которое установит пользователь, с ID, используемым сайтом.
+  [Документация Microsoft](https://learn.microsoft.com/en-us/microsoft-edge/extensions-chromium/developer-guide/port-chrome-extension)
+- **Firefox.** Запускать фоновый код через `background.scripts`. Для сайта на GitHub Pages добавить content script,
+  который подключается только на страницах DuoFollow и передаёт проверенные команды фоновому скрипту расширения.
+  Прямой вызов `runtime.sendMessage` с веб-страницы через `externally_connectable.matches` в Firefox пока недоступен.
+  [Фоновые скрипты Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background),
+  [статус поддержки прямых сообщений](https://bugzilla.mozilla.org/show_bug.cgi?id=1319168)
 
-- `src/domain/users.ts`: data model, client contract, and mutual-following calculation.
-- `src/data/demo.ts`: mock client; no network requests.
-- `src/App.tsx`: interactive UI, filtering, selection, and dry-run confirmation.
+Критерий поддержки нового браузера — расширение устанавливается, сайт сравнивает списки в текущей сессии Duolingo, показывает охват,
+восстанавливает сохранённый аккаунт и сообщает об ошибках. Для функций записи потребуется также отдельная ручная проверка в каждом поддерживаемом браузере.
 
-Before implementing live integration, independently verify current API endpoints, browser CORS behavior, Duolingo terms, and a safe authorization method. Do not ask users to paste account JWTs into a public website.
+## Внутренняя документация проекта
+
+[Руководство разработчика: ручные проверки, GitHub Pages и план развития](docs/guidelines/development-guidelines.md)
