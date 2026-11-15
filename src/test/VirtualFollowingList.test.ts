@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VirtualFollowingList } from '../VirtualFollowingList';
+import { translations } from '../i18n/messages';
 import { createRenderer, findElement, findElements, renderChild, runEvent } from './reactHarness';
 
 vi.mock('react', async (original) => ({
@@ -43,6 +44,7 @@ function mountList() {
     removingId: null as number | null,
     onUnfollow,
     onRemovalComplete,
+    messages: translations.ru,
   };
   const commit = (tree: unknown) => {
     const list = findElement(tree, (node) => node.type === 'ul');

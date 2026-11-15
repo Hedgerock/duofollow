@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy — DuoFollow</title>
+    <link rel="icon" href="/duofollow.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="privacy.css" />
+  </head>
+  <body>
+    <div id="root">
+      <div class="policy-fallback">
+        <header>
+          <a href="../">Back to DuoFollow</a>
+          <nav>
+            <a href="./" lang="en" hreflang="en" aria-current="page">English</a>
+            <a href="ru/" lang="ru" hreflang="ru">Русский</a>
+            <a href="uk/" lang="uk" hreflang="uk">Українська</a>
+          </nav>
+        </header>
+        <main>
+          <h1>Privacy Policy</h1>
+          <p class="updated">
+            <time datetime="2026-11-15">Last updated on November 15, 2026</time>
+          </p>
+          <p>
+            This policy covers the DuoFollow website and the DuoFollow Connector extension for
+            Chrome. DuoFollow is an independent project maintained by Dmitro Vasyliev.
+          </p>
+          <section>
+            <h2>Data used for Duolingo features</h2>
+            <p>
+              When you grant access in the Connector settings, the extension reads the Duolingo
+              session cookie on www.duolingo.com to identify the signed-in account and check the
+              session. The cookie is used inside the extension and by the browser for authenticated
+              requests to Duolingo. The DuoFollow page receives the connection status.
+            </p>
+            <p>
+              To compare follows, the Connector sends the username you enter to Duolingo. It uses
+              account IDs, usernames, display names, avatar URLs and follow relationships from the
+              responses. The Connector compares the lists in your browser and sends the results and
+              relevant profile details to the DuoFollow page. If you confirm an unfollow, the
+              Connector sends the account ID and selected profile ID to Duolingo to remove that
+              follow.
+            </p>
+          </section>
+          <section>
+            <h2>Where the data goes</h2>
+            <p>
+              DuoFollow has no developer-operated account or results database. Duolingo receives the
+              HTTPS requests needed for the features you use. The browser loads avatars directly
+              from the image hosts listed in the Duolingo responses. Those hosts receive connection
+              information such as your IP address.
+            </p>
+            <p>
+              The DuoFollow site is hosted on GitHub Pages. GitHub logs visitor IP addresses for
+              security. DuoFollow uses the data described here only to provide its features and does
+              not use it for advertising, sale or credit decisions. We handle user data in
+              accordance with the Chrome Web Store User Data Policy, including its Limited Use
+              requirements.
+            </p>
+          </section>
+          <section>
+            <h2>Storage and your choices</h2>
+            <p>
+              The Connector saves your consent in its local Chrome storage. The website saves your
+              language, theme and the username of the last successful comparison in your browser.
+              When you return and access is available, DuoFollow can repeat that comparison. Results
+              are held in the page’s memory. The browser may cache avatar images.
+            </p>
+            <p>
+              To stop access, open DuoFollow Connector and choose “Disconnect”. The extension
+              revokes its Duolingo permissions and the site clears the comparison and remembered
+              username when it detects the change. You can also revoke site access in Chrome. Clear
+              the DuoFollow site data in Chrome to remove the language, theme and saved username.
+              Changes already made to follows remain in Duolingo.
+            </p>
+          </section>
+          <section>
+            <h2>Contact</h2>
+            <p>
+              For privacy questions or requests to access, correct or delete data under applicable
+              law, email
+              <a href="mailto:devdmitrovasyliev@gmail.com">devdmitrovasyliev@gmail.com</a>. If you
+              contact us, we use your email address and the information you provide to respond to
+              your request.
+            </p>
+          </section>
+          <section>
+            <h2>Related policies</h2>
+            <ul>
+              <li><a href="https://www.duolingo.com/privacy">Duolingo Privacy Policy</a></li>
+              <li>
+                <a
+                  href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
+                  >GitHub Privacy Statement</a
+                >
+              </li>
+              <li>
+                <a href="https://developer.chrome.com/docs/webstore/program-policies/policies"
+                  >Chrome Web Store User Data Policy</a
+                >
+              </li>
+            </ul>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

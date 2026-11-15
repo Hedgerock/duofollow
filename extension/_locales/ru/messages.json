@@ -1,0 +1,50 @@
+{
+  "description": {
+    "message": "Находит невзаимные подписки в Duolingo и позволяет отписаться от выбранного профиля после подтверждения."
+  },
+  "accessAction": {
+    "message": "Настройки доступа DuoFollow"
+  },
+  "accessTitle": {
+    "message": "Доступ к Duolingo"
+  },
+  "accessSession": {
+    "message": "DuoFollow Connector использует cookie сессии на www.duolingo.com, чтобы проверить вход в твоём профиле Chrome."
+  },
+  "accessData": {
+    "message": "Для сравнения расширение получает профили, аватары, подписки и подписчиков из Duolingo. Результат отображается на сайте DuoFollow в браузере. Запрос на отписку отправляется в Duolingo после отдельного подтверждения."
+  },
+  "accessRecurring": {
+    "message": "Пока сайт DuoFollow открыт, он проверяет состояние входа. При повторном открытии сайт может заново сравнить подписки для имени, сохранённого в браузере."
+  },
+  "privacyLink": {
+    "message": "Политика конфиденциальности"
+  },
+  "accessChecking": {
+    "message": "Проверяем разрешения…"
+  },
+  "accessGrant": {
+    "message": "Разрешить доступ"
+  },
+  "accessRevoke": {
+    "message": "Отключить доступ"
+  },
+  "accessGranted": {
+    "message": "Доступ разрешён."
+  },
+  "accessGrantedBack": {
+    "message": "Доступ разрешён. Вернись на сайт DuoFollow."
+  },
+  "accessDisconnected": {
+    "message": "Доступ отключён."
+  },
+  "accessDenied": {
+    "message": "Доступ не предоставлен."
+  },
+  "accessChangeError": {
+    "message": "Не удалось изменить доступ. Открой настройки ещё раз."
+  },
+  "accessCheckError": {
+    "message": "Не удалось проверить разрешения."
+  }
+}

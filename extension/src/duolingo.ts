@@ -5,9 +5,11 @@ import type {
   UnfollowResult,
 } from './dto/DuolingoFollowingDto';
 import { duolingoEndpoints } from './duolingoEndpoints.js';
+import { getDuolingoSessionUserId } from './duolingoSession.js';
 
 const pendingUnfollows = new Set<string>();
 const UNCONFIRMED_UNFOLLOW = 'Ответ Duolingo не удалось проверить.';
+const ACCOUNT_MISMATCH = 'Укажи имя аккаунта, в который ты вошёл в Duolingo.';
 
 type RelationshipList = 'following' | 'followers';
 type RelationshipPage = DuolingoFollowingPageDto['following'];
@@ -42,7 +44,9 @@ function readPicture(value: unknown): string | null {
 async function getRelationshipPage(
   list: RelationshipList,
   userId: string,
+  signal: AbortSignal,
 ): Promise<RelationshipPage> {
+  signal.throwIfAborted();
   const endpoint = duolingoEndpoints[list];
   const url = endpoint.url(userId);
 
@@ -53,7 +57,7 @@ async function getRelationshipPage(
   const response = await fetch(url, {
     method: endpoint.method,
     credentials: 'include',
-    signal: AbortSignal.timeout(12_000),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
   });
 
   if (!response.ok) {
@@ -104,6 +108,7 @@ function summarizeFollowingPage(page: RelationshipPage): FollowingPageSummary {
 
 async function resolveDuolingoAccount(
   input: unknown,
+  signal: AbortSignal,
   includePicture = false,
 ): Promise<DuolingoAccount> {
   const username = typeof input === 'string' ? input.trim().replace(/^@/, '').trim() : '';
@@ -111,6 +116,10 @@ async function resolveDuolingoAccount(
   if (!username || /[\s/@?#]/u.test(username)) {
     throw new Error('Укажи имя аккаунта Duolingo, например username.');
   }
+
+  const sessionUserId = await getDuolingoSessionUserId(signal);
+  signal.throwIfAborted();
+  if (!sessionUserId) throw new Error('Войди в Duolingo в этом профиле Chrome.');
 
   const endpoint = duolingoEndpoints.accountLookup;
   const url = endpoint.url();
@@ -124,10 +133,11 @@ async function resolveDuolingoAccount(
   const options = {
     method: endpoint.method,
     credentials: 'include' as const,
-    signal: AbortSignal.timeout(12_000),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
   };
   let response = await fetch(url, options);
   if (includePicture && response.status === 400) {
+    signal.throwIfAborted();
     const fallbackUrl = new URL(url);
     fallbackUrl.searchParams.set('fields', 'users{id,username}');
     response = await fetch(fallbackUrl, options);
@@ -162,6 +172,7 @@ async function resolveDuolingoAccount(
   if (typeof account.id !== 'number' || !Number.isSafeInteger(account.id) || account.id <= 0) {
     throw new Error('Duolingo вернул некорректный ID профиля.');
   }
+  if (String(account.id) !== sessionUserId) throw new Error(ACCOUNT_MISMATCH);
 
   return {
     userId: String(account.id),
@@ -170,11 +181,18 @@ async function resolveDuolingoAccount(
   };
 }
 
-export async function getFollowingSummary(input: unknown): Promise<FollowingComparisonResult> {
-  const { userId, username, picture: accountPicture } = await resolveDuolingoAccount(input, true);
+export async function getFollowingSummary(
+  input: unknown,
+  signal: AbortSignal,
+): Promise<FollowingComparisonResult> {
+  const {
+    userId,
+    username,
+    picture: accountPicture,
+  } = await resolveDuolingoAccount(input, signal, true);
   const [following, followers] = await Promise.all([
-    getRelationshipPage('following', userId),
-    getRelationshipPage('followers', userId),
+    getRelationshipPage('following', userId, signal),
+    getRelationshipPage('followers', userId, signal),
   ]);
 
   const followingById = new Map(following.users.map((user) => [user.userId, user]));
@@ -216,6 +234,7 @@ export async function getFollowingSummary(input: unknown): Promise<FollowingComp
 export async function unfollow(
   username: unknown,
   targetUserId: unknown,
+  signal: AbortSignal,
 ): Promise<Extract<UnfollowResult, { success: true }>> {
   if (
     typeof targetUserId !== 'number' ||
@@ -225,7 +244,7 @@ export async function unfollow(
     throw new Error('У подписки некорректный ID.');
   }
 
-  const { userId } = await resolveDuolingoAccount(username);
+  const { userId } = await resolveDuolingoAccount(username, signal);
   if (String(targetUserId) === userId) {
     throw new Error('Нельзя отписаться от своего профиля.');
   }
@@ -237,17 +256,20 @@ export async function unfollow(
 
   pendingUnfollows.add(key);
   try {
-    const following = await getRelationshipPage('following', userId);
+    const following = await getRelationshipPage('following', userId, signal);
     if (!following.users.some((user) => user.userId === targetUserId)) {
       throw new Error('Подписки нет среди полученных записей Duolingo.');
     }
+
+    if ((await getDuolingoSessionUserId(signal)) !== userId) throw new Error(ACCOUNT_MISMATCH);
+    signal.throwIfAborted();
 
     const endpoint = duolingoEndpoints.unfollow;
     const response = await fetch(endpoint.url(userId, targetUserId).href, {
       method: endpoint.method,
       credentials: 'include',
       redirect: 'error',
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
     }).catch(() => {
       throw new Error(UNCONFIRMED_UNFOLLOW);
     });
@@ -271,47 +293,4 @@ export async function unfollow(
   } finally {
     pendingUnfollows.delete(key);
   }
-}
-
-export async function probeDuolingo(): Promise<{
-  status: number;
-  accessible: boolean;
-}> {
-  const endpoint = duolingoEndpoints.publicProfileLookup;
-  const url = endpoint.url();
-
-  url.searchParams.set('username', 'duo');
-
-  const response = await fetch(url, {
-    method: endpoint.method,
-    credentials: 'omit',
-  });
-
-  return {
-    status: response.status,
-    accessible: response.ok,
-  };
-}
-
-export async function probeFollowing(): Promise<{
-  status: number;
-  accessible: boolean;
-}> {
-  const userId = '942136874597453';
-
-  const endpoint = duolingoEndpoints.following;
-  const url = endpoint.url(userId);
-
-  url.searchParams.set('pageSize', '500');
-  url.searchParams.set('viewedId', userId);
-
-  const response = await fetch(url, {
-    method: endpoint.method,
-    credentials: 'include',
-  });
-
-  return {
-    status: response.status,
-    accessible: response.ok,
-  };
 }

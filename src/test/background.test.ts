@@ -4,6 +4,7 @@ import type {
   UnfollowResult,
 } from '../../extension/src/dto/DuolingoFollowingDto';
 import { duolingoEndpoints } from '../../extension/src/duolingoEndpoints';
+import { ACCESS_CONSENT_KEY } from '../../extension/src/duolingoAccess';
 
 type Listener = (
   message: unknown,
@@ -45,13 +46,57 @@ const unfollow = (targetUserId: unknown = 202): Promise<UnfollowResult> =>
 
 let listener: Listener;
 const fetchMock = vi.fn<typeof fetch>();
+const getCookie =
+  vi.fn<(details: { url: string; name: string }) => Promise<{ value: string } | null>>();
+const sessionCookie = (id: number) => ({
+  value: `fixture.${btoa(JSON.stringify({ sub: id, exp: 4_000_000_000 }))}.signature`,
+});
+const getSettings = vi.fn<() => Promise<Record<string, unknown>>>();
+const containsPermissions = vi.fn<() => Promise<boolean>>();
+const openOptionsPage = vi.fn<() => Promise<void>>();
+const getManifest = vi.fn();
+let permissionsRemoved: (permissions: chrome.permissions.Permissions) => void;
+let storageChanged: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
+let connectListener: (port: chrome.runtime.Port) => void;
 
 beforeEach(async () => {
   vi.resetModules();
   fetchMock.mockReset();
+  getCookie.mockReset().mockResolvedValue(sessionCookie(account.id));
+  getSettings.mockReset().mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1 });
+  containsPermissions.mockReset().mockResolvedValue(true);
+  openOptionsPage.mockReset().mockResolvedValue(undefined);
+  getManifest.mockReset().mockReturnValue({
+    externally_connectable: { matches: ['https://hedgerock.github.io/*', 'http://localhost/*'] },
+  });
   vi.stubGlobal('fetch', fetchMock);
   vi.stubGlobal('chrome', {
+    action: { onClicked: { addListener: vi.fn() } },
+    cookies: { get: getCookie },
+    permissions: {
+      contains: containsPermissions,
+      onRemoved: {
+        addListener(callback: typeof permissionsRemoved) {
+          permissionsRemoved = callback;
+        },
+      },
+    },
+    storage: {
+      local: { get: getSettings, remove: vi.fn(async () => {}) },
+      onChanged: {
+        addListener(callback: typeof storageChanged) {
+          storageChanged = callback;
+        },
+      },
+    },
     runtime: {
+      getManifest,
+      openOptionsPage,
+      onConnectExternal: {
+        addListener(callback: typeof connectListener) {
+          connectListener = callback;
+        },
+      },
       onMessageExternal: {
         addListener(callback: Listener) {
           listener = callback;
@@ -65,6 +110,188 @@ beforeEach(async () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('extension worker', () => {
+  const checkConnection = () =>
+    new Promise((resolve) => {
+      expect(listener({ type: 'GET_DUOLINGO_ACCESS' }, { url: approvedOrigin }, resolve)).toBe(
+        true,
+      );
+    });
+
+  it('only reports the session on the DuoFollow page', () => {
+    const reply = vi.fn();
+    for (const sender of [
+      { url: 'https://hedgerock.github.io/another-project/' },
+      { url: approvedOrigin, frameId: 1 },
+    ]) {
+      for (const type of [
+        'GET_DUOLINGO_ACCESS',
+        'GET_FOLLOWING_SUMMARY',
+        'OPEN_DUOLINGO_SETTINGS',
+      ]) {
+        expect(listener({ type }, sender, reply)).toBeUndefined();
+      }
+    }
+    expect(reply).not.toHaveBeenCalled();
+    expect(getCookie).not.toHaveBeenCalled();
+  });
+
+  it('does not touch Duolingo when consent is missing or browser access is denied', async () => {
+    getSettings.mockResolvedValueOnce({});
+    await expect(checkConnection()).resolves.toEqual({ session: 'consent-required' });
+    containsPermissions.mockResolvedValue(false);
+    await expect(checkConnection()).resolves.toEqual({ session: 'consent-required' });
+    await expect(compare(account.username)).resolves.toMatchObject({ success: false });
+    await expect(unfollow()).resolves.toMatchObject({ success: false });
+    expect(getCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('opens extension settings without accessing Duolingo', async () => {
+    const opened = new Promise((resolve) => {
+      expect(listener({ type: 'OPEN_DUOLINGO_SETTINGS' }, { url: approvedOrigin }, resolve)).toBe(
+        true,
+      );
+    });
+    await expect(opened).resolves.toEqual({ success: true });
+    expect(openOptionsPage).toHaveBeenCalledOnce();
+    expect(getCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('allows the access route to open settings and keeps data commands on the workspace', async () => {
+    const sender = { url: 'http://localhost:5173/duofollow/access/' };
+    const reply = vi.fn();
+    for (const type of ['GET_DUOLINGO_ACCESS', 'GET_FOLLOWING_SUMMARY', 'UNFOLLOW']) {
+      expect(listener({ type }, sender, reply)).toBeUndefined();
+    }
+    expect(reply).not.toHaveBeenCalled();
+    await expect(
+      new Promise((resolve) => listener({ type: 'OPEN_DUOLINGO_SETTINGS' }, sender, resolve)),
+    ).resolves.toEqual({ success: true });
+    expect(
+      listener({ type: 'OPEN_DUOLINGO_SETTINGS' }, { ...sender, frameId: 1 }, reply),
+    ).toBeUndefined();
+    expect(
+      listener(
+        { type: 'OPEN_DUOLINGO_SETTINGS' },
+        { url: 'http://localhost:5173/duofollow/privacy/' },
+        reply,
+      ),
+    ).toBeUndefined();
+    expect(reply).not.toHaveBeenCalled();
+    expect(openOptionsPage).toHaveBeenCalledOnce();
+    expect(getCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects localhost in a store build', async () => {
+    vi.resetModules();
+    getManifest.mockReturnValue({
+      externally_connectable: { matches: ['https://hedgerock.github.io/*'] },
+    });
+    await import('../../extension/src/background');
+    const reply = vi.fn();
+    listener({ type: 'PING' }, { url: approvedOrigin }, reply);
+    expect(reply).not.toHaveBeenCalled();
+    listener({ type: 'PING' }, { url: 'https://hedgerock.github.io/duofollow/' }, reply);
+    expect(reply).toHaveBeenCalledOnce();
+  });
+
+  it('notifies an open workspace when the extension settings save consent', () => {
+    const port = {
+      name: 'duofollow-access',
+      sender: { url: approvedOrigin },
+      onDisconnect: { addListener: vi.fn() },
+      disconnect: vi.fn(),
+      postMessage: vi.fn(),
+    };
+    connectListener(port as unknown as chrome.runtime.Port);
+    storageChanged({ [ACCESS_CONSENT_KEY]: { newValue: 1 } }, 'local');
+    storageChanged({ [ACCESS_CONSENT_KEY]: { oldValue: 1, newValue: 1 } }, 'local');
+    expect(port.postMessage).toHaveBeenCalledExactlyOnceWith({ access: 'granted' });
+    expect(getCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('aborts an in-flight comparison and notifies the website when Chrome revokes access', async () => {
+    const port = {
+      name: 'duofollow-access',
+      sender: { url: approvedOrigin },
+      onDisconnect: { addListener: vi.fn() },
+      disconnect: vi.fn(),
+      postMessage: vi.fn(),
+    };
+    connectListener(port as unknown as chrome.runtime.Port);
+    let requestSignal: AbortSignal | null | undefined;
+    let complete!: (response: Response) => void;
+    fetchMock.mockImplementationOnce((_url, options) => {
+      requestSignal = options?.signal;
+      return new Promise((resolve) => {
+        complete = resolve;
+      });
+    });
+    const pending = compare(account.username);
+    await vi.waitFor(() => expect(requestSignal).toBeDefined());
+    containsPermissions.mockResolvedValue(false);
+    permissionsRemoved({ origins: ['https://www.duolingo.com/*'] });
+    expect(requestSignal?.aborted).toBe(true);
+    expect(port.postMessage).toHaveBeenCalledWith({ access: 'revoked' });
+    complete(resolveAccount());
+    await expect(pending).resolves.toMatchObject({ success: false });
+    await expect(checkConnection()).resolves.toEqual({ session: 'consent-required' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('aborts a connection check when consent is removed in extension settings', async () => {
+    let complete!: (response: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const pending = checkConnection();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    getSettings.mockResolvedValue({});
+    storageChanged({ [ACCESS_CONSENT_KEY]: { oldValue: 1 } }, 'local');
+    complete(followers([]));
+    await expect(pending).resolves.toEqual({ session: 'consent-required' });
+  });
+
+  it('treats a missing or expired session cookie as signed out', async () => {
+    getCookie.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      value: `fixture.${btoa(JSON.stringify({ sub: '101', exp: 0 }))}.signature`,
+    });
+    await expect(checkConnection()).resolves.toEqual({ session: 'signed-out' });
+    await expect(checkConnection()).resolves.toEqual({ session: 'signed-out' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('checks authenticated access using one follower and reports status without session data', async () => {
+    getCookie.mockResolvedValue({
+      value: `fixture.${btoa(JSON.stringify({ sub: '101', exp: 4_000_000_000 }))}.signature`,
+    });
+    fetchMock
+      .mockResolvedValueOnce(followers([]))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockRejectedValueOnce(new TypeError('Network error'));
+
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    await expect(checkConnection()).resolves.toEqual({ session: 'signed-out' });
+    await expect(checkConnection()).resolves.toEqual({ session: 'duolingo-unavailable' });
+    await expect(checkConnection()).resolves.toEqual({ session: 'duolingo-unavailable' });
+
+    expect(getCookie).toHaveBeenCalledWith({ url: 'https://www.duolingo.com', name: 'jwt_token' });
+    const [request, init] = fetchMock.mock.calls[0];
+    const url = new URL(String(request));
+    expect(url.pathname).toBe(duolingoEndpoints.followers.url('101').pathname);
+    expect(url.searchParams.get('pageSize')).toBe('1');
+    expect(url.searchParams.get('viewerId')).toBe('101');
+    expect(init).toMatchObject({ credentials: 'include', cache: 'no-store', redirect: 'error' });
+    expect(init?.headers).toBeUndefined();
+  });
+
   it('checks the sender and replies to PING or an unsupported message', () => {
     const reply = vi.fn();
     for (const url of [undefined, 'invalid', 'https://unrelated.example/']) {
@@ -80,40 +307,14 @@ describe('extension worker', () => {
     expect(reply).toHaveBeenLastCalledWith({ success: false, error: 'Unsupported message' });
   });
 
-  it('uses the configured URLs for the diagnostic requests', async () => {
-    const probe = (type: 'PROBE_DUOLINGO' | 'PROBE_FOLLOWING') =>
-      new Promise((resolve) => {
-        expect(listener({ type }, { url: approvedOrigin }, resolve)).toBe(true);
-      });
-    fetchMock
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))
-      .mockResolvedValueOnce(new Response(null, { status: 403 }));
-
-    await expect(probe('PROBE_DUOLINGO')).resolves.toEqual({ status: 200, accessible: true });
-    await expect(probe('PROBE_FOLLOWING')).resolves.toEqual({ status: 403, accessible: false });
-
-    const [[publicUrl, publicOptions], [followingUrl, followingOptions]] = fetchMock.mock.calls;
-    const publicProfile = new URL(String(publicUrl));
-    expect(publicProfile.origin + publicProfile.pathname).toBe(
-      duolingoEndpoints.publicProfileLookup.url().href,
-    );
-    expect(publicProfile.searchParams.get('username')).toBe('duo');
-    expect(publicOptions).toMatchObject({
-      method: duolingoEndpoints.publicProfileLookup.method,
-      credentials: 'omit',
-    });
-
-    const following = new URL(String(followingUrl));
-    const viewedId = following.searchParams.get('viewedId');
-    expect(viewedId).toMatch(/^\d+$/);
-    expect(following.origin + following.pathname).toBe(
-      duolingoEndpoints.following.url(viewedId ?? '').href,
-    );
-    expect(following.searchParams.get('pageSize')).toBe('500');
-    expect(followingOptions).toMatchObject({
-      method: duolingoEndpoints.following.method,
-      credentials: 'include',
-    });
+  it('rejects removed diagnostics and the legacy connection command without any data access', () => {
+    const reply = vi.fn();
+    for (const type of ['CHECK_CONNECTION', 'PROBE_DUOLINGO', 'PROBE_FOLLOWING']) {
+      listener({ type }, { url: approvedOrigin }, reply);
+      expect(reply).toHaveBeenLastCalledWith({ success: false, error: 'Unsupported message' });
+    }
+    expect(getCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('uses the correct endpoints, deduplicates IDs and compares by ID regardless of follow flags', async () => {
@@ -351,6 +552,31 @@ describe('extension worker', () => {
     );
   });
 
+  it('rejects comparisons and deletions for a different account before reading its lists', async () => {
+    getCookie.mockResolvedValue(sessionCookie(999));
+    fetchMock.mockImplementation(async () => resolveAccount());
+    await expect(compare(account.username)).resolves.toMatchObject({ success: false });
+    await expect(unfollow()).resolves.toMatchObject({ success: false });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      fetchMock.mock.calls.every(
+        ([url]) => new URL(String(url)).pathname === duolingoEndpoints.accountLookup.url().pathname,
+      ),
+    ).toBe(true);
+  });
+
+  it('does not delete a subscription if the session changes during the initial lookup', async () => {
+    getCookie
+      .mockResolvedValueOnce(sessionCookie(account.id))
+      .mockResolvedValueOnce(sessionCookie(999));
+    fetchMock
+      .mockResolvedValueOnce(resolveAccount())
+      .mockResolvedValueOnce(following([{ userId: 202 }]));
+    await expect(unfollow()).resolves.toMatchObject({ success: false });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.some(([url]) => String(url) === targetUnfollowUrl)).toBe(false);
+  });
+
   it('requires the DuoFollow page, a valid target and an existing subscription', async () => {
     const message = { type: 'UNFOLLOW', username: account.username, targetUserId: 202 };
     const reply = vi.fn();
@@ -361,7 +587,7 @@ describe('extension worker', () => {
       { url: approvedOrigin, frameId: 1 },
     ]) {
       listener(message, sender, reply);
-      expect(reply).toHaveBeenLastCalledWith({ success: false, error: expect.any(String) });
+      expect(reply).not.toHaveBeenCalled();
     }
     for (const id of [null, '202', 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
       await expect(unfollow(id)).resolves.toMatchObject({ success: false });

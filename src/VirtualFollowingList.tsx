@@ -7,6 +7,7 @@ import {
   useFollowingViewport,
 } from './following/useFollowingViewport';
 import { ProfileAvatar } from './ProfileAvatar';
+import type { Messages } from './i18n/messages';
 
 interface ListProps {
   users: NonMutualFollowingUser[];
@@ -16,6 +17,7 @@ interface ListProps {
   removingId: number | null;
   onUnfollow: (user: NonMutualFollowingUser) => void;
   onRemovalComplete: () => void;
+  messages: Messages;
 }
 
 interface RowProps {
@@ -25,6 +27,7 @@ interface RowProps {
   unfollowingId: number | null;
   onUnfollow: ListProps['onUnfollow'];
   onFocusedUserChange: (userId: number | null) => void;
+  messages: Messages;
 }
 
 const FollowingRow = memo(function FollowingRow({
@@ -34,9 +37,10 @@ const FollowingRow = memo(function FollowingRow({
   unfollowingId,
   onUnfollow,
   onFocusedUserChange,
+  messages,
 }: RowProps) {
   const { userId, displayName, username } = user;
-  const name = displayName || username || `Пользователь ${userId}`;
+  const name = displayName || username || `${messages.user} ${userId}`;
   const identifier = getProfileIdentifier(user);
   const isUnfollowing = unfollowingId === userId;
 
@@ -60,7 +64,7 @@ const FollowingRow = memo(function FollowingRow({
           href={getDuolingoProfileUrl(username)}
           target="_blank"
           rel="noopener noreferrer"
-          aria-label={`Открыть профиль ${name} (${identifier}) в новой вкладке`}
+          aria-label={messages.openProfile(`${name} (${identifier})`)}
         />
       )}
       <ProfileAvatar name={displayName || username} picture={user.picture} lazy />
@@ -71,10 +75,12 @@ const FollowingRow = memo(function FollowingRow({
       <button
         type="button"
         className="profile-card-unfollow"
-        aria-label={`${isUnfollowing ? 'Отписываемся от' : 'Отписаться от'} ${name} (${identifier})`}
+        aria-label={(isUnfollowing ? messages.unfollowingProfile : messages.unfollowProfile)(
+          `${name} (${identifier})`,
+        )}
         aria-busy={isUnfollowing || undefined}
         aria-disabled={unfollowingId !== null}
-        data-tooltip={isUnfollowing ? 'Отписываемся…' : 'Отписаться'}
+        data-tooltip={isUnfollowing ? messages.unfollowing : messages.unfollow}
         onClick={() => {
           if (unfollowingId === null) onUnfollow(user);
         }}
@@ -110,6 +116,7 @@ export const VirtualFollowingList = memo(function VirtualFollowingList({
   removingId,
   onUnfollow,
   onRemovalComplete,
+  messages,
 }: ListProps) {
   const total = users.length;
   const { viewportRef, indices, updateRange, setFocusedUserId } = useFollowingViewport(
@@ -123,7 +130,7 @@ export const VirtualFollowingList = memo(function VirtualFollowingList({
       ref={viewportRef}
       className="users live-following-list virtual-following"
       role="list"
-      aria-label="Невзаимные подписки"
+      aria-label={messages.listLabel}
       tabIndex={0}
       onScroll={(event) => updateRange(event.currentTarget)}
     >
@@ -141,6 +148,7 @@ export const VirtualFollowingList = memo(function VirtualFollowingList({
               unfollowingId={unfollowingId}
               onUnfollow={onUnfollow}
               onFocusedUserChange={setFocusedUserId}
+              messages={messages}
             />
           ))}
         </>

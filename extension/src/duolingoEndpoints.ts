@@ -28,8 +28,4 @@ export const duolingoEndpoints = {
         `/2017-06-30/friends/users/${encodeURIComponent(accountId)}/follow/${encodeURIComponent(targetUserId)}`,
       ),
   },
-  publicProfileLookup: {
-    method: 'GET',
-    url: () => createApiUrl('/2017-06-30/users'),
-  },
 } as const;

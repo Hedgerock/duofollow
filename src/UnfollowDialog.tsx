@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef } from 'react';
 import type { NonMutualFollowingUser } from '../extension/src/dto/DuolingoFollowingDto';
 import { getProfileIdentifier } from './following/profiles';
+import type { Messages } from './i18n/messages';
 import { ProfileAvatar } from './ProfileAvatar';
+import { useModalDialog } from './useModalDialog';
 
 export interface UnfollowConfirmation {
   account: string;
@@ -13,19 +14,16 @@ interface UnfollowDialogProps {
   confirmation: UnfollowConfirmation | null;
   onCancel: () => void;
   onConfirm: () => void;
+  messages: Messages;
 }
 
-export function UnfollowDialog({ confirmation, onCancel, onConfirm }: UnfollowDialogProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const isOpen = confirmation?.open ?? false;
-
-  useLayoutEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog || dialog.open === isOpen) return;
-
-    if (isOpen) dialog.showModal();
-    else dialog.close();
-  }, [isOpen]);
+export function UnfollowDialog({
+  confirmation,
+  onCancel,
+  onConfirm,
+  messages,
+}: UnfollowDialogProps) {
+  const dialogRef = useModalDialog(confirmation?.open ?? false);
 
   const user = confirmation?.user;
   const identifier = user && getProfileIdentifier(user);
@@ -33,7 +31,7 @@ export function UnfollowDialog({ confirmation, onCancel, onConfirm }: UnfollowDi
   return (
     <dialog
       ref={dialogRef}
-      className="unfollow-dialog"
+      className="app-dialog unfollow-dialog"
       aria-labelledby="unfollow-title"
       aria-describedby="unfollow-profile unfollow-description"
       onCancel={(event) => {
@@ -41,7 +39,7 @@ export function UnfollowDialog({ confirmation, onCancel, onConfirm }: UnfollowDi
         onCancel();
       }}
     >
-      <h2 id="unfollow-title">Отписаться от пользователя?</h2>
+      <h2 id="unfollow-title">{messages.unfollowTitle}</h2>
       {confirmation && user && (
         <>
           <div className="unfollow-dialog-profile" id="unfollow-profile">
@@ -52,16 +50,18 @@ export function UnfollowDialog({ confirmation, onCancel, onConfirm }: UnfollowDi
             </div>
           </div>
           <p id="unfollow-description">
-            Подписка с аккаунта <strong>@{confirmation.account}</strong> будет удалена.
+            {messages.unfollowDescription[0]}
+            <strong>@{confirmation.account}</strong>
+            {messages.unfollowDescription[1]}
           </p>
         </>
       )}
       <div className="unfollow-dialog-actions">
         <button type="button" onClick={onCancel}>
-          Отмена
+          {messages.cancel}
         </button>
         <button type="button" className="unfollow-dialog-confirm" onClick={onConfirm}>
-          Отписаться
+          {messages.unfollow}
         </button>
       </div>
     </dialog>

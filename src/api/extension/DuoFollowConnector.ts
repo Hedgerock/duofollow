@@ -2,12 +2,15 @@ import type {
   FollowingComparisonResult,
   UnfollowResult,
 } from '../../../extension/src/dto/DuolingoFollowingDto';
+import type { ConnectorStatus } from '../../../extension/src/dto/ConnectorSession';
 
 interface ConnectorResponse {
   success: boolean;
   message?: string;
   error?: string;
 }
+
+export type AccessChange = 'granted' | 'revoked' | 'disconnected';
 
 export class DuoFollowConnector {
   constructor(private readonly extensionId: string) {}
@@ -41,6 +44,66 @@ export class DuoFollowConnector {
     });
   }
 
+  async getConnectionStatus(): Promise<ConnectorStatus> {
+    try {
+      const response = await this.send<{ session?: unknown }>(
+        { type: 'GET_DUOLINGO_ACCESS' },
+        7_000,
+      );
+      const status = response.session;
+      if (
+        status === 'ready' ||
+        status === 'signed-out' ||
+        status === 'duolingo-unavailable' ||
+        status === 'consent-required'
+      ) {
+        return status;
+      }
+
+      return 'connector-outdated';
+    } catch {
+      return 'connector-unavailable';
+    }
+  }
+
+  async openDuolingoSettings(): Promise<void> {
+    const result = await this.send<ConnectorResponse>({ type: 'OPEN_DUOLINGO_SETTINGS' }, 7_000);
+    if (result.success !== true) throw new Error('Настройки Connector недоступны.');
+  }
+
+  watchAccessChanges(onChange: (change: AccessChange) => void): (() => void) | undefined {
+    const runtime = globalThis.chrome?.runtime;
+    if (!runtime?.connect || !this.extensionId) return;
+
+    try {
+      const port = runtime.connect(this.extensionId, { name: 'duofollow-access' });
+      let connected = true;
+      port.onMessage.addListener((message: unknown) => {
+        if (
+          message &&
+          typeof message === 'object' &&
+          'access' in message &&
+          (message.access === 'granted' || message.access === 'revoked')
+        ) {
+          onChange(message.access);
+        }
+      });
+      port.onDisconnect.addListener(() => {
+        void runtime.lastError;
+        if (!connected) return;
+        connected = false;
+        onChange('disconnected');
+      });
+      return () => {
+        if (!connected) return;
+        connected = false;
+        port.disconnect();
+      };
+    } catch {
+      // The regular status check also detects missing permissions.
+    }
+  }
+
   async getFollowingSummary(username: string): Promise<FollowingComparisonResult> {
     const result = await this.send<FollowingComparisonResult>(
       { type: 'GET_FOLLOWING_SUMMARY', username },
@@ -71,6 +134,7 @@ export class DuoFollowConnector {
 
   private async send<Result>(
     message:
+      | { type: 'GET_DUOLINGO_ACCESS' | 'OPEN_DUOLINGO_SETTINGS' }
       | { type: 'GET_FOLLOWING_SUMMARY'; username: string }
       | { type: 'UNFOLLOW'; username: string; targetUserId: number },
     timeoutMs: number,

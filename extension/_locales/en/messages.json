@@ -1,0 +1,50 @@
+{
+  "description": {
+    "message": "Find people who don’t follow you back on Duolingo and unfollow selected profiles after confirming."
+  },
+  "accessAction": {
+    "message": "Manage DuoFollow access"
+  },
+  "accessTitle": {
+    "message": "Duolingo access"
+  },
+  "accessSession": {
+    "message": "DuoFollow Connector uses the session cookie on www.duolingo.com to check the sign-in in your Chrome profile."
+  },
+  "accessData": {
+    "message": "To compare follows, the extension retrieves profiles, avatars, follows and followers from Duolingo. The results appear in your browser on DuoFollow. An unfollow request is sent to Duolingo after you confirm it."
+  },
+  "accessRecurring": {
+    "message": "While the DuoFollow site is open, it checks your sign-in status. When you return, it can repeat the last comparison for the username saved in your browser."
+  },
+  "privacyLink": {
+    "message": "Privacy Policy"
+  },
+  "accessChecking": {
+    "message": "Checking permissions…"
+  },
+  "accessGrant": {
+    "message": "Grant access"
+  },
+  "accessRevoke": {
+    "message": "Disconnect"
+  },
+  "accessGranted": {
+    "message": "Access granted."
+  },
+  "accessGrantedBack": {
+    "message": "Access granted. Return to the DuoFollow site."
+  },
+  "accessDisconnected": {
+    "message": "Access disconnected."
+  },
+  "accessDenied": {
+    "message": "Access was not granted."
+  },
+  "accessChangeError": {
+    "message": "Could not change access. Open these settings again."
+  },
+  "accessCheckError": {
+    "message": "Could not check permissions."
+  }
+}

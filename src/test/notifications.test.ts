@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { NotificationViewport, useNotifications } from '../notifications';
+import { translations } from '../i18n/messages';
 import { createRenderer, findElement, renderChild, runEvent } from './reactHarness';
 
 vi.mock('react', async (original) => ({
@@ -47,7 +48,11 @@ describe('notifications', () => {
     const queue = createRenderer();
     const state = () => queue.render(useNotifications);
     state().notify({ kind, title: 'Result' });
-    const viewport = NotificationViewport({ notifications: state().visible, dismiss });
+    const viewport = NotificationViewport({
+      notifications: state().visible,
+      dismiss,
+      messages: translations.ru.notifications,
+    });
     const toast = findElement(viewport, (element) => 'notification' in element.props);
     const card = createRenderer();
     const render = (strict = false) => card.render(() => renderChild(toast), { strict });

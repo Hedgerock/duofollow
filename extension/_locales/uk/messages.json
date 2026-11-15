@@ -1,0 +1,50 @@
+{
+  "description": {
+    "message": "Знаходить невзаємні підписки в Duolingo й дає змогу відписатися від вибраного профілю після підтвердження."
+  },
+  "accessAction": {
+    "message": "Налаштування доступу DuoFollow"
+  },
+  "accessTitle": {
+    "message": "Доступ до Duolingo"
+  },
+  "accessSession": {
+    "message": "DuoFollow Connector використовує файл cookie сеансу на www.duolingo.com, щоб перевірити вхід у твоєму профілі Chrome."
+  },
+  "accessData": {
+    "message": "Для порівняння розширення отримує профілі, аватари, підписки й підписників із Duolingo. Результати відображаються на сайті DuoFollow у браузері. Запит на відписку надсилається до Duolingo після окремого підтвердження."
+  },
+  "accessRecurring": {
+    "message": "Поки сайт DuoFollow відкрито, він перевіряє стан входу. Під час наступного відвідування сайт може повторити порівняння підписок для імені, збереженого в браузері."
+  },
+  "privacyLink": {
+    "message": "Політика конфіденційності"
+  },
+  "accessChecking": {
+    "message": "Перевіряємо дозволи…"
+  },
+  "accessGrant": {
+    "message": "Надати доступ"
+  },
+  "accessRevoke": {
+    "message": "Відключити доступ"
+  },
+  "accessGranted": {
+    "message": "Доступ надано."
+  },
+  "accessGrantedBack": {
+    "message": "Доступ надано. Повернися на сайт DuoFollow."
+  },
+  "accessDisconnected": {
+    "message": "Доступ відключено."
+  },
+  "accessDenied": {
+    "message": "Доступ не надано."
+  },
+  "accessChangeError": {
+    "message": "Не вдалося змінити доступ. Відкрий налаштування ще раз."
+  },
+  "accessCheckError": {
+    "message": "Не вдалося перевірити дозволи."
+  }
+}

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Політика конфіденційності — DuoFollow</title>
+    <link rel="icon" href="/duofollow.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../privacy.css" />
+  </head>
+  <body>
+    <div id="root">
+      <div class="policy-fallback">
+        <header>
+          <a href="../../">Повернутися до DuoFollow</a>
+          <nav>
+            <a href="../" lang="en" hreflang="en">English</a>
+            <a href="../ru/" lang="ru" hreflang="ru">Русский</a>
+            <a href="../uk/" lang="uk" hreflang="uk" aria-current="page">Українська</a>
+          </nav>
+        </header>
+        <main>
+          <h1>Політика конфіденційності</h1>
+          <p class="updated"><time datetime="2026-11-15">Оновлено 15 листопада 2026 року</time></p>
+          <p>
+            Політика поширюється на вебсайт DuoFollow і розширення DuoFollow Connector для Chrome.
+            DuoFollow — незалежний проєкт, який підтримує Dmitro Vasyliev.
+          </p>
+          <section>
+            <h2>Дані для роботи з Duolingo</h2>
+            <p>
+              Після надання доступу в налаштуваннях Connector розширення читає файл cookie сеансу на
+              www.duolingo.com, щоб визначити активний акаунт і перевірити вхід. Значення cookie
+              використовується в розширенні та браузером для автентифікованих запитів до Duolingo.
+              Сторінка DuoFollow отримує стан підключення.
+            </p>
+            <p>
+              Для порівняння Connector надсилає введене ім’я користувача до Duolingo. З відповідей
+              він використовує ідентифікатори акаунтів, імена користувачів, відображувані імена,
+              посилання на аватари й відомості про підписки. Порівняння відбувається в браузері.
+              Connector передає результати й потрібні для їх відображення відомості про профілі на
+              сторінку DuoFollow. Після підтвердження відписки Connector надсилає Duolingo
+              ідентифікатори акаунта та вибраного профілю, щоб видалити підписку.
+            </p>
+          </section>
+          <section>
+            <h2>Куди передаються дані</h2>
+            <p>
+              DuoFollow не має власного сервера для зберігання акаунтів або результатів. Duolingo
+              отримує HTTPS-запити, потрібні для вибраних дій. Браузер завантажує аватари
+              безпосередньо із серверів зображень за посиланнями з відповідей Duolingo. Ці сервери
+              отримують мережеві дані, зокрема IP-адресу.
+            </p>
+            <p>
+              Сайт DuoFollow розміщено на GitHub Pages. GitHub реєструє IP-адреси відвідувачів для
+              безпеки. DuoFollow використовує описані дані тільки для роботи своїх функцій. Ми не
+              продаємо ці дані й не використовуємо їх для реклами або рішень щодо
+              кредитоспроможності. Ми дотримуємося правил Chrome Web Store щодо даних користувачів,
+              включно з вимогами Limited Use.
+            </p>
+          </section>
+          <section>
+            <h2>Зберігання та керування доступом</h2>
+            <p>
+              Connector зберігає згоду в локальному сховищі розширення. Сайт зберігає в браузері
+              мову, тему й ім’я акаунта з останнього успішного порівняння. Під час наступного
+              відвідування за наявності доступу DuoFollow може повторити порівняння. Результати
+              зберігаються в пам’яті сторінки, а зображення можуть залишатися в кеші браузера.
+            </p>
+            <p>
+              Щоб припинити доступ, відкрий DuoFollow Connector і натисни «Відключити доступ».
+              Розширення відкликає дозволи, а сайт очищує результати й збережене ім’я, коли виявляє
+              зміну. Доступ також можна відкликати в налаштуваннях Chrome. Щоб видалити мову, тему й
+              збережене ім’я, очисть дані сайту DuoFollow у Chrome. Уже виконані зміни підписок
+              зберігаються в Duolingo.
+            </p>
+          </section>
+          <section>
+            <h2>Контакти</h2>
+            <p>
+              Запитання щодо конфіденційності й запити на доступ, виправлення або видалення даних
+              відповідно до застосовного законодавства можна надіслати на
+              <a href="mailto:devdmitrovasyliev@gmail.com">devdmitrovasyliev@gmail.com</a>. Якщо ти
+              звернешся до нас, ми використаємо адресу й відомості з листа для відповіді.
+            </p>
+          </section>
+          <section>
+            <h2>Політики інших сервісів</h2>
+            <ul>
+              <li><a href="https://www.duolingo.com/privacy">Політика Duolingo</a></li>
+              <li>
+                <a
+                  href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
+                  >Політика GitHub</a
+                >
+              </li>
+              <li>
+                <a href="https://developer.chrome.com/docs/webstore/program-policies/policies"
+                  >Правила Chrome Web Store щодо даних користувачів</a
+                >
+              </li>
+            </ul>
+          </section>
+        </main>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

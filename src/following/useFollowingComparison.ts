@@ -13,6 +13,8 @@ import type {
   NonMutualFollowingUser,
 } from '../../extension/src/dto/DuolingoFollowingDto';
 import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
+import type { Locale } from '../../extension/src/locales';
+import { localizedError, translations } from '../i18n/messages';
 import type { NotificationInput } from '../notifications';
 
 type ComparisonRequest = { kind: 'comparison'; username: string };
@@ -40,6 +42,11 @@ function saveUsername(username: string): void {
 export function useFollowingComparison(
   connector: Pick<DuoFollowConnector, 'getFollowingSummary'>,
   notify: (input: NotificationInput) => void,
+  {
+    enabled,
+    locale,
+    workspaceVisible,
+  }: { enabled: boolean; locale: Locale; workspaceVisible: boolean },
 ) {
   const [accountUsername, setAccountUsername] = useState(readSavedUsername);
   const [request, setRequest] = useState<ComparisonRequest | null>(() =>
@@ -53,6 +60,13 @@ export function useFollowingComparison(
     request: ComparisonRequest;
     result: Promise<FollowingComparisonResult>;
   } | null>(null);
+  const quietRequest = useRef<ComparisonRequest | null>(null);
+
+  useLayoutEffect(() => {
+    if (!workspaceVisible && pendingRequest.current) {
+      quietRequest.current = pendingRequest.current.request;
+    }
+  }, [workspaceVisible]);
 
   useLayoutEffect(() => {
     if (request === null && activity.current?.kind === 'comparison') activity.current = null;
@@ -60,15 +74,19 @@ export function useFollowingComparison(
 
   useEffect(() => {
     if (!request) return;
+    const messages = translations[locale];
+    const copy = messages.notifications;
 
     let active = true;
     let pending = pendingRequest.current;
     if (pending?.request !== request) {
+      if (!enabled) return;
+
       notify({
         group: 'comparison',
         kind: 'info',
-        title: 'Сравниваем подписки',
-        message: `Загружаем данные для ${request.username}.`,
+        title: copy.comparing,
+        message: copy.loadingAccount(request.username),
       });
       pending = { request, result: connector.getFollowingSummary(request.username) };
       pendingRequest.current = pending;
@@ -78,8 +96,8 @@ export function useFollowingComparison(
       notify({
         group: 'comparison',
         kind: 'error',
-        title: 'Не удалось сравнить подписки',
-        message,
+        title: copy.compareError,
+        message: localizedError(locale, message, copy.checkAccount),
       });
     }
 
@@ -105,32 +123,50 @@ export function useFollowingComparison(
         setComparison(data);
         setAccountUsername(data.accountUsername);
         setNonMutualQuery('');
+        if (quietRequest.current === request) return;
+
+        const { format } = new Intl.NumberFormat(locale);
         notify({
           group: 'comparison',
           kind: 'success',
-          title: 'Сравнение завершено',
-          message: `@${data.accountUsername} · проверено ${data.checkedFollowing} из ${data.totalFollowing} подписок.`,
+          title: copy.complete,
+          message: `@${data.accountUsername} · ${messages.checkedCount(format(data.checkedFollowing), format(data.totalFollowing))}`,
         });
       },
       (error: unknown) => {
         if (!finishRequest()) return;
-        reportError(error instanceof Error ? error.message : 'Не удалось связаться с расширением');
+        reportError(error instanceof Error ? error.message : '');
       },
     );
 
     return () => {
       active = false;
     };
-  }, [activity, connector, notify, request]);
+  }, [activity, connector, enabled, locale, notify, request]);
 
   function compareFollowing() {
     const username = accountUsername.trim();
-    if (!username || activity.current !== null) return;
+    if (!enabled || !username || activity.current !== null) return;
 
     const next: ComparisonRequest = { kind: 'comparison', username };
     activity.current = next;
     setRequest(next);
   }
+
+  const clearComparison = useCallback(() => {
+    if (activity.current?.kind === 'comparison') activity.current = null;
+    pendingRequest.current = null;
+    quietRequest.current = null;
+    setRequest(null);
+    setComparison(null);
+    setAccountUsername('');
+    setNonMutualQuery('');
+    try {
+      window.localStorage.removeItem(ACCOUNT_STORAGE_KEY);
+    } catch {
+      // Браузер может блокировать доступ к хранилищу.
+    }
+  }, []);
 
   const removeSubscription = useCallback((account: string, userId: number) => {
     setComparison((previous) => {
@@ -166,7 +202,8 @@ export function useFollowingComparison(
     accountUsername,
     setAccountUsername,
     compareFollowing,
-    isLoading: request !== null,
+    clearComparison,
+    isLoading: enabled && request !== null,
     comparison,
     activity,
     removeSubscription,

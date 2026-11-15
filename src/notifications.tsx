@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Messages } from './i18n/messages';
 
 type NotificationKind = 'info' | 'success' | 'error';
 
@@ -45,15 +46,23 @@ export function useNotifications() {
     setQueue((previous) => previous.filter((item) => item.id !== id));
   }, []);
 
-  return { visible: queue.slice(0, VISIBLE_LIMIT), notify, dismiss };
+  const clear = useCallback(() => setQueue([]), []);
+  const dismissGroup = useCallback((group: string, kinds: readonly NotificationKind[]) => {
+    setQueue((previous) =>
+      previous.filter((item) => item.group !== group || !kinds.includes(item.kind)),
+    );
+  }, []);
+
+  return { visible: queue.slice(0, VISIBLE_LIMIT), notify, dismiss, dismissGroup, clear };
 }
 
 interface ToastProps {
   notification: ToastNotification;
   dismiss: (id: number) => void;
+  messages: Messages['notifications'];
 }
 
-function Toast({ notification, dismiss }: ToastProps) {
+function Toast({ notification, dismiss, messages }: ToastProps) {
   const { id, kind, title, message } = notification;
   const { duration, icon } = appearance[kind];
   const remaining = useRef(duration);
@@ -95,7 +104,7 @@ function Toast({ notification, dismiss }: ToastProps) {
       <button
         type="button"
         className="toast-close"
-        aria-label={`Закрыть уведомление «${title}»`}
+        aria-label={messages.close(title)}
         onClick={() => dismiss(id)}
       >
         ×
@@ -116,19 +125,29 @@ function Toast({ notification, dismiss }: ToastProps) {
 interface NotificationViewportProps {
   notifications: ToastNotification[];
   dismiss: ToastProps['dismiss'];
+  messages: Messages['notifications'];
 }
 
-export function NotificationViewport({ notifications, dismiss }: NotificationViewportProps) {
+export function NotificationViewport({
+  notifications,
+  dismiss,
+  messages,
+}: NotificationViewportProps) {
   return (
     <ol
       className="toast-stack"
-      aria-label="Уведомления"
+      aria-label={messages.label}
       aria-live="polite"
       aria-relevant="additions"
       aria-atomic="false"
     >
       {notifications.map((notification) => (
-        <Toast key={notification.id} notification={notification} dismiss={dismiss} />
+        <Toast
+          key={notification.id}
+          notification={notification}
+          dismiss={dismiss}
+          messages={messages}
+        />
       ))}
     </ol>
   );

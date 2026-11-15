@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { NonMutualFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
+import type { Locale } from '../../extension/src/locales';
 import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
+import { localizedError, translations } from '../i18n/messages';
 import type { NotificationInput } from '../notifications';
 import type { FollowingActivity } from './useFollowingComparison';
 import { getProfileIdentifier } from './profiles';
@@ -16,18 +18,27 @@ interface UnfollowOptions {
   activity: FollowingActivity;
   account: string | undefined;
   connector: Pick<DuoFollowConnector, 'unfollow'>;
+  enabled: boolean;
   notify: (input: NotificationInput) => void;
   removeSubscription: (account: string, userId: number) => void;
+  locale: Locale;
 }
 
 export function useUnfollow({
   activity,
   account,
   connector,
+  enabled,
   notify,
   removeSubscription,
+  locale,
 }: UnfollowOptions) {
   const [action, setAction] = useState<UnfollowAction | null>(null);
+  const currentLocale = useRef(locale);
+
+  useLayoutEffect(() => {
+    currentLocale.current = locale;
+  }, [locale]);
 
   useEffect(
     () => () => {
@@ -38,13 +49,13 @@ export function useUnfollow({
 
   const askToUnfollow = useCallback(
     (user: NonMutualFollowingUser) => {
-      if (!account || activity.current !== null) return;
+      if (!enabled || !account || activity.current !== null) return;
 
       const next: UnfollowAction = { kind: 'unfollow', account, user, phase: 'confirming' };
       activity.current = next;
       setAction(next);
     },
-    [account, activity],
+    [account, activity, enabled],
   );
 
   const closeAction = useCallback(
@@ -56,12 +67,22 @@ export function useUnfollow({
     [activity],
   );
 
+  const clearUnfollow = useCallback(() => {
+    if (activity.current?.kind === 'unfollow') activity.current = null;
+    setAction(null);
+  }, [activity]);
+
+  useLayoutEffect(() => {
+    if (!enabled && action?.phase === 'confirming' && activity.current === action)
+      closeAction(action);
+  }, [action, activity, closeAction, enabled]);
+
   function cancelUnfollow() {
     if (action?.phase === 'confirming' && activity.current === action) closeAction(action);
   }
 
   async function confirmUnfollow() {
-    if (action?.phase !== 'confirming' || activity.current !== action) return;
+    if (!enabled || action?.phase !== 'confirming' || activity.current !== action) return;
 
     const pending: UnfollowAction = { ...action, phase: 'requesting' };
     activity.current = pending;
@@ -78,19 +99,28 @@ export function useUnfollow({
       activity.current = removing;
       setAction(removing);
       const identifier = getProfileIdentifier(user);
+      const messages = translations[currentLocale.current];
       const target = user.username
         ? identifier
-        : `${user.displayName || 'Пользователь'} (${identifier})`;
-      notify({ group, kind: 'success', title: 'Подписка удалена', message: target });
+        : `${user.displayName || messages.user} (${identifier})`;
+      notify({
+        group,
+        kind: 'success',
+        title: messages.notifications.unfollowDone,
+        message: target,
+      });
     } catch (error) {
       if (activity.current !== pending) return;
       closeAction(pending);
       const details = error instanceof Error ? error.message : '';
+      const copy = translations[currentLocale.current].notifications;
       notify({
         group,
         kind: 'error',
-        title: 'Не удалось подтвердить отписку',
-        message: [details, 'Сравни подписки перед повторной попыткой.'].filter(Boolean).join(' '),
+        title: copy.unfollowError,
+        message: [localizedError(currentLocale.current, details), copy.retryUnfollow]
+          .filter(Boolean)
+          .join(' '),
       });
     }
   }
@@ -107,13 +137,14 @@ export function useUnfollow({
     confirmation: action && {
       account: action.account,
       user: action.user,
-      open: action.phase === 'confirming',
+      open: enabled && action.phase === 'confirming',
     },
     unfollowingId:
       action?.phase === 'requesting' || action?.phase === 'removing' ? action.user.userId : null,
     removingId: removing?.user.userId ?? null,
     askToUnfollow,
     cancelUnfollow,
+    clearUnfollow,
     confirmUnfollow,
     finishUnfollow,
   };

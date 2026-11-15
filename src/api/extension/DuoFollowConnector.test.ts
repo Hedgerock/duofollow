@@ -49,6 +49,32 @@ describe('DuoFollowConnector', () => {
     );
   });
 
+  it('distinguishes a signed-out session, an older connector and a closed channel', async () => {
+    const sendMessage = stubRuntime({ session: 'signed-out' });
+    await expect(client.getConnectionStatus()).resolves.toBe('signed-out');
+    expect(sendMessage).toHaveBeenCalledWith(
+      'test-extension',
+      { type: 'GET_DUOLINGO_ACCESS' },
+      expect.any(Function),
+    );
+    stubRuntime({ success: false, error: 'Unsupported message' });
+    await expect(client.getConnectionStatus()).resolves.toBe('connector-outdated');
+    stubRuntime(undefined, { message: 'Receiving end does not exist' });
+    await expect(client.getConnectionStatus()).resolves.toBe('connector-unavailable');
+  });
+
+  it('reports missing consent and only opens access settings on request', async () => {
+    stubRuntime({ session: 'consent-required' });
+    await expect(client.getConnectionStatus()).resolves.toBe('consent-required');
+    const sendMessage = stubRuntime({ success: true });
+    await expect(client.openDuolingoSettings()).resolves.toBeUndefined();
+    expect(sendMessage).toHaveBeenCalledWith(
+      'test-extension',
+      { type: 'OPEN_DUOLINGO_SETTINGS' },
+      expect.any(Function),
+    );
+  });
+
   it('sends one target ID and requires the reply to confirm that same target', async () => {
     const result = { success: true, targetUserId: 202 };
     const sendMessage = stubRuntime(result);

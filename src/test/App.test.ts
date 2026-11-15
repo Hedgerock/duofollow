@@ -1,6 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import App from '../App';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Workspace } from '../App';
+import { ConnectionDialog } from '../ConnectionDialog';
+import { ThemeToggle } from '../ThemeToggle';
+import type { ConnectorStatus } from '../../extension/src/dto/ConnectorSession';
 import { ProfileAvatar } from '../ProfileAvatar';
+import type { AccessChange } from '../api/extension/DuoFollowConnector';
+import { useWorkspace } from '../following/useWorkspace';
+import { LanguageSelect, SiteHeader } from '../SiteLayout';
+import { useSitePreferences } from '../useSite';
 import { NotificationViewport } from '../notifications';
 import { UnfollowDialog } from '../UnfollowDialog';
 import { VirtualFollowingList } from '../VirtualFollowingList';
@@ -10,15 +17,23 @@ import type {
 } from '../../extension/src/dto/DuolingoFollowingDto';
 import { createRenderer, findElement, findElements, renderChild, runEvent } from './reactHarness';
 
-const { getFollowingSummary, unfollow } = vi.hoisted(() => ({
+const { getConnectionStatus, getFollowingSummary, unfollow } = vi.hoisted(() => ({
+  getConnectionStatus: vi.fn<() => Promise<ConnectorStatus>>(),
   getFollowingSummary: vi.fn<(username: string) => Promise<FollowingComparisonResult>>(),
   unfollow: vi.fn<(username: string, targetUserId: number) => Promise<UnfollowResult>>(),
 }));
+let onAccessChanged: (change: AccessChange) => void;
 
 vi.mock('../api/extension/DuoFollowConnector', () => ({
   DuoFollowConnector: class {
+    getConnectionStatus = getConnectionStatus;
     getFollowingSummary = getFollowingSummary;
     unfollow = unfollow;
+    openDuolingoSettings = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    watchAccessChanges(callback: (change: AccessChange) => void) {
+      onAccessChanged = callback;
+      return () => {};
+    }
   },
 }));
 
@@ -63,25 +78,63 @@ const flush = async () => {
   await Promise.resolve();
 };
 
-function mountApp(saved?: string, blockStorage = false) {
+function mountApp(saved?: string, blockStorage = false, browserLanguage = 'ru-RU') {
+  let workspaceVisible = true;
   const storage = {
-    getItem: vi.fn(() => {
+    getItem: vi.fn((key: string) => {
       if (blockStorage) throw new Error('Storage blocked');
-      return saved ?? null;
+      return key === 'duofollow.accountUsername' ? (saved ?? null) : null;
     }),
     setItem: vi.fn(() => {
       if (blockStorage) throw new Error('Storage blocked');
     }),
+    removeItem: vi.fn(),
   };
-  vi.stubGlobal('window', { localStorage: storage });
+  const windowEvents = new EventTarget();
+  const visibilityEvents = new EventTarget();
+  vi.stubGlobal('window', {
+    localStorage: storage,
+    navigator: { languages: [browserLanguage] },
+    setInterval: vi.fn(() => 1),
+    clearInterval: vi.fn(),
+    addEventListener: windowEvents.addEventListener.bind(windowEvents),
+    removeEventListener: windowEvents.removeEventListener.bind(windowEvents),
+  });
+  vi.stubGlobal('document', {
+    visibilityState: 'visible',
+    documentElement: { lang: '' },
+    addEventListener: visibilityEvents.addEventListener.bind(visibilityEvents),
+    removeEventListener: visibilityEvents.removeEventListener.bind(visibilityEvents),
+  });
   const renderer = createRenderer();
-  const render = (strict = false) => renderer.render(App, { strict });
+  const render = (strict = false) =>
+    renderer.render(
+      () => {
+        const site = useSitePreferences();
+        const workspace = useWorkspace(site.locale, workspaceVisible);
+        return Workspace({ site, workspace });
+      },
+      { strict },
+    );
   const notifications = () =>
     findElement(render(), (node) => node.type === NotificationViewport).props.notifications;
   return {
     renderer,
     render,
     storage,
+    async connect(strict = false) {
+      render(strict);
+      await flush();
+      render(strict);
+    },
+    focus: () => windowEvents.dispatchEvent(new Event('focus')),
+    setWorkspaceVisible(visible: boolean) {
+      workspaceVisible = visible;
+      render();
+    },
+    connectionDialog: () => findElement(render(), (node) => node.type === ConnectionDialog),
+    header: () => renderChild(findElement(render(), (node) => node.type === SiteHeader)),
+    workspace: () => findElement(render(), (node) => node.type === 'main'),
     notifications,
     input: () => findElement(render(), (node) => node.props.id === 'duolingo-username'),
     list: () => findElement(render(), (node) => node.type === VirtualFollowingList),
@@ -114,21 +167,337 @@ function visibleAccounts(tree: unknown) {
     .filter((value) => typeof value === 'string');
 }
 
+beforeEach(() => {
+  getConnectionStatus.mockResolvedValue('ready');
+});
+
 afterEach(() => {
+  getConnectionStatus.mockReset();
   getFollowingSummary.mockReset();
   unfollow.mockReset();
   vi.unstubAllGlobals();
 });
 
 describe('comparison screen', () => {
-  it('restores a saved account once through the StrictMode effect cycle', async () => {
+  it('defers the first connection check until the workspace is opened', async () => {
+    const app = mountApp();
+    app.setWorkspaceVisible(false);
+    app.focus();
+    await flush();
+    expect(getConnectionStatus).not.toHaveBeenCalled();
+
+    app.setWorkspaceVisible(true);
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the existing comparison and skips a connection check when leaving and returning', async () => {
     getFollowingSummary.mockResolvedValueOnce(success('Saved'));
     const app = mountApp('Saved');
-    app.render(true);
+    await app.connect();
+    await flush();
+    expect(app.notifications()).toMatchObject([{ group: 'comparison', kind: 'success' }]);
+    app.edit('Draft');
+    app.setWorkspaceVisible(false);
+    app.focus();
+    app.setWorkspaceVisible(true);
+    await flush();
+
+    expect(visibleAccounts(app.render()).join('')).toBe('@Saved');
+    expect(app.input().props.value).toBe('Draft');
+    expect(getFollowingSummary).toHaveBeenCalledExactlyOnceWith('Saved');
+    expect(getConnectionStatus).toHaveBeenCalledOnce();
+    expect(app.notifications()).toEqual([]);
+  });
+
+  it.each(['away', 'after returning'] as const)(
+    'uses a comparison finished %s without a success notification',
+    async (when) => {
+      let complete!: (result: FollowingComparisonResult) => void;
+      getFollowingSummary.mockReturnValueOnce(
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+      );
+      const app = mountApp('Saved');
+      await app.connect();
+      expect(app.notifications()).toMatchObject([{ group: 'comparison', kind: 'info' }]);
+
+      app.setWorkspaceVisible(false);
+      if (when === 'after returning') app.setWorkspaceVisible(true);
+      complete(success('Saved'));
+      await flush();
+      if (when === 'away') app.setWorkspaceVisible(true);
+
+      expect(visibleAccounts(app.render()).join('')).toBe('@Saved');
+      expect(getFollowingSummary).toHaveBeenCalledExactlyOnceWith('Saved');
+      expect(app.notifications()).toEqual([]);
+    },
+  );
+
+  it.each(['home', 'privacy'] as const)(
+    'rechecks a disconnected Connector from %s and ignores the previous response',
+    async (page) => {
+      const app = mountApp();
+      await app.connect();
+      expect(app.workspace().props.inert).toBe(false);
+
+      let finishPreviousCheck!: (status: ConnectorStatus) => void;
+      getConnectionStatus.mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishPreviousCheck = resolve;
+        }),
+      );
+      app.focus();
+      if (page === 'privacy') app.setWorkspaceVisible(false);
+
+      getConnectionStatus.mockResolvedValueOnce('connector-unavailable');
+      onAccessChanged('disconnected');
+
+      if (page === 'privacy') {
+        expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+        app.setWorkspaceVisible(true);
+      }
+
+      expect(getConnectionStatus).toHaveBeenCalledTimes(3);
+      await flush();
+      finishPreviousCheck('ready');
+      await flush();
+
+      expect(app.workspace().props.inert).toBe(true);
+      expect(app.connectionDialog().props.issue).toBe('connector-unavailable');
+      expect(getFollowingSummary).not.toHaveBeenCalled();
+    },
+  );
+
+  it('checks once on return after a grant, and clears results on revocation without a new request', async () => {
+    getConnectionStatus.mockResolvedValueOnce('consent-required');
+    const app = mountApp();
+    await app.connect();
+    app.setWorkspaceVisible(false);
+    onAccessChanged('granted');
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledOnce();
+    app.setWorkspaceVisible(true);
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+    expect(app.workspace().props.inert).toBe(false);
+
+    getFollowingSummary.mockResolvedValueOnce(success('Learner'));
+    app.edit('Learner');
+    app.submit();
+    await flush();
+    app.setWorkspaceVisible(false);
+    onAccessChanged('revoked');
+    app.setWorkspaceVisible(true);
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+    expect(getFollowingSummary).toHaveBeenCalledOnce();
+    expect(visibleAccounts(app.render())).toEqual([]);
+    expect(app.workspace().props.inert).toBe(true);
+    expect(app.storage.removeItem).toHaveBeenLastCalledWith('duofollow.accountUsername');
+  });
+
+  it('uses the browser language, saves changes and links to the localized public policy', async () => {
+    getConnectionStatus.mockResolvedValue('consent-required');
+    const app = mountApp(undefined, false, 'uk-UA');
+    await app.connect();
+    const languageSelect = () =>
+      findElement(
+        renderChild(findElement(app.header(), (node) => node.type === LanguageSelect)),
+        (node) => node.type === 'select',
+      );
+    expect(languageSelect().props.value).toBe('uk');
+    expect(document.documentElement.lang).toBe('uk');
+    expect(app.connectionDialog().props.privacyHref).toBe('/privacy/uk/');
+
+    runEvent(languageSelect(), 'onChange', { target: { value: 'en' } });
+    expect(languageSelect().props.value).toBe('en');
+    expect(document.documentElement.lang).toBe('en');
+    expect(app.connectionDialog().props.privacyHref).toBe('/privacy/');
+    expect(app.storage.setItem).toHaveBeenCalledWith('duofollow.language', 'en');
+    expect(getConnectionStatus).toHaveBeenCalledOnce();
+    expect(getFollowingSummary).not.toHaveBeenCalled();
+  });
+
+  it('blocks comparison before consent and clears saved and displayed data when access is revoked', async () => {
+    getConnectionStatus.mockResolvedValueOnce('consent-required');
+    getFollowingSummary.mockResolvedValueOnce(success('Learner'));
+    const app = mountApp('Saved');
+    await app.connect();
+    expect(app.connectionDialog().props).toMatchObject({ issue: 'consent-required', open: true });
+    expect(app.workspace().props.inert).toBe(true);
+    app.submit();
+    expect(getFollowingSummary).not.toHaveBeenCalled();
+
+    app.focus();
+    await flush();
+    app.edit('Learner');
+    app.submit();
+    await flush();
+    expect(visibleAccounts(app.render()).join('')).toBe('@Learner');
+
+    onAccessChanged('revoked');
+    expect(app.workspace().props.inert).toBe(true);
+    expect(visibleAccounts(app.render())).toEqual([]);
+    expect(app.input().props.value).toBe('');
+    expect(app.notifications()).toEqual([]);
+    expect(app.storage.removeItem).toHaveBeenCalledWith('duofollow.accountUsername');
+  });
+
+  it('discards an old status and comparison response after an access revocation', async () => {
+    let completeComparison!: (data: FollowingComparisonResult) => void;
+    let completeCheck!: (status: ConnectorStatus) => void;
+    getFollowingSummary.mockReturnValueOnce(
+      new Promise((resolve) => {
+        completeComparison = resolve;
+      }),
+    );
+    const app = mountApp('Saved');
+    await app.connect();
+    getConnectionStatus.mockReturnValueOnce(
+      new Promise((resolve) => {
+        completeCheck = resolve;
+      }),
+    );
+    app.focus();
+    onAccessChanged('revoked');
+    app.render();
+    completeComparison(success('Saved'));
+    completeCheck('ready');
+    await flush();
+    expect(app.connectionDialog().props.issue).toBe('consent-required');
+    expect(app.input().props.value).toBe('');
+    expect(app.storage.setItem).not.toHaveBeenCalled();
+  });
+
+  it('keeps the workspace locked after closing the warning and recovers automatically', async () => {
+    getConnectionStatus
+      .mockResolvedValueOnce('connector-unavailable')
+      .mockResolvedValueOnce('connector-unavailable')
+      .mockResolvedValueOnce('signed-out')
+      .mockResolvedValueOnce('ready');
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    const app = mountApp('Saved');
+    await app.connect();
+
+    expect(app.connectionDialog().props).toMatchObject({
+      issue: 'connector-unavailable',
+      open: true,
+    });
+    expect(app.workspace().props.inert).toBe(true);
+    runEvent(app.connectionDialog(), 'onClose');
+    expect(app.connectionDialog().props.open).toBe(false);
+    app.submit();
+    expect(getFollowingSummary).not.toHaveBeenCalled();
+
+    app.focus();
+    await flush();
+    expect(app.connectionDialog().props.open).toBe(false);
+    expect(app.workspace().props.inert).toBe(true);
+
+    app.focus();
+    await flush();
+    expect(app.connectionDialog().props).toMatchObject({ issue: 'signed-out', open: true });
+    runEvent(app.connectionDialog(), 'onRetry');
+    await flush();
+    expect(app.workspace().props.inert).toBe(false);
+    expect(getFollowingSummary).toHaveBeenCalledExactlyOnceWith('Saved');
+  });
+
+  it('opens install help and reports an unchanged status after retrying a pending check', async () => {
+    getConnectionStatus.mockResolvedValueOnce('connector-unavailable');
+    const app = mountApp();
+    await app.connect();
+    const dialogRenderer = createRenderer();
+    const renderDialog = () => {
+      const dialog = app.connectionDialog();
+      return dialogRenderer.render(() => renderChild(dialog));
+    };
+    const disclosure = () =>
+      findElement(renderDialog(), (node) => node.props.className === 'connection-disclosure');
+    const instructions = () =>
+      findElement(renderDialog(), (node) => node.props.id === 'connection-install-instructions');
+    const retry = () =>
+      findElement(
+        renderDialog(),
+        (node) => node.type === 'button' && node.props['aria-busy'] !== undefined,
+      );
+    const feedback = () => findElement(renderDialog(), (node) => node.props.role === 'status');
+
+    expect(disclosure().props['aria-expanded']).toBe(false);
+    expect(instructions().props['aria-hidden']).toBe(true);
+    runEvent(disclosure(), 'onClick');
+    expect(disclosure().props['aria-expanded']).toBe(true);
+    expect(instructions().props['aria-hidden']).toBe(false);
+
+    let finishCheck!: (status: ConnectorStatus) => void;
+    getConnectionStatus.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishCheck = resolve;
+      }),
+    );
+    app.focus();
+    runEvent(retry(), 'onClick');
+    expect(retry().props).toMatchObject({ 'aria-disabled': true, children: 'Проверяем…' });
+    runEvent(retry(), 'onClick');
+    expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+
+    finishCheck('connector-unavailable');
+    await flush();
+    expect(retry().props).toMatchObject({ 'aria-disabled': false, children: 'Проверить снова' });
+    expect(feedback().props.children).toBe('Подключение пока не восстановлено.');
+    expect(app.workspace().props.inert).toBe(true);
+  });
+
+  it('closes an open unfollow confirmation when connection is lost', async () => {
+    getConnectionStatus.mockResolvedValueOnce('ready').mockResolvedValueOnce('signed-out');
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    const app = mountApp('Saved');
+    await app.connect();
+    await flush();
+    const list = app.list();
+    runEvent(list, 'onUnfollow', (list.props.users as unknown[])[0]);
+    const confirmation = app.dialog();
+    expect(confirmation.props.confirmation).toMatchObject({ open: true });
+
+    app.focus();
+    await flush();
+    expect(app.dialog().props.confirmation).toMatchObject({ open: false });
+    runEvent(confirmation, 'onConfirm');
+    expect(unfollow).not.toHaveBeenCalled();
+    expect(app.connectionDialog().props).toMatchObject({ issue: 'signed-out', open: true });
+  });
+
+  it('switches and saves the color theme while the workspace is locked', async () => {
+    getConnectionStatus.mockResolvedValueOnce('signed-out');
+    const app = mountApp();
+    await app.connect();
+    const toggle = findElement(app.header(), (node) => node.type === ThemeToggle);
+    expect(toggle.props.theme).toBe('dark');
+    runEvent(toggle, 'onToggle');
+    expect(findElement(app.header(), (node) => node.type === ThemeToggle).props.theme).toBe(
+      'light',
+    );
+    expect(app.storage.setItem).toHaveBeenCalledWith('duofollow.theme', 'light');
+    expect(app.workspace().props.inert).toBe(true);
+  });
+
+  it('restores a saved account once through the StrictMode effect cycle', async () => {
+    let complete!: (result: FollowingComparisonResult) => void;
+    getFollowingSummary.mockReturnValueOnce(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    const app = mountApp('Saved');
+    await app.connect(true);
     expect(app.input().props.value).toBe('Saved');
+    expect(getConnectionStatus).toHaveBeenCalledTimes(1);
     expect(getFollowingSummary).toHaveBeenCalledExactlyOnceWith('Saved');
     expect(app.notifications()).toMatchObject([{ kind: 'info' }]);
     expect(findElement(app.render(), (node) => node.props['aria-busy'] === true)).toBeDefined();
+    complete(success('Saved'));
     await flush();
     expect(app.notifications()).toMatchObject([{ kind: 'success' }]);
     expect(app.storage.setItem).toHaveBeenCalledWith('duofollow.accountUsername', 'Saved');
@@ -141,6 +510,7 @@ describe('comparison screen', () => {
       .mockResolvedValueOnce({ success: false, error: 'HTTP 403' })
       .mockResolvedValueOnce(success('Second'));
     const app = mountApp();
+    await app.connect();
     app.submit();
     expect(getFollowingSummary).not.toHaveBeenCalled();
     app.edit('  First  ');
@@ -169,7 +539,7 @@ describe('comparison screen', () => {
     data.comparison.accountPicture = 'https://simg-ssl.duolingo.com/avatar/example/medium';
     getFollowingSummary.mockResolvedValueOnce(data);
     const app = mountApp('Saved');
-    app.render();
+    await app.connect();
     await flush();
     app.edit('Draft');
 
@@ -191,7 +561,7 @@ describe('comparison screen', () => {
       .mockRejectedValueOnce(new Error('Channel closed'))
       .mockResolvedValueOnce(success('Manual', true));
     const app = mountApp('Ignored', true);
-    app.render(true);
+    await app.connect(true);
     expect(getFollowingSummary).not.toHaveBeenCalled();
     app.edit('Manual');
     app.submit();
@@ -209,7 +579,7 @@ describe('comparison screen', () => {
   it('filters by case-insensitive display name or @username without requesting data again', async () => {
     getFollowingSummary.mockResolvedValueOnce(success('Saved'));
     const app = mountApp('Saved');
-    app.render();
+    await app.connect();
     await flush();
     for (const query of [' dEmO ', '@DEMO', 'unknown', '']) {
       const search = findElement(app.render(), (node) => node.props.type === 'search');
@@ -228,7 +598,7 @@ describe('comparison screen', () => {
       }),
     );
     const app = mountApp('Saved');
-    app.render();
+    await app.connect();
     app.renderer.unmount();
     resolve(success('Saved'));
     await flush();
@@ -236,8 +606,13 @@ describe('comparison screen', () => {
   });
 
   it('replays the skeleton on each submission and restores the previous list after an error', async () => {
+    let complete!: (result: FollowingComparisonResult) => void;
     getFollowingSummary
-      .mockResolvedValueOnce(success('Saved'))
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+      )
       .mockResolvedValueOnce({ success: false, error: 'HTTP 403' })
       .mockResolvedValueOnce(success('Saved'));
     const app = mountApp('Saved');
@@ -250,7 +625,7 @@ describe('comparison screen', () => {
       findElement(app.render(), (node) => node.props.className === 'comparison-content');
     const list = () => findElement(app.render(), (node) => node.type === VirtualFollowingList);
 
-    app.render();
+    await app.connect();
     expect(skeletons()).toHaveLength(1);
     expect(
       findElement(
@@ -258,6 +633,7 @@ describe('comparison screen', () => {
         (node) => node.props.className === 'comparison-skeleton',
       ).props.inert,
     ).toBe(true);
+    complete(success('Saved'));
     await flush();
     expect(skeletons()).toHaveLength(0);
     const previousUsers = list().props.users;
@@ -287,7 +663,7 @@ describe('comparison screen', () => {
       }),
     );
     const app = mountApp('Saved');
-    app.render();
+    await app.connect();
     await flush();
     app.edit('Next');
     const form = findElement(app.render(), (node) => node.type === 'form');
@@ -326,7 +702,7 @@ describe('comparison screen', () => {
     ];
     getFollowingSummary.mockResolvedValueOnce(data);
     const app = mountApp('Saved');
-    app.render();
+    await app.connect();
     await flush();
     app.edit('Draft');
     const list = app.list();
@@ -384,11 +760,8 @@ describe('comparison screen', () => {
     );
     expect(
       findElements(stats, (node) => node.type === 'strong').map((node) => node.props.children),
-    ).toEqual([2, 1, 1]);
-    expect(findElements(stats, (node) => node.type === 'small')[0].props.children).toEqual([
-      'из ',
-      9,
-    ]);
+    ).toEqual(['2', '1', '1']);
+    expect(findElements(stats, (node) => node.type === 'small')[0].props.children).toBe('из 9');
     expect(app.notifications()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'success', title: 'Подписка удалена' }),
@@ -402,7 +775,7 @@ describe('comparison screen', () => {
       .mockResolvedValueOnce({ success: false, error: 'HTTP 403' })
       .mockRejectedValueOnce(new Error('Connector response timed out'));
     const app = mountApp('Saved');
-    app.render();
+    await app.connect();
     await flush();
     const users = app.list().props.users as unknown[];
     for (const reason of ['HTTP 403', 'Connector response timed out']) {
