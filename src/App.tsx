@@ -1,136 +1,46 @@
-import { DuoFollowConnector } from './api/extension/DuoFollowConnector.ts';
-import type {
-  FollowingComparison,
-  FollowingComparisonResult,
-} from '../extension/src/dto/DuolingoFollowingDto';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { DuoFollowConnector } from './api/extension/DuoFollowConnector';
+import { ComparisonSkeleton } from './following/ComparisonSkeleton';
+import { getDuolingoProfileUrl } from './following/profiles';
+import { useFollowingComparison } from './following/useFollowingComparison';
+import { useUnfollow } from './following/useUnfollow';
 import { NotificationViewport, useNotifications } from './notifications';
+import { ProfileAvatar } from './ProfileAvatar';
+import { UnfollowDialog } from './UnfollowDialog';
 import { VirtualFollowingList } from './VirtualFollowingList';
 
-type ComparisonRequest = { username: string };
-
-const ACCOUNT_STORAGE_KEY = 'duofollow.accountUsername';
 const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSION_ID);
 
-function readSavedUsername(): string {
-  try {
-    return window.localStorage.getItem(ACCOUNT_STORAGE_KEY)?.trim() ?? '';
-  } catch {
-    return '';
-  }
-}
-
-function saveUsername(username: string): void {
-  try {
-    window.localStorage.setItem(ACCOUNT_STORAGE_KEY, username);
-  } catch {
-    // Браузер может блокировать доступ к хранилищу.
-  }
-}
-
 export default function App() {
-  const [accountUsername, setAccountUsername] = useState(readSavedUsername);
-  const [request, setRequest] = useState<ComparisonRequest | null>(() =>
-    accountUsername ? { username: accountUsername } : null,
-  );
-  const [isLoading, setIsLoading] = useState(request !== null);
-  const [comparison, setComparison] = useState<FollowingComparison | null>(null);
-  const [nonMutualQuery, setNonMutualQuery] = useState('');
-  const pendingRequest = useRef<{
-    request: ComparisonRequest;
-    result: Promise<FollowingComparisonResult>;
-  } | null>(null);
   const { visible: notifications, notify, dismiss } = useNotifications();
-
-  useEffect(() => {
-    if (!request) return;
-
-    let active = true;
-    const pending = pendingRequest.current;
-    if (pending?.request !== request) {
-      notify({
-        group: 'comparison',
-        kind: 'info',
-        title: 'Сравниваем подписки',
-        message: `Загружаем данные для ${request.username}.`,
-      });
-    }
-    const result =
-      pending?.request === request
-        ? pending.result
-        : connector.getFollowingSummary(request.username);
-
-    pendingRequest.current = { request, result };
-
-    void result.then(
-      (response) => {
-        if (!active) return;
-
-        pendingRequest.current = null;
-        setIsLoading(false);
-
-        if (!response.success) {
-          notify({
-            group: 'comparison',
-            kind: 'error',
-            title: 'Не удалось сравнить подписки',
-            message: response.error,
-          });
-          return;
-        }
-
-        const data = response.comparison;
-        saveUsername(data.accountUsername);
-        setComparison(data);
-        setAccountUsername(data.accountUsername);
-        setNonMutualQuery('');
-        notify({
-          group: 'comparison',
-          kind: 'success',
-          title: 'Сравнение завершено',
-          message: `@${data.accountUsername} · проверено ${data.checkedFollowing} из ${data.totalFollowing} подписок.`,
-        });
-      },
-      (error: unknown) => {
-        if (!active) return;
-
-        pendingRequest.current = null;
-        setIsLoading(false);
-        notify({
-          group: 'comparison',
-          kind: 'error',
-          title: 'Не удалось сравнить подписки',
-          message: error instanceof Error ? error.message : 'Не удалось связаться с расширением',
-        });
-      },
-    );
-
-    return () => {
-      active = false;
-    };
-  }, [notify, request]);
-
-  function compareFollowing() {
-    const username = accountUsername.trim();
-    if (!username || isLoading) return;
-
-    setIsLoading(true);
-    setRequest({ username });
-  }
-
+  const {
+    activity,
+    accountUsername,
+    setAccountUsername,
+    compareFollowing,
+    isLoading,
+    comparison,
+    removeSubscription,
+    nonMutualQuery,
+    setNonMutualQuery,
+    searchTerm,
+    visibleNonMutual,
+  } = useFollowingComparison(connector, notify);
+  const {
+    confirmation,
+    askToUnfollow,
+    cancelUnfollow,
+    confirmUnfollow,
+    finishUnfollow,
+    unfollowingId,
+    removingId,
+  } = useUnfollow({
+    activity,
+    account: comparison?.accountUsername,
+    connector,
+    notify,
+    removeSubscription,
+  });
   const nonMutualFollowing = comparison?.nonMutualFollowing;
-  const searchTerm = nonMutualQuery.trim().replace(/^@/, '').toLowerCase();
-  const visibleNonMutual = useMemo(() => {
-    const users = nonMutualFollowing ?? [];
-
-    return searchTerm
-      ? users.filter(
-          ({ displayName, username }) =>
-            displayName.toLowerCase().includes(searchTerm) ||
-            username.toLowerCase().includes(searchTerm),
-        )
-      : users;
-  }, [nonMutualFollowing, searchTerm]);
 
   return (
     <div className="page">
@@ -141,6 +51,26 @@ export default function App() {
             DuoFollow <small>Subscription Manager</small>
           </span>
         </div>
+        {comparison && (
+          <a
+            className="topbar-profile"
+            href={getDuolingoProfileUrl(comparison.accountUsername)}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`Результат для @${comparison.accountUsername}. Открыть профиль в Duolingo в новой вкладке`}
+          >
+            <ProfileAvatar name={comparison.accountUsername} picture={comparison.accountPicture} />
+            <div className="topbar-profile-text">
+              <small>Результат для</small>
+              <strong title={`@${comparison.accountUsername}`}>
+                @{comparison.accountUsername}
+              </strong>
+            </div>
+            <span className="topbar-profile-arrow" aria-hidden="true">
+              ↗
+            </span>
+          </a>
+        )}
       </header>
       <main>
         <section className="hero">
@@ -172,12 +102,13 @@ export default function App() {
               disabled={isLoading}
               onChange={(event) => setAccountUsername(event.target.value)}
             />
-            <button type="submit" disabled={!accountUsername.trim() || isLoading}>
+            <button
+              type="submit"
+              disabled={!accountUsername.trim() || isLoading || unfollowingId !== null}
+            >
               {isLoading ? 'Сравниваем…' : 'Сравнить мои подписки'}
             </button>
           </form>
-
-          {comparison && <p>Результат для @{comparison.accountUsername}</p>}
         </section>
         <div className="comparison-results" aria-busy={isLoading}>
           {isLoading && <ComparisonSkeleton />}
@@ -245,6 +176,10 @@ export default function App() {
                   key={comparison.accountUsername}
                   users={visibleNonMutual}
                   filterKey={searchTerm}
+                  unfollowingId={unfollowingId}
+                  removingId={removingId}
+                  onUnfollow={askToUnfollow}
+                  onRemovalComplete={finishUnfollow}
                   emptyMessage={
                     searchTerm
                       ? 'По этому запросу никого не найдено.'
@@ -257,47 +192,12 @@ export default function App() {
         </div>
         <footer>Неофициальный проект. Не связан с Duolingo.</footer>
       </main>
+      <UnfollowDialog
+        confirmation={confirmation}
+        onCancel={cancelUnfollow}
+        onConfirm={() => void confirmUnfollow()}
+      />
       <NotificationViewport notifications={notifications} dismiss={dismiss} />
-    </div>
-  );
-}
-
-function ComparisonSkeleton() {
-  return (
-    <div className="comparison-skeleton" aria-hidden="true" inert>
-      <div className="stats">
-        {[0, 1, 2].map((index) => (
-          <article key={index}>
-            <span className="skeleton-bar skeleton-label" />
-            <span className="skeleton-bar skeleton-value" />
-            <span className="skeleton-bar skeleton-caption" />
-          </article>
-        ))}
-      </div>
-
-      <div className="panel live-following">
-        <div className="panel-heading">
-          <div className="skeleton-heading">
-            <span className="skeleton-bar skeleton-title" />
-            <span className="skeleton-bar skeleton-caption" />
-          </div>
-        </div>
-
-        <div className="toolbar">
-          <span className="skeleton-bar skeleton-search" />
-        </div>
-
-        <ul className="users live-following-list virtual-following">
-          {[0, 1, 2, 3, 4, 5, 6].map((index) => (
-            <li className="user" key={index}>
-              <div className="user-info">
-                <span className="skeleton-bar skeleton-label" />
-                <span className="skeleton-bar skeleton-caption" />
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
 }

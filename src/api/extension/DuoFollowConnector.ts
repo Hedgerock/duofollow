@@ -1,4 +1,7 @@
-import type { FollowingComparisonResult } from '../../../extension/src/dto/DuolingoFollowingDto';
+import type {
+  FollowingComparisonResult,
+  UnfollowResult,
+} from '../../../extension/src/dto/DuolingoFollowingDto';
 
 interface ConnectorResponse {
   success: boolean;
@@ -39,6 +42,39 @@ export class DuoFollowConnector {
   }
 
   async getFollowingSummary(username: string): Promise<FollowingComparisonResult> {
+    const result = await this.send<FollowingComparisonResult>(
+      { type: 'GET_FOLLOWING_SUMMARY', username },
+      30_000,
+    );
+    if (
+      result.success &&
+      (!result.comparison?.accountUsername || result.comparison.nonMutualFollowing === undefined)
+    ) {
+      throw new Error('Outdated connector response. Reload the extension.');
+    }
+    return result;
+  }
+
+  async unfollow(username: string, targetUserId: number): Promise<UnfollowResult> {
+    const result = await this.send<UnfollowResult>(
+      { type: 'UNFOLLOW', username, targetUserId },
+      45_000,
+    );
+    if (result.success === false && typeof result.error === 'string') return result;
+
+    if (result.success !== true || result.targetUserId !== targetUserId) {
+      throw new Error('Расширение вернуло неожиданный ответ.');
+    }
+
+    return result;
+  }
+
+  private async send<Result>(
+    message:
+      | { type: 'GET_FOLLOWING_SUMMARY'; username: string }
+      | { type: 'UNFOLLOW'; username: string; targetUserId: number },
+    timeoutMs: number,
+  ): Promise<Result> {
     const runtime = globalThis.chrome?.runtime;
 
     if (!runtime?.sendMessage) {
@@ -52,34 +88,21 @@ export class DuoFollowConnector {
     let timeout: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      const response = new Promise<FollowingComparisonResult>((resolve, reject) => {
-        runtime.sendMessage(
-          this.extensionId,
-          { type: 'GET_FOLLOWING_SUMMARY', username },
-          (result: FollowingComparisonResult | undefined) => {
-            const error = runtime.lastError;
+      const response = new Promise<Result>((resolve, reject) => {
+        runtime.sendMessage(this.extensionId, message, (result: Result | undefined) => {
+          const error = runtime.lastError;
 
-            if (error || !result) {
-              reject(new Error(error?.message ?? 'Empty connector response'));
-              return;
-            }
+          if (error || !result) {
+            reject(new Error(error?.message ?? 'Empty connector response'));
+            return;
+          }
 
-            if (
-              result.success &&
-              (!result.comparison?.accountUsername ||
-                result.comparison.nonMutualFollowing === undefined)
-            ) {
-              reject(new Error('Outdated connector response. Reload the extension.'));
-              return;
-            }
-
-            resolve(result);
-          },
-        );
+          resolve(result);
+        });
       });
 
       const deadline = new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('Connector response timed out')), 30_000);
+        timeout = setTimeout(() => reject(new Error('Connector response timed out')), timeoutMs);
       });
 
       return await Promise.race([response, deadline]);

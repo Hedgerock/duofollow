@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 type NotificationKind = 'info' | 'success' | 'error';
 
-interface NotificationInput {
+export interface NotificationInput {
   kind: NotificationKind;
   title: string;
   message?: string;

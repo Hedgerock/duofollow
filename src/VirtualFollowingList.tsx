@@ -1,108 +1,122 @@
-import { memo, useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { memo } from 'react';
 import type { NonMutualFollowingUser } from '../extension/src/dto/DuolingoFollowingDto';
-
-const ROW_HEIGHT = 68;
-const OVERSCAN = 4;
+import { getDuolingoProfileUrl, getProfileIdentifier } from './following/profiles';
+import {
+  FOLLOWING_ROW_HEIGHT,
+  useFollowingRemovalAnimation,
+  useFollowingViewport,
+} from './following/useFollowingViewport';
+import { ProfileAvatar } from './ProfileAvatar';
 
 interface ListProps {
   users: NonMutualFollowingUser[];
   filterKey: string;
   emptyMessage: string;
+  unfollowingId: number | null;
+  removingId: number | null;
+  onUnfollow: (user: NonMutualFollowingUser) => void;
+  onRemovalComplete: () => void;
 }
 
 interface RowProps {
   user: NonMutualFollowingUser;
   index: number;
   total: number;
-  onFocusedIndexChange: (index: number | null) => void;
+  unfollowingId: number | null;
+  onUnfollow: ListProps['onUnfollow'];
+  onFocusedUserChange: (userId: number | null) => void;
 }
 
 const FollowingRow = memo(function FollowingRow({
-  user: { userId, displayName, username },
+  user,
   index,
   total,
-  onFocusedIndexChange,
+  unfollowingId,
+  onUnfollow,
+  onFocusedUserChange,
 }: RowProps) {
+  const { userId, displayName, username } = user;
   const name = displayName || username || `Пользователь ${userId}`;
-  const identifier = username ? `@${username}` : `ID ${userId}`;
+  const identifier = getProfileIdentifier(user);
+  const isUnfollowing = unfollowingId === userId;
 
   return (
     <li
       className="user virtual-following-row"
-      style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
+      data-following-id={userId}
+      style={{ top: index * FOLLOWING_ROW_HEIGHT, height: FOLLOWING_ROW_HEIGHT }}
       aria-posinset={index + 1}
       aria-setsize={total}
-      onFocus={() => onFocusedIndexChange(index)}
+      onFocus={() => onFocusedUserChange(userId)}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) {
-          onFocusedIndexChange(null);
+          onFocusedUserChange(null);
         }
       }}
     >
       {username && (
         <a
           className="profile-card-link"
-          href={`https://www.duolingo.com/profile/${encodeURIComponent(username)}`}
+          href={getDuolingoProfileUrl(username)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Открыть профиль ${name} (${identifier}) в новой вкладке`}
         />
       )}
+      <ProfileAvatar name={displayName || username} picture={user.picture} lazy />
       <div className="user-info profile-card-text">
         <strong title={name}>{name}</strong>
         <span title={identifier}>{identifier}</span>
       </div>
+      <button
+        type="button"
+        className="profile-card-unfollow"
+        aria-label={`${isUnfollowing ? 'Отписываемся от' : 'Отписаться от'} ${name} (${identifier})`}
+        aria-busy={isUnfollowing || undefined}
+        aria-disabled={unfollowingId !== null}
+        data-tooltip={isUnfollowing ? 'Отписываемся…' : 'Отписаться'}
+        onClick={() => {
+          if (unfollowingId === null) onUnfollow(user);
+        }}
+      >
+        {isUnfollowing ? (
+          <span className="unfollow-spinner" aria-hidden="true" />
+        ) : (
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.65"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="9" cy="8" r="3.25" />
+            <path d="M2.5 20v-1a4.75 4.75 0 0 1 4.75-4.75h3.5A4.75 4.75 0 0 1 15.5 19v1M16.5 9H22" />
+          </svg>
+        )}
+      </button>
     </li>
   );
 });
 
-export function VirtualFollowingList({ users, filterKey, emptyMessage }: ListProps) {
-  const viewportRef = useRef<HTMLUListElement>(null);
-  const [range, setRange] = useState({ start: 0, end: 0 });
-  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+export const VirtualFollowingList = memo(function VirtualFollowingList({
+  users,
+  filterKey,
+  emptyMessage,
+  unfollowingId,
+  removingId,
+  onUnfollow,
+  onRemovalComplete,
+}: ListProps) {
   const total = users.length;
-
-  const updateRange = useCallback(
-    (viewport: HTMLUListElement) => {
-      const height = viewport.clientHeight;
-      const maxScrollTop = Math.max(0, total * ROW_HEIGHT - height);
-      const top = Math.max(0, Math.min(viewport.scrollTop, maxScrollTop));
-      const start = Math.max(0, Math.floor(top / ROW_HEIGHT) - OVERSCAN);
-      const end = Math.min(total, Math.ceil((top + height) / ROW_HEIGHT) + OVERSCAN);
-
-      setRange((previous) =>
-        previous.start === start && previous.end === end ? previous : { start, end },
-      );
-    },
-    [total],
+  const { viewportRef, indices, updateRange, setFocusedUserId } = useFollowingViewport(
+    users,
+    filterKey,
   );
-
-  useLayoutEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return;
-
-    viewport.scrollTop = 0;
-    updateRange(viewport);
-
-    const observer = new ResizeObserver(() => updateRange(viewport));
-    observer.observe(viewport);
-    return () => observer.disconnect();
-  }, [filterKey, updateRange]);
-
-  const end = Math.min(range.end, total);
-  const indices = Array.from(
-    { length: Math.max(0, end - range.start) },
-    (_, offset) => range.start + offset,
-  );
-
-  if (
-    focusedIndex !== null &&
-    focusedIndex < total &&
-    (focusedIndex < range.start || focusedIndex >= end)
-  ) {
-    indices.push(focusedIndex);
-    indices.sort((left, right) => left - right);
-  }
+  useFollowingRemovalAnimation(viewportRef, removingId, onRemovalComplete);
 
   return (
     <ul
@@ -117,18 +131,20 @@ export function VirtualFollowingList({ users, filterKey, emptyMessage }: ListPro
         <li className="empty">{emptyMessage}</li>
       ) : (
         <>
-          <li aria-hidden="true" style={{ height: total * ROW_HEIGHT }} />
+          <li aria-hidden="true" style={{ height: total * FOLLOWING_ROW_HEIGHT }} />
           {indices.map((index) => (
             <FollowingRow
               key={users[index].userId}
               user={users[index]}
               index={index}
               total={total}
-              onFocusedIndexChange={setFocusedIndex}
+              unfollowingId={unfollowingId}
+              onUnfollow={onUnfollow}
+              onFocusedUserChange={setFocusedUserId}
             />
           ))}
         </>
       )}
     </ul>
   );
-}
+});

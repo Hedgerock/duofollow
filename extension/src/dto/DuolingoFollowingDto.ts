@@ -40,7 +40,7 @@ export interface DuolingoFollowingPageDto {
 export type NonMutualFollowingUser = Pick<
   DuolingoFollowingUserDto,
   'userId' | 'username' | 'displayName'
->;
+> & { picture?: string | null };
 
 export interface FollowingComparison {
   checkedFollowing: number;
@@ -51,8 +51,12 @@ export interface FollowingComparison {
   nonMutualUsers: number | null;
   nonMutualFollowing: NonMutualFollowingUser[] | null;
   accountUsername: string;
+  accountPicture?: string | null;
 }
 
 export type FollowingComparisonResult =
   | (FollowingPaginationDiagnostics & { comparison: FollowingComparison })
   | { success: false; error: string };
+
+export type UnfollowResult =
+  { success: true; targetUserId: number } | { success: false; error: string };

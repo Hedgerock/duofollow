@@ -1,17 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import App from '../App';
+import { ProfileAvatar } from '../ProfileAvatar';
 import { NotificationViewport } from '../notifications';
+import { UnfollowDialog } from '../UnfollowDialog';
 import { VirtualFollowingList } from '../VirtualFollowingList';
-import type { FollowingComparisonResult } from '../../extension/src/dto/DuolingoFollowingDto';
+import type {
+  FollowingComparisonResult,
+  UnfollowResult,
+} from '../../extension/src/dto/DuolingoFollowingDto';
 import { createRenderer, findElement, findElements, renderChild, runEvent } from './reactHarness';
 
-const { getFollowingSummary } = vi.hoisted(() => ({
+const { getFollowingSummary, unfollow } = vi.hoisted(() => ({
   getFollowingSummary: vi.fn<(username: string) => Promise<FollowingComparisonResult>>(),
+  unfollow: vi.fn<(username: string, targetUserId: number) => Promise<UnfollowResult>>(),
 }));
 
 vi.mock('../api/extension/DuoFollowConnector', () => ({
   DuoFollowConnector: class {
     getFollowingSummary = getFollowingSummary;
+    unfollow = unfollow;
   },
 }));
 
@@ -77,6 +84,8 @@ function mountApp(saved?: string, blockStorage = false) {
     storage,
     notifications,
     input: () => findElement(render(), (node) => node.props.id === 'duolingo-username'),
+    list: () => findElement(render(), (node) => node.type === VirtualFollowingList),
+    dialog: () => findElement(render(), (node) => node.type === UnfollowDialog),
     edit(value: string) {
       runEvent(
         findElement(render(), (node) => node.props.id === 'duolingo-username'),
@@ -96,7 +105,10 @@ function mountApp(saved?: string, blockStorage = false) {
 }
 
 function visibleAccounts(tree: unknown) {
-  return findElements(tree, (node) => node.type === 'p')
+  return findElements(
+    tree,
+    (node) => node.type === 'strong' && typeof node.props.title === 'string',
+  )
     .map((node) => node.props.children)
     .flat()
     .filter((value) => typeof value === 'string');
@@ -104,6 +116,7 @@ function visibleAccounts(tree: unknown) {
 
 afterEach(() => {
   getFollowingSummary.mockReset();
+  unfollow.mockReset();
   vi.unstubAllGlobals();
 });
 
@@ -148,6 +161,29 @@ describe('comparison screen', () => {
     await flush();
     expect(visibleAccounts(app.render())).toContain('Second');
     expect(app.storage.setItem).toHaveBeenLastCalledWith('duofollow.accountUsername', 'Second');
+  });
+
+  it('links the compared profile in the header and shows its picture', async () => {
+    const data = success('Saved');
+    if (!data.success) throw new Error('Expected a successful comparison fixture');
+    data.comparison.accountPicture = 'https://simg-ssl.duolingo.com/avatar/example/medium';
+    getFollowingSummary.mockResolvedValueOnce(data);
+    const app = mountApp('Saved');
+    app.render();
+    await flush();
+    app.edit('Draft');
+
+    const link = findElement(app.render(), (node) => node.props.className === 'topbar-profile');
+    expect(link.type).toBe('a');
+    expect(link.props).toMatchObject({
+      href: 'https://www.duolingo.com/profile/Saved',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    });
+    expect(findElement(link, (node) => node.type === ProfileAvatar).props).toMatchObject({
+      name: 'Saved',
+      picture: data.comparison.accountPicture,
+    });
   });
 
   it('reports messaging rejection and still works when browser storage is unavailable', async () => {
@@ -240,5 +276,145 @@ describe('comparison screen', () => {
     await flush();
     expect(skeletons()).toHaveLength(0);
     expect(list().props.users).not.toBe(previousUsers);
+  });
+
+  it('blocks stale handlers while the new comparison is pending and until its result is committed', async () => {
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    let complete!: (result: FollowingComparisonResult) => void;
+    getFollowingSummary.mockReturnValueOnce(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    const app = mountApp('Saved');
+    app.render();
+    await flush();
+    app.edit('Next');
+    const form = findElement(app.render(), (node) => node.type === 'form');
+    const list = app.list();
+    const [user] = list.props.users as unknown[];
+    const submit = () => runEvent(form, 'onSubmit', { preventDefault: vi.fn() });
+    submit();
+    app.render();
+
+    submit();
+    runEvent(list, 'onUnfollow', user);
+    expect(app.dialog().props.confirmation).toBeNull();
+    expect(getFollowingSummary).toHaveBeenCalledTimes(2);
+
+    complete(success('Next'));
+    await flush();
+    runEvent(list, 'onUnfollow', user);
+    expect(app.dialog().props.confirmation).toBeNull();
+    const nextList = app.list();
+    runEvent(nextList, 'onUnfollow', (nextList.props.users as unknown[])[0]);
+    expect(app.dialog().props.confirmation).toMatchObject({ account: 'Next', open: true });
+  });
+
+  it('confirms the displayed account and removes the card only after success and animation', async () => {
+    const data = success('Saved');
+    if (!data.success) throw new Error('Expected a successful comparison fixture');
+    const picture = 'https://simg-ssl.duolingo.com/avatar/demo/medium';
+    const other = { userId: 2, username: 'other', displayName: 'Other' };
+    data.comparison.checkedFollowing = 3;
+    data.comparison.totalFollowing = 10;
+    data.comparison.mutualUsers = 1;
+    data.comparison.nonMutualUsers = 2;
+    data.comparison.nonMutualFollowing = [
+      { userId: 1, username: 'demo', displayName: 'Demo', picture },
+      other,
+    ];
+    getFollowingSummary.mockResolvedValueOnce(data);
+    const app = mountApp('Saved');
+    app.render();
+    await flush();
+    app.edit('Draft');
+    const list = app.list();
+    const users = list.props.users as (typeof other)[];
+    runEvent(list, 'onUnfollow', users[0]);
+    expect(app.list().props.onRemovalComplete).toBe(list.props.onRemovalComplete);
+    expect(app.dialog().props.confirmation).toMatchObject({
+      account: 'Saved',
+      user: { username: 'demo' },
+      open: true,
+    });
+    const confirmationView = app.dialog();
+    const dialogTree = createRenderer().render(() => renderChild(confirmationView));
+    const target = findElement(dialogTree, (node) => node.props.id === 'unfollow-profile');
+    expect(findElement(target, (node) => node.type === ProfileAvatar).props).toMatchObject({
+      name: 'Demo',
+      picture,
+    });
+    expect(findElement(target, (node) => node.type === 'strong').props.children).toBe('Demo');
+    expect(findElement(target, (node) => node.props.children === '@demo')).toBeDefined();
+    expect(unfollow).not.toHaveBeenCalled();
+    runEvent(app.dialog(), 'onCancel');
+    expect(app.list().props.onRemovalComplete).toBe(list.props.onRemovalComplete);
+    runEvent(confirmationView, 'onConfirm');
+    expect(app.dialog().props.confirmation).toMatchObject({ open: false });
+    expect(unfollow).not.toHaveBeenCalled();
+
+    let complete!: (result: UnfollowResult) => void;
+    unfollow.mockReturnValueOnce(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
+    runEvent(list, 'onUnfollow', users[0]);
+    const dialog = app.dialog();
+    runEvent(dialog, 'onConfirm');
+    runEvent(dialog, 'onConfirm');
+    runEvent(list, 'onUnfollow', other);
+    app.submit();
+    expect(unfollow).toHaveBeenCalledExactlyOnceWith('Saved', 1);
+    expect(getFollowingSummary).toHaveBeenCalledTimes(1);
+    expect(app.list().props).toMatchObject({ users, unfollowingId: 1, removingId: null });
+
+    complete({ success: true, targetUserId: 1 });
+    await flush();
+    expect(app.list().props).toMatchObject({ users, unfollowingId: 1, removingId: 1 });
+    const removingList = app.list();
+    runEvent(removingList, 'onRemovalComplete');
+    runEvent(removingList, 'onRemovalComplete');
+    expect(app.list().props).toMatchObject({ users: [other], unfollowingId: null });
+    expect(app.input().props.value).toBe('Draft');
+    const stats = findElement(
+      app.render(),
+      (node) => node.props['aria-label'] === 'Результат проверки подписок',
+    );
+    expect(
+      findElements(stats, (node) => node.type === 'strong').map((node) => node.props.children),
+    ).toEqual([2, 1, 1]);
+    expect(findElements(stats, (node) => node.type === 'small')[0].props.children).toEqual([
+      'из ',
+      9,
+    ]);
+    expect(app.notifications()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'success', title: 'Подписка удалена' }),
+      ]),
+    );
+  });
+
+  it('keeps the list and offers a fresh comparison after a refusal or a lost reply', async () => {
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    unfollow
+      .mockResolvedValueOnce({ success: false, error: 'HTTP 403' })
+      .mockRejectedValueOnce(new Error('Connector response timed out'));
+    const app = mountApp('Saved');
+    app.render();
+    await flush();
+    const users = app.list().props.users as unknown[];
+    for (const reason of ['HTTP 403', 'Connector response timed out']) {
+      runEvent(app.list(), 'onUnfollow', users[0]);
+      runEvent(app.dialog(), 'onConfirm');
+      await flush();
+      expect(app.list().props).toMatchObject({ users, unfollowingId: null, removingId: null });
+      expect(app.notifications()).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: 'error', message: expect.stringContaining(reason) }),
+        ]),
+      );
+    }
   });
 });

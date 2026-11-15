@@ -15,7 +15,12 @@ const users = Array.from({ length: 10_000 }, (_, index) => ({
 
 function mountList() {
   const renderer = createRenderer();
-  const viewport = { clientHeight: 480, scrollTop: 0 };
+  const viewport = {
+    clientHeight: 480,
+    scrollTop: 0,
+    querySelector: vi.fn(),
+    getBoundingClientRect: () => ({ top: 0, bottom: 480 }),
+  };
   let resize = () => {};
   const disconnect = vi.fn();
   vi.stubGlobal(
@@ -28,7 +33,17 @@ function mountList() {
       disconnect = disconnect;
     },
   );
-  let options = { users, filterKey: '', emptyMessage: 'No matches' };
+  const onUnfollow = vi.fn();
+  const onRemovalComplete = vi.fn();
+  let options = {
+    users,
+    filterKey: '',
+    emptyMessage: 'No matches',
+    unfollowingId: null as number | null,
+    removingId: null as number | null,
+    onUnfollow,
+    onRemovalComplete,
+  };
   const commit = (tree: unknown) => {
     const list = findElement(tree, (node) => node.type === 'ul');
     (list.props.ref as { current: typeof viewport }).current = viewport;
@@ -41,6 +56,8 @@ function mountList() {
     viewport,
     renderer,
     disconnect,
+    onUnfollow,
+    onRemovalComplete,
     render,
     scroll(scrollTop: number) {
       viewport.scrollTop = scrollTop;
@@ -60,11 +77,19 @@ function mountList() {
       resize();
       return render();
     },
+    setPending(userId: number) {
+      options = { ...options, unfollowingId: userId };
+      return render();
+    },
+    remove(userId: number) {
+      options = { ...options, removingId: userId };
+      return render();
+    },
   };
 }
 
 const rows = (tree: unknown) =>
-  findElements(tree, (element) => 'onFocusedIndexChange' in element.props);
+  findElements(tree, (element) => 'onFocusedUserChange' in element.props);
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -107,5 +132,65 @@ describe('virtual following list', () => {
     expect(link.props['aria-label']).toContain('Demo 1');
     expect(findElements(link, (node) => node.type === 'strong')).toHaveLength(0);
     expect(findElement(row, (node) => node.type === 'strong').props.children).toBe('Demo 1');
+    expect(findElements(link, (node) => node.type === 'button')).toHaveLength(0);
+    const button = findElement(row, (node) => node.type === 'button');
+    expect(button.props['aria-label']).toContain('Demo 1');
+    runEvent(button, 'onClick');
+    expect(list.onUnfollow).toHaveBeenCalledExactlyOnceWith(users[0]);
+    const pendingRow = renderChild(rows(list.setPending(1))[0]);
+    const pendingButton = findElement(pendingRow, (node) => node.type === 'button');
+    expect(pendingButton.props).toMatchObject({ 'aria-disabled': true, 'aria-busy': true });
+    runEvent(pendingButton, 'onClick');
+    expect(list.onUnfollow).toHaveBeenCalledTimes(1);
   });
+
+  it('preserves scroll position when a card is removed without changing the filter', () => {
+    const list = mountList();
+    list.render();
+    list.scroll(340_000);
+    const remaining = users.filter(({ userId }) => userId !== 5_001);
+    const cards = rows(list.filter(remaining, ''));
+    expect(list.viewport.scrollTop).toBe(340_000);
+    expect(cards.some(({ props }) => props.user === users[5001])).toBe(true);
+  });
+
+  it('keeps a visible row until its exit animation finishes', async () => {
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const animate = vi.fn(() => ({ finished, cancel: vi.fn() }));
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+    const list = mountList();
+    list.viewport.querySelector.mockReturnValue({
+      animate,
+      getBoundingClientRect: () => ({ top: 0, bottom: 68 }),
+    });
+    list.remove(1);
+    expect(animate).toHaveBeenCalledTimes(1);
+    expect(list.onRemovalComplete).not.toHaveBeenCalled();
+    finish();
+    await finished;
+    expect(list.onRemovalComplete).toHaveBeenCalledTimes(1);
+    list.renderer.unmount();
+  });
+
+  it.each([
+    { top: 0, bottom: 68, reducedMotion: true },
+    { top: 600, bottom: 668, reducedMotion: false },
+  ])(
+    'skips the animation when reduced motion is on or the row is out of sight (%j)',
+    (testCase) => {
+      vi.stubGlobal('window', { matchMedia: () => ({ matches: testCase.reducedMotion }) });
+      const list = mountList();
+      const animate = vi.fn();
+      list.viewport.querySelector.mockReturnValue({
+        animate,
+        getBoundingClientRect: () => testCase,
+      });
+      list.remove(1);
+      expect(animate).not.toHaveBeenCalled();
+      expect(list.onRemovalComplete).toHaveBeenCalledTimes(1);
+    },
+  );
 });

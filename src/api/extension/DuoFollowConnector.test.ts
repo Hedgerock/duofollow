@@ -49,6 +49,21 @@ describe('DuoFollowConnector', () => {
     );
   });
 
+  it('sends one target ID and requires the reply to confirm that same target', async () => {
+    const result = { success: true, targetUserId: 202 };
+    const sendMessage = stubRuntime(result);
+    await expect(client.unfollow('Learner', 202)).resolves.toEqual(result);
+    expect(sendMessage).toHaveBeenCalledWith(
+      'test-extension',
+      { type: 'UNFOLLOW', username: 'Learner', targetUserId: 202 },
+      expect.any(Function),
+    );
+    for (const unexpected of [{ success: true }, { success: true, targetUserId: 303 }]) {
+      stubRuntime(unexpected);
+      await expect(client.unfollow('Learner', 202)).rejects.toThrow('неожиданный ответ');
+    }
+  });
+
   it('reports missing extension messaging or ID', async () => {
     vi.stubGlobal('chrome', undefined);
     await expect(client.getFollowingSummary('Learner')).rejects.toThrow('messaging is unavailable');

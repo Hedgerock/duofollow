@@ -1,17 +1,14 @@
-import { DuolingoUser } from '../domain/models/DuolingoUser.ts';
-import { toDuolingoUser } from './mappers/toDuolingoUser.ts';
-import { DuolingoUsersResponseDto } from './dto/DuolingoProfileDto.ts';
+import { duolingoEndpoints } from '../../extension/src/duolingoEndpoints';
 
 export class HttpDuoClient {
-  private readonly baseUrl = 'https://www.duolingo.com/2017-06-30';
-
   async getPublishProfile(username: string): Promise<unknown> {
-    const url = new URL(`${this.baseUrl}/users`);
+    const endpoint = duolingoEndpoints.publicProfileLookup;
+    const url = endpoint.url();
 
     url.searchParams.set('username', username);
 
     const response = await fetch(url, {
-      method: 'GET',
+      method: endpoint.method,
       credentials: 'omit',
     });
 
@@ -23,16 +20,15 @@ export class HttpDuoClient {
   }
 
   async probeFollowing(userId: string): Promise<void> {
-    const url = new URL(
-      `https://www.duolingo.com/2017-06-30/friends/users/${encodeURIComponent(userId)}/following`,
-    );
+    const endpoint = duolingoEndpoints.following;
+    const url = endpoint.url(userId);
 
     url.searchParams.set('pageSize', '500');
     url.searchParams.set('viewedId', userId);
 
     try {
       const response = await fetch(url, {
-        method: 'GET',
+        method: endpoint.method,
         credentials: 'include',
       });
 
@@ -51,9 +47,8 @@ export class HttpDuoClient {
   }
 
   async getFollowingPage(userId: string, cursor?: string): Promise<unknown> {
-    const url = new URL(
-      `https://www.duolingo.com/2017-06-30/friends/users/${encodeURIComponent(userId)}/following`,
-    );
+    const endpoint = duolingoEndpoints.following;
+    const url = endpoint.url(userId);
 
     url.searchParams.set('pageSize', '500');
     url.searchParams.set('viewedId', userId);
@@ -63,7 +58,7 @@ export class HttpDuoClient {
     }
 
     const response = await fetch(url, {
-      method: 'GET',
+      method: endpoint.method,
       credentials: 'omit',
     });
 
