@@ -3,6 +3,7 @@ import type { ConnectorStatus } from '../../extension/src/dto/ConnectorSession';
 import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
 
 const CHECK_INTERVAL_MS = 20_000;
+const RECHECK_DELAY_MS = 250;
 type Status = ConnectorStatus | 'checking';
 
 export function useConnectorStatus(
@@ -31,14 +32,40 @@ export function useConnectorStatus(
     if (!mounted.current || !visible.current) return;
     if (pending.current) return pending.current;
     needsCheck.current = false;
-    const check = connector
+    const check: Promise<ConnectorStatus | undefined> = connector
       .getConnectionStatus()
-      .then(finish, () => finish('connector-unavailable'));
+      .then(confirm, () => confirm('connector-unavailable'));
     pending.current = check;
 
+    function isCurrent() {
+      return mounted.current && pending.current === check;
+    }
+
+    function confirm(status: ConnectorStatus) {
+      if (!isCurrent()) return;
+      if (
+        status !== 'connector-unavailable' ||
+        lastStatus.current !== 'ready' ||
+        !visible.current
+      ) {
+        return finish(status);
+      }
+
+      // Confirm a transport failure before replacing a previously verified connection.
+      return new Promise<void>((resolve) => setTimeout(resolve, RECHECK_DELAY_MS)).then(() => {
+        if (!isCurrent()) return;
+        if (!visible.current) return finish(status);
+        return connector.getConnectionStatus().then(finish, () => finish(status));
+      });
+    }
+
     function finish(status: ConnectorStatus) {
-      if (!mounted.current || pending.current !== check) return;
+      if (!isCurrent()) return;
       pending.current = null;
+      if (status === 'connector-unavailable' && !visible.current) {
+        needsCheck.current = true;
+        return;
+      }
       publishStatus(status);
       return status;
     }
@@ -89,8 +116,7 @@ export function useConnectorStatus(
 
   useEffect(() => {
     if (!workspaceVisible) return;
-    const needsRefresh =
-      needsCheck.current || (lastStatus.current === 'ready' && !stopWatching.current);
+    const needsRefresh = needsCheck.current || !stopWatching.current;
     watchAccess();
     const checkVisible = () => {
       if (document.visibilityState !== 'hidden') refreshConnection();

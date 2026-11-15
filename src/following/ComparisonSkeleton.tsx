@@ -2,7 +2,7 @@ export function ComparisonSkeleton() {
   return (
     <div className="comparison-skeleton" aria-hidden="true" inert>
       <div className="stats">
-        {[0, 1, 2].map((index) => (
+        {[0, 1, 2, 3].map((index) => (
           <article key={index}>
             <span className="skeleton-bar skeleton-label" />
             <span className="skeleton-bar skeleton-value" />
@@ -19,7 +19,8 @@ export function ComparisonSkeleton() {
           </div>
         </div>
 
-        <div className="toolbar">
+        <div className="toolbar following-toolbar">
+          <span className="skeleton-bar skeleton-search" />
           <span className="skeleton-bar skeleton-search" />
         </div>
 

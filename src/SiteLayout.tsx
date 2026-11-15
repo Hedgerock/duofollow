@@ -1,5 +1,5 @@
-import { useEffect, useLayoutEffect, type ReactNode } from 'react';
-import { Link, Outlet, useMatch, useNavigate } from 'react-router';
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router';
 import { locales, matchLocale, privacyPath } from '../extension/src/locales';
 import { useWorkspace } from './following/useWorkspace';
 import { ThemeToggle } from './ThemeToggle';
@@ -38,10 +38,12 @@ export function LanguageSelect({
 
 export function SiteHeader({
   site,
+  profile,
   children,
   languageControl = <LanguageSelect site={site} />,
 }: {
   site: SitePreferences;
+  profile?: ReactNode;
   children?: ReactNode;
   languageControl?: ReactNode;
 }) {
@@ -53,6 +55,7 @@ export function SiteHeader({
           DuoFollow <small>{site.messages.subtitle}</small>
         </span>
       </Link>
+      {profile}
       <div className="topbar-controls">
         {children}
         <ThemeToggle theme={site.theme} onToggle={site.toggleTheme} messages={site.messages} />
@@ -62,11 +65,25 @@ export function SiteHeader({
   );
 }
 
+export function SiteContent({ label, children }: { label: string; children: ReactNode }) {
+  const { pathname } = useLocation();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [pathname]);
+
+  return (
+    <div className="site-content" ref={scrollRef} role="region" aria-label={label} tabIndex={0}>
+      {children}
+    </div>
+  );
+}
+
 export function SiteLayout() {
   const privacyMatch = useMatch('/privacy/:language?');
   const accessMatch = useMatch('/access');
   const workspaceVisible = Boolean(useMatch('/'));
-  const section = privacyMatch ? 'privacy' : accessMatch ? 'access' : 'workspace';
   const routeLocale = privacyMatch
     ? (matchLocale(privacyMatch.params.language) ?? 'en')
     : undefined;
@@ -88,9 +105,6 @@ export function SiteLayout() {
   useEffect(() => {
     document.title = `DuoFollow — ${title}`;
   }, [title]);
-  useLayoutEffect(() => {
-    window.scrollTo(0, 0);
-  }, [section]);
 
   return (
     <div className="page" data-theme={site.theme}>

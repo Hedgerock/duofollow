@@ -1,0 +1,16 @@
+services:
+  browser-tests:
+    image: mcr.microsoft.com/playwright:v1.57.0-noble
+    platform: linux/amd64
+    init: true
+    ipc: host
+    working_dir: /workspace
+    environment:
+      CI: 'true'
+    volumes:
+      - .:/workspace
+      - browser-test-dependencies:/workspace/node_modules
+    command: ['sh', '-c', 'npm ci --no-audit --no-fund && npm run test:browser']
+
+volumes:
+  browser-test-dependencies:

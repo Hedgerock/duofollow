@@ -29,10 +29,7 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     isLoading,
     comparison: previousComparison,
     removeSubscription,
-    nonMutualQuery,
-    setNonMutualQuery,
-    searchTerm,
-    visibleNonMutual,
+    followingList,
   } = useFollowingComparison(connector, notify, {
     enabled: workspaceVisible && isReady,
     locale,
@@ -58,7 +55,6 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     removeSubscription,
     locale,
   });
-  const nonMutualFollowing = comparison?.nonMutualFollowing;
 
   useLayoutEffect(() => {
     if (!workspaceVisible) dismissGroup('comparison', ['info', 'success']);
@@ -87,10 +83,7 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     compareFollowing,
     isLoading,
     comparison,
-    nonMutualQuery,
-    setNonMutualQuery,
-    searchTerm,
-    visibleNonMutual,
+    followingList,
     consentRequired,
     confirmation,
     askToUnfollow,
@@ -99,7 +92,6 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     finishUnfollow,
     unfollowingId,
     removingId,
-    nonMutualFollowing,
   };
 }
 

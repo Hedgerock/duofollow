@@ -1,5 +1,12 @@
 import type { NonMutualFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
 
+export function getProfileDisplayName(
+  { displayName, username, userId }: NonMutualFollowingUser,
+  userLabel: string,
+): string {
+  return displayName || username || `${userLabel} ${userId}`;
+}
+
 export function getProfileIdentifier({
   username,
   userId,

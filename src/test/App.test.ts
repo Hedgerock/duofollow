@@ -158,8 +158,9 @@ function mountApp(saved?: string, blockStorage = false, browserLanguage = 'ru-RU
 }
 
 function visibleAccounts(tree: unknown) {
+  const header = renderChild(findElement(tree, (node) => node.type === SiteHeader));
   return findElements(
-    tree,
+    header,
     (node) => node.type === 'strong' && typeof node.props.title === 'string',
   )
     .map((node) => node.props.children)
@@ -172,6 +173,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   getConnectionStatus.mockReset();
   getFollowingSummary.mockReset();
   unfollow.mockReset();
@@ -210,6 +212,67 @@ describe('comparison screen', () => {
     expect(app.notifications()).toEqual([]);
   });
 
+  it('rechecks on return when a status request failed on the privacy page', async () => {
+    const app = mountApp();
+    await app.connect();
+    let finishCheck!: (status: ConnectorStatus) => void;
+    getConnectionStatus.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishCheck = resolve;
+      }),
+    );
+    app.focus();
+    app.setWorkspaceVisible(false);
+    finishCheck('connector-unavailable');
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+
+    app.setWorkspaceVisible(true);
+    expect(app.workspace().props.inert).toBe(false);
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(3);
+    expect(app.workspace().props.inert).toBe(false);
+  });
+
+  it('confirms a connection failure after returning before showing a warning', async () => {
+    vi.useFakeTimers();
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    const app = mountApp('Saved');
+    await app.connect();
+    await flush();
+    app.setWorkspaceVisible(false);
+    onAccessChanged('disconnected');
+    getConnectionStatus.mockResolvedValueOnce('connector-unavailable');
+
+    app.setWorkspaceVisible(true);
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+    expect(app.workspace().props.inert).toBe(false);
+    expect(findElements(app.render(), (node) => node.type === ConnectionDialog)).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(getConnectionStatus).toHaveBeenCalledTimes(3);
+    expect(visibleAccounts(app.render()).join('')).toBe('@Saved');
+    expect(getFollowingSummary).toHaveBeenCalledOnce();
+    expect(app.notifications()).toEqual([]);
+  });
+
+  it('cancels a delayed confirmation when Duolingo access is revoked', async () => {
+    vi.useFakeTimers();
+    const app = mountApp();
+    await app.connect();
+    getConnectionStatus.mockResolvedValueOnce('connector-unavailable');
+    app.focus();
+    await flush();
+
+    onAccessChanged('revoked');
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+    expect(app.connectionDialog().props.issue).toBe('consent-required');
+    expect(app.workspace().props.inert).toBe(true);
+  });
+
   it.each(['away', 'after returning'] as const)(
     'uses a comparison finished %s without a success notification',
     async (when) => {
@@ -238,6 +301,7 @@ describe('comparison screen', () => {
   it.each(['home', 'privacy'] as const)(
     'rechecks a disconnected Connector from %s and ignores the previous response',
     async (page) => {
+      vi.useFakeTimers();
       const app = mountApp();
       await app.connect();
       expect(app.workspace().props.inert).toBe(false);
@@ -251,7 +315,9 @@ describe('comparison screen', () => {
       app.focus();
       if (page === 'privacy') app.setWorkspaceVisible(false);
 
-      getConnectionStatus.mockResolvedValueOnce('connector-unavailable');
+      getConnectionStatus
+        .mockResolvedValueOnce('connector-unavailable')
+        .mockResolvedValueOnce('connector-unavailable');
       onAccessChanged('disconnected');
 
       if (page === 'privacy') {
@@ -260,7 +326,8 @@ describe('comparison screen', () => {
       }
 
       expect(getConnectionStatus).toHaveBeenCalledTimes(3);
-      await flush();
+      await vi.advanceTimersByTimeAsync(500);
+      expect(getConnectionStatus).toHaveBeenCalledTimes(4);
       finishPreviousCheck('ready');
       await flush();
 
@@ -543,7 +610,7 @@ describe('comparison screen', () => {
     await flush();
     app.edit('Draft');
 
-    const link = findElement(app.render(), (node) => node.props.className === 'topbar-profile');
+    const link = findElement(app.header(), (node) => node.props.className === 'topbar-profile');
     expect(link.type).toBe('a');
     expect(link.props).toMatchObject({
       href: 'https://www.duolingo.com/profile/Saved',
@@ -574,6 +641,142 @@ describe('comparison screen', () => {
     expect(
       findElements(app.render(), (node) => node.props.id === 'non-mutual-following-title'),
     ).toEqual([]);
+  });
+
+  it.each([false, true])(
+    'shows followers coverage with incomplete data set to %s',
+    async (incomplete) => {
+      const data = success('Saved', incomplete);
+      if (!data.success) throw new Error('Expected a successful comparison fixture');
+      data.comparison.checkedFollowers = incomplete ? 3 : 8;
+      data.comparison.totalFollowers = 8;
+      getFollowingSummary.mockResolvedValueOnce(data);
+      const app = mountApp('Saved');
+      await app.connect();
+      await flush();
+
+      const tree = app.render();
+      const [follows, followers, mutual, nonMutual] = findElements(
+        tree,
+        (node) => node.type === 'article',
+      );
+      expect(findElement(follows, (node) => node.type === 'strong').props.children).toBe('1');
+      expect(findElement(followers, (node) => node.type === 'strong').props.children).toBe(
+        incomplete ? '3' : '8',
+      );
+      expect(findElement(followers, (node) => node.type === 'small').props.children).toBe('из 8');
+      expect(findElement(mutual, (node) => node.type === 'small').props.children).toBe(
+        incomplete ? 'подтверждено' : 'среди проверенных',
+      );
+      expect(findElement(nonMutual, (node) => node.type === 'strong').props.children).toBe(
+        incomplete ? '—' : '1',
+      );
+      expect(
+        findElements(tree, (node) => node.props.className === 'comparison-coverage-note'),
+      ).toHaveLength(incomplete ? 1 : 0);
+      expect(findElements(tree, (node) => node.type === VirtualFollowingList)).toHaveLength(
+        incomplete ? 0 : 1,
+      );
+    },
+  );
+
+  it.each([false, true])(
+    'switches received profiles with incomplete followers set to %s',
+    async (incomplete) => {
+      const data = success('Saved', incomplete);
+      if (!data.success) throw new Error('Expected a successful comparison fixture');
+      const arabic = { userId: 1, displayName: 'ا\u0654حمد', username: 'ahmad' };
+      data.comparison.nonMutualFollowing = incomplete ? null : [arabic];
+      data.comparison.following = [
+        { ...arabic, relationship: incomplete ? 'unknown' : 'non-mutual' },
+        { userId: 2, displayName: 'セリーナ', username: 'selina', relationship: 'mutual' },
+      ];
+      data.comparison.checkedFollowing = 2;
+      data.comparison.mutualUsers = 1;
+      getFollowingSummary.mockResolvedValueOnce(data);
+      const app = mountApp('Saved');
+      await app.connect();
+      await flush();
+
+      const viewButton = (label: string) =>
+        findElement(
+          app.render(),
+          (node) => node.type === 'button' && node.props.children === label,
+        );
+      const selectView = (label: string) => runEvent(viewButton(label), 'onClick');
+      const shown = () =>
+        (app.list().props.users as { userId: number; relationship: string }[]).map(
+          ({ userId, relationship }) => [userId, relationship],
+        );
+      expect(viewButton('Невзаимные').props.disabled).toBe(incomplete);
+      selectView('Все полученные');
+      expect(app.list().props.showRelationships).toBe(true);
+      expect(shown()).toEqual([
+        [1, incomplete ? 'unknown' : 'non-mutual'],
+        [2, 'mutual'],
+      ]);
+      const legend = findElement(
+        app.render(),
+        (node) => node.props.className === 'following-legend',
+      );
+      expect(
+        findElements(legend, (node) => node.type === 'li').map((node) => node.props.children),
+      ).toEqual(['Взаимная', incomplete ? 'Не проверено' : 'Невзаимная']);
+      const search = findElement(app.render(), (node) => node.props.type === 'search');
+      runEvent(search, 'onChange', { target: { value: 'أحمد' } });
+      expect(shown()).toEqual([[1, incomplete ? 'unknown' : 'non-mutual']]);
+      runEvent(search, 'onChange', { target: { value: 'セリ' } });
+      selectView('Взаимные');
+      expect(shown()).toEqual([[2, 'mutual']]);
+      expect(getFollowingSummary).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('sorts the visible profiles by name while preserving search and source order', async () => {
+    const data = success('Saved');
+    if (!data.success) throw new Error('Expected a successful comparison fixture');
+    data.comparison.checkedFollowing = 3;
+    data.comparison.totalFollowing = 3;
+    data.comparison.nonMutualUsers = 3;
+    data.comparison.nonMutualFollowing = [
+      { userId: 1, displayName: 'Zebra', username: 'zebra' },
+      { userId: 2, displayName: 'Alpha10', username: 'alpha10' },
+      { userId: 3, displayName: '', username: 'alpha2' },
+    ];
+    getFollowingSummary.mockResolvedValueOnce(data);
+    const app = mountApp('Saved');
+    await app.connect();
+    await flush();
+    const visibleOrder = () =>
+      (app.list().props.users as { userId: number }[]).map(({ userId }) => userId);
+    const sort = (value: string) => {
+      const control = findElement(
+        app.render(),
+        (node) => node.props.className === 'following-sort',
+      );
+      runEvent(control, 'onChange', { currentTarget: { value } });
+    };
+    const search = findElement(app.render(), (node) => node.props.type === 'search');
+    expect(visibleOrder()).toEqual([1, 2, 3]);
+    const initialView = app.list().props.viewKey;
+
+    sort('name-asc');
+    expect(visibleOrder()).toEqual([3, 2, 1]);
+    expect(app.list().props.viewKey).not.toBe(initialView);
+    runEvent(search, 'onChange', { target: { value: '@alpha' } });
+    expect(visibleOrder()).toEqual([3, 2]);
+
+    sort('name-desc');
+    expect(visibleOrder()).toEqual([2, 3]);
+    expect(findElement(app.render(), (node) => node.props.type === 'search').props.value).toBe(
+      '@alpha',
+    );
+    runEvent(search, 'onChange', { target: { value: '' } });
+    expect(visibleOrder()).toEqual([1, 2, 3]);
+    sort('received');
+    expect(visibleOrder()).toEqual([1, 2, 3]);
+    expect(data.comparison.nonMutualFollowing.map(({ userId }) => userId)).toEqual([1, 2, 3]);
+    expect(getFollowingSummary).toHaveBeenCalledOnce();
   });
 
   it('filters by case-insensitive display name or @username without requesting data again', async () => {
@@ -694,11 +897,20 @@ describe('comparison screen', () => {
     const other = { userId: 2, username: 'other', displayName: 'Other' };
     data.comparison.checkedFollowing = 3;
     data.comparison.totalFollowing = 10;
+    data.comparison.checkedFollowers = 2;
+    data.comparison.totalFollowers = 2;
     data.comparison.mutualUsers = 1;
     data.comparison.nonMutualUsers = 2;
     data.comparison.nonMutualFollowing = [
       { userId: 1, username: 'demo', displayName: 'Demo', picture },
       other,
+    ];
+    data.comparison.following = [
+      ...data.comparison.nonMutualFollowing.map((user) => ({
+        ...user,
+        relationship: 'non-mutual' as const,
+      })),
+      { userId: 3, username: 'mutual', displayName: 'Mutual', relationship: 'mutual' },
     ];
     getFollowingSummary.mockResolvedValueOnce(data);
     const app = mountApp('Saved');
@@ -753,6 +965,14 @@ describe('comparison screen', () => {
     runEvent(removingList, 'onRemovalComplete');
     runEvent(removingList, 'onRemovalComplete');
     expect(app.list().props).toMatchObject({ users: [other], unfollowingId: null });
+    runEvent(
+      findElement(
+        app.render(),
+        (node) => node.type === 'button' && node.props.children === 'Все полученные',
+      ),
+      'onClick',
+    );
+    expect(app.list().props.users).toMatchObject([{ userId: 2 }, { userId: 3 }]);
     expect(app.input().props.value).toBe('Draft');
     const stats = findElement(
       app.render(),
@@ -760,7 +980,7 @@ describe('comparison screen', () => {
     );
     expect(
       findElements(stats, (node) => node.type === 'strong').map((node) => node.props.children),
-    ).toEqual(['2', '1', '1']);
+    ).toEqual(['2', '2', '1', '1']);
     expect(findElements(stats, (node) => node.type === 'small')[0].props.children).toBe('из 9');
     expect(app.notifications()).toEqual(
       expect.arrayContaining([

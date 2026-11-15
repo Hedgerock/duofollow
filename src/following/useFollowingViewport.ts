@@ -4,7 +4,7 @@ import type { NonMutualFollowingUser } from '../../extension/src/dto/DuolingoFol
 export const FOLLOWING_ROW_HEIGHT = 68;
 const OVERSCAN = 4;
 
-export function useFollowingViewport(users: NonMutualFollowingUser[], filterKey: string) {
+export function useFollowingViewport(users: NonMutualFollowingUser[], viewKey: string) {
   const viewportRef = useRef<HTMLUListElement>(null);
   const [range, setRange] = useState({ start: 0, end: 0 });
   const [focusedUserId, setFocusedUserId] = useState<number | null>(null);
@@ -28,7 +28,7 @@ export function useFollowingViewport(users: NonMutualFollowingUser[], filterKey:
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
     if (viewport) viewport.scrollTop = 0;
-  }, [filterKey]);
+  }, [viewKey]);
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
@@ -38,7 +38,7 @@ export function useFollowingViewport(users: NonMutualFollowingUser[], filterKey:
     const observer = new ResizeObserver(() => updateRange(viewport));
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [filterKey, updateRange]);
+  }, [viewKey, updateRange]);
 
   const end = Math.min(range.end, total);
   const indices = Array.from(

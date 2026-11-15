@@ -348,6 +348,10 @@ describe('extension worker', () => {
         nonMutualFollowing: [
           { userId: 2, username: 'target', displayName: 'Target', picture: null },
         ],
+        following: [
+          { userId: 1, relationship: 'mutual' },
+          { userId: 2, relationship: 'non-mutual' },
+        ],
       },
     });
 
@@ -465,7 +469,15 @@ describe('extension worker', () => {
         .mockResolvedValueOnce(followers([{ userId: 1 }], total, cursor));
       await expect(compare('Learner')).resolves.toMatchObject({
         success: true,
-        comparison: { mutualUsers: 1, nonMutualUsers: null, nonMutualFollowing: null },
+        comparison: {
+          mutualUsers: 1,
+          nonMutualUsers: null,
+          nonMutualFollowing: null,
+          following: [
+            { userId: 1, relationship: 'mutual' },
+            { userId: 2, relationship: 'unknown' },
+          ],
+        },
       });
     },
   );

@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ComparedFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
+import { RelationshipMarker } from '../following/RelationshipMarker';
 import { VirtualFollowingList } from '../VirtualFollowingList';
 import { translations } from '../i18n/messages';
 import { createRenderer, findElement, findElements, renderChild, runEvent } from './reactHarness';
@@ -8,13 +10,14 @@ vi.mock('react', async (original) => ({
   ...(await import('./reactHarness')).mockHooks,
 }));
 
-const users = Array.from({ length: 10_000 }, (_, index) => ({
+const users: ComparedFollowingUser[] = Array.from({ length: 10_000 }, (_, index) => ({
   userId: index + 1,
   username: index === 0 ? 'demo/name' : `demo${index + 1}`,
   displayName: `Demo ${index + 1}`,
+  relationship: 'non-mutual',
 }));
 
-function mountList() {
+function mountList(showRelationships = false) {
   const renderer = createRenderer();
   const viewport = {
     clientHeight: 480,
@@ -38,7 +41,9 @@ function mountList() {
   const onRemovalComplete = vi.fn();
   let options = {
     users,
-    filterKey: '',
+    viewKey: '',
+    label: 'Подписки',
+    showRelationships,
     emptyMessage: 'No matches',
     unfollowingId: null as number | null,
     removingId: null as number | null,
@@ -70,8 +75,8 @@ function mountList() {
       );
       return render();
     },
-    filter(filtered: typeof users, filterKey: string) {
-      options = { ...options, users: filtered, filterKey };
+    filter(filtered: typeof users, viewKey: string) {
+      options = { ...options, users: filtered, viewKey };
       return render();
     },
     resize(height: number) {
@@ -133,7 +138,8 @@ describe('virtual following list', () => {
     expect(link.props.href).toBe('https://www.duolingo.com/profile/demo%2Fname');
     expect(link.props['aria-label']).toContain('Demo 1');
     expect(findElements(link, (node) => node.type === 'strong')).toHaveLength(0);
-    expect(findElement(row, (node) => node.type === 'strong').props.children).toBe('Demo 1');
+    const name = findElement(row, (node) => node.type === 'strong');
+    expect(findElement(name, (node) => node.type === 'bdi').props.children).toBe('Demo 1');
     expect(findElements(link, (node) => node.type === 'button')).toHaveLength(0);
     const button = findElement(row, (node) => node.type === 'button');
     expect(button.props['aria-label']).toContain('Demo 1');
@@ -144,6 +150,24 @@ describe('virtual following list', () => {
     expect(pendingButton.props).toMatchObject({ 'aria-disabled': true, 'aria-busy': true });
     runEvent(pendingButton, 'onClick');
     expect(list.onUnfollow).toHaveBeenCalledTimes(1);
+  });
+
+  it('isolates Arabic names and identifiers while marking mutual rows', () => {
+    const list = mountList(true);
+    const row = renderChild(
+      rows(list.filter([{ ...users[0], displayName: 'صديقات', relationship: 'mutual' }], 'all'))[0],
+    );
+    expect(findElement(row, (node) => node.type === 'li').props['data-relationship']).toBe(
+      'mutual',
+    );
+    expect(
+      findElements(row, (node) => node.type === 'bdi').map((node) => node.props.children),
+    ).toEqual(['صديقات', '@demo/name']);
+    expect(findElement(row, (node) => node.type === RelationshipMarker).props).toMatchObject({
+      relationship: 'mutual',
+      label: 'Взаимная',
+    });
+    expect(findElements(row, (node) => node.type === 'button')).toHaveLength(0);
   });
 
   it('preserves scroll position when a card is removed without changing the filter', () => {

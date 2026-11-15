@@ -3,13 +3,16 @@ import { privacyPath } from '../extension/src/locales';
 import { ConnectionDialog } from './ConnectionDialog';
 import { ComparisonSkeleton } from './following/ComparisonSkeleton';
 import { getDuolingoProfileUrl } from './following/profiles';
+import type { FollowingSortOrder, FollowingView } from './following/useFollowingComparison';
 import type { WorkspaceState } from './following/useWorkspace';
 import { NotificationViewport } from './notifications';
 import { ProfileAvatar } from './ProfileAvatar';
-import { LanguageSelect, SiteHeader } from './SiteLayout';
+import { LanguageSelect, SiteContent, SiteHeader } from './SiteLayout';
 import { UnfollowDialog } from './UnfollowDialog';
 import { useSite, useWorkspaceState, type SitePreferences } from './useSite';
 import { VirtualFollowingList } from './VirtualFollowingList';
+
+const followingViews: FollowingView[] = ['all', 'mutual', 'non-mutual'];
 
 export default function App() {
   return <Workspace site={useSite()} workspace={useWorkspaceState()} />;
@@ -41,10 +44,7 @@ export function Workspace({
     compareFollowing,
     isLoading,
     comparison,
-    nonMutualQuery,
-    setNonMutualQuery,
-    searchTerm,
-    visibleNonMutual,
+    followingList,
     consentRequired,
     confirmation,
     askToUnfollow,
@@ -53,35 +53,45 @@ export function Workspace({
     finishUnfollow,
     unfollowingId,
     removingId,
-    nonMutualFollowing,
   } = workspace;
+  const { activeView, hasFullView, canShowNonMutual, total, query, sort, searchTerm, users } =
+    followingList;
+  const listTitle = messages.followingViews[activeView];
 
   const languageControl = <LanguageSelect site={site} onChange={clearNotifications} />;
 
   return (
     <>
-      <SiteHeader site={site} languageControl={languageControl}>
-        {comparison && (
-          <a
-            className="topbar-profile"
-            href={getDuolingoProfileUrl(comparison.accountUsername)}
-            target="_blank"
-            rel="noopener noreferrer"
-            inert={!isReady}
-            aria-label={messages.resultProfile(comparison.accountUsername)}
-          >
-            <ProfileAvatar name={comparison.accountUsername} picture={comparison.accountPicture} />
-            <div className="topbar-profile-text">
-              <small>{messages.resultFor}</small>
-              <strong title={`@${comparison.accountUsername}`}>
-                @{comparison.accountUsername}
-              </strong>
-            </div>
-            <span className="topbar-profile-arrow" aria-hidden="true">
-              ↗
-            </span>
-          </a>
-        )}
+      <SiteHeader
+        site={site}
+        languageControl={languageControl}
+        profile={
+          comparison && (
+            <a
+              className="topbar-profile"
+              href={getDuolingoProfileUrl(comparison.accountUsername)}
+              target="_blank"
+              rel="noopener noreferrer"
+              inert={!isReady}
+              aria-label={messages.resultProfile(comparison.accountUsername)}
+            >
+              <ProfileAvatar
+                name={comparison.accountUsername}
+                picture={comparison.accountPicture}
+              />
+              <div className="topbar-profile-text">
+                <small>{messages.resultFor}</small>
+                <strong title={`@${comparison.accountUsername}`}>
+                  @{comparison.accountUsername}
+                </strong>
+              </div>
+              <span className="topbar-profile-arrow" aria-hidden="true">
+                ↗
+              </span>
+            </a>
+          )
+        }
+      >
         {(isReady || status === 'signed-out' || status === 'duolingo-unavailable') && (
           <Link
             to="/access/"
@@ -104,141 +114,221 @@ export function Workspace({
           </Link>
         )}
       </SiteHeader>
-      {!isReady && (
-        <div className="connection-notice">
-          <p role="status">
-            {issue ? messages.connection.issues[issue].title : messages.connection.checking}
-          </p>
-          {issue && (
-            <button
-              type="button"
-              className="secondary-button"
-              onClick={() => setDismissedRevision(null)}
-            >
-              {messages.connection.help}
-            </button>
-          )}
-        </div>
-      )}
-      <main inert={!isReady}>
-        <section className="hero">
-          <div className="hero-copy">
-            <h1>{messages.heading}</h1>
-            <p>{messages.intro}</p>
-          </div>
-
-          <form
-            className="comparison-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              compareFollowing();
-            }}
-          >
-            <label htmlFor="duolingo-username">{messages.accountLabel}</label>
-            <input
-              id="duolingo-username"
-              type="text"
-              placeholder={messages.username}
-              autoCapitalize="none"
-              spellCheck={false}
-              required
-              value={accountUsername}
-              disabled={!isReady || isLoading}
-              onChange={(event) => setAccountUsername(event.target.value)}
-            />
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={!isReady || !accountUsername.trim() || isLoading || unfollowingId !== null}
-            >
-              {isLoading ? messages.comparing : messages.compare}
-            </button>
-          </form>
-        </section>
-        <div className="comparison-results" aria-busy={isLoading}>
-          {isLoading && <ComparisonSkeleton />}
-          <div
-            className="comparison-content"
-            aria-hidden={isLoading || undefined}
-            inert={isLoading}
-          >
-            {comparison && (
-              <section className="stats comparison-reveal" aria-label={messages.resultsLabel}>
-                <article>
-                  <span>{messages.checked}</span>
-                  <strong>{formatNumber(comparison.checkedFollowing)}</strong>
-                  <small>{messages.ofTotal(formatNumber(comparison.totalFollowing))}</small>
-                </article>
-                <article>
-                  <span>{messages.mutual}</span>
-                  <strong>{formatNumber(comparison.mutualUsers)}</strong>
-                  <small>{messages.amongChecked}</small>
-                </article>
-                <article className="accent">
-                  <span>{messages.nonMutual}</span>
-                  <strong>
-                    {comparison.nonMutualUsers === null
-                      ? '—'
-                      : formatNumber(comparison.nonMutualUsers)}
-                  </strong>
-                  <small>
-                    {comparison.nonMutualUsers === null
-                      ? messages.incomplete
-                      : messages.amongChecked}
-                  </small>
-                </article>
-              </section>
-            )}
-            {comparison && nonMutualFollowing && (
-              <section
-                className="panel live-following comparison-reveal"
-                aria-labelledby="non-mutual-following-title"
+      <SiteContent label={messages.heading}>
+        {!isReady && (
+          <div className="connection-notice">
+            <p role="status">
+              {issue ? messages.connection.issues[issue].title : messages.connection.checking}
+            </p>
+            {issue && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setDismissedRevision(null)}
               >
-                <div className="panel-heading">
-                  <div>
-                    <h2 id="non-mutual-following-title">{messages.nonMutualTitle}</h2>
-                    <p>
-                      {messages.checkedCount(
-                        formatNumber(comparison.checkedFollowing),
-                        formatNumber(comparison.totalFollowing),
-                      )}
-                    </p>
-                  </div>
-                  <span className="count" aria-live="polite">
-                    {searchTerm
-                      ? `${formatNumber(visibleNonMutual.length)} ${messages.ofTotal(formatNumber(nonMutualFollowing.length))}`
-                      : formatNumber(nonMutualFollowing.length)}
-                  </span>
-                </div>
-
-                {nonMutualFollowing.length > 0 && (
-                  <div className="toolbar">
-                    <input
-                      type="search"
-                      aria-label={messages.searchLabel}
-                      placeholder={messages.searchPlaceholder}
-                      value={nonMutualQuery}
-                      onChange={(event) => setNonMutualQuery(event.target.value)}
-                    />
-                  </div>
-                )}
-
-                <VirtualFollowingList
-                  key={comparison.accountUsername}
-                  users={visibleNonMutual}
-                  filterKey={searchTerm}
-                  unfollowingId={unfollowingId}
-                  removingId={removingId}
-                  onUnfollow={askToUnfollow}
-                  onRemovalComplete={finishUnfollow}
-                  emptyMessage={searchTerm ? messages.noMatches : messages.noNonMutual}
-                  messages={messages}
-                />
-              </section>
+                {messages.connection.help}
+              </button>
             )}
           </div>
-        </div>
-      </main>
+        )}
+        <main inert={!isReady}>
+          <section className="hero">
+            <div className="hero-copy">
+              <h1>{messages.heading}</h1>
+              <p>{messages.intro}</p>
+            </div>
+
+            <form
+              className="comparison-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                compareFollowing();
+              }}
+            >
+              <label htmlFor="duolingo-username">{messages.accountLabel}</label>
+              <input
+                id="duolingo-username"
+                type="text"
+                placeholder={messages.username}
+                autoCapitalize="none"
+                spellCheck={false}
+                required
+                value={accountUsername}
+                disabled={!isReady || isLoading}
+                onChange={(event) => setAccountUsername(event.target.value)}
+              />
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={
+                  !isReady || !accountUsername.trim() || isLoading || unfollowingId !== null
+                }
+              >
+                {isLoading ? messages.comparing : messages.compare}
+              </button>
+            </form>
+          </section>
+          <div className="comparison-results" aria-busy={isLoading}>
+            {isLoading && <ComparisonSkeleton />}
+            <div
+              className="comparison-content"
+              aria-hidden={isLoading || undefined}
+              inert={isLoading}
+            >
+              {comparison && (
+                <section className="stats comparison-reveal" aria-label={messages.resultsLabel}>
+                  <article>
+                    <span>{messages.checked}</span>
+                    <strong>{formatNumber(comparison.checkedFollowing)}</strong>
+                    <small>{messages.ofTotal(formatNumber(comparison.totalFollowing))}</small>
+                  </article>
+                  <article>
+                    <span>{messages.followersChecked}</span>
+                    <strong>{formatNumber(comparison.checkedFollowers)}</strong>
+                    <small>{messages.ofTotal(formatNumber(comparison.totalFollowers))}</small>
+                  </article>
+                  <article>
+                    <span>{messages.mutual}</span>
+                    <strong>{formatNumber(comparison.mutualUsers)}</strong>
+                    <small>
+                      {comparison.nonMutualUsers === null
+                        ? messages.confirmed
+                        : messages.amongChecked}
+                    </small>
+                  </article>
+                  <article className="accent">
+                    <span>{messages.nonMutual}</span>
+                    <strong>
+                      {comparison.nonMutualUsers === null
+                        ? '—'
+                        : formatNumber(comparison.nonMutualUsers)}
+                    </strong>
+                    <small>
+                      {comparison.nonMutualUsers === null
+                        ? messages.incomplete
+                        : messages.amongChecked}
+                    </small>
+                  </article>
+                  {comparison.nonMutualUsers === null && (
+                    <p className="comparison-coverage-note">{messages.incompleteFollowersNote}</p>
+                  )}
+                  {!hasFullView && (
+                    <p className="comparison-coverage-note following-upgrade-note">
+                      {messages.updateConnectorForViews}
+                    </p>
+                  )}
+                </section>
+              )}
+              {comparison && (hasFullView || canShowNonMutual) && (
+                <section
+                  className="panel live-following comparison-reveal"
+                  aria-labelledby="following-list-title"
+                >
+                  <div className="panel-heading">
+                    <div>
+                      <h2 id="following-list-title">{listTitle}</h2>
+                      <p>
+                        {messages.checkedCount(
+                          formatNumber(comparison.checkedFollowing),
+                          formatNumber(comparison.totalFollowing),
+                        )}
+                      </p>
+                    </div>
+                    <span className="count" aria-live="polite">
+                      {searchTerm
+                        ? `${formatNumber(users.length)} ${messages.ofTotal(formatNumber(total))}`
+                        : formatNumber(total)}
+                    </span>
+                  </div>
+
+                  {hasFullView && (
+                    <div className="following-list-controls">
+                      <div
+                        className="following-views"
+                        role="group"
+                        aria-label={messages.followingViewLabel}
+                      >
+                        {followingViews.map((view) => (
+                          <button
+                            key={view}
+                            type="button"
+                            className="secondary-button"
+                            aria-pressed={activeView === view}
+                            disabled={view === 'non-mutual' && !canShowNonMutual}
+                            onClick={() => followingList.setView(view)}
+                          >
+                            {messages.followingViews[view]}
+                          </button>
+                        ))}
+                      </div>
+                      {activeView === 'all' && (
+                        <ul
+                          className="following-legend"
+                          role="list"
+                          aria-label={messages.relationshipLegend}
+                        >
+                          <li className="relationship-badge" data-relationship="mutual">
+                            {messages.relationships.mutual}
+                          </li>
+                          <li
+                            className="relationship-badge"
+                            data-relationship={canShowNonMutual ? 'non-mutual' : 'unknown'}
+                          >
+                            {canShowNonMutual
+                              ? messages.relationships['non-mutual']
+                              : messages.relationships.unknown}
+                          </li>
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {total > 0 && (
+                    <div className="toolbar following-toolbar">
+                      <input
+                        type="search"
+                        aria-label={messages.searchLabel}
+                        placeholder={messages.searchPlaceholder}
+                        value={query}
+                        onChange={(event) => followingList.setQuery(event.target.value)}
+                      />
+                      <select
+                        className="following-sort"
+                        aria-label={messages.sortLabel}
+                        value={sort}
+                        onChange={(event) =>
+                          followingList.setSort(event.currentTarget.value as FollowingSortOrder)
+                        }
+                      >
+                        <option value="received">{messages.sortReceived}</option>
+                        <option value="name-asc">{messages.sortNameAsc}</option>
+                        <option value="name-desc">{messages.sortNameDesc}</option>
+                      </select>
+                    </div>
+                  )}
+
+                  <VirtualFollowingList
+                    key={comparison.accountUsername}
+                    users={users}
+                    viewKey={`${activeView}:${sort}:${sort === 'received' ? '' : locale}:${searchTerm}`}
+                    label={listTitle}
+                    showRelationships={activeView === 'all'}
+                    unfollowingId={unfollowingId}
+                    removingId={removingId}
+                    onUnfollow={askToUnfollow}
+                    onRemovalComplete={finishUnfollow}
+                    emptyMessage={
+                      searchTerm && total > 0
+                        ? messages.noMatches
+                        : messages.followingEmpty[activeView]
+                    }
+                    messages={messages}
+                  />
+                </section>
+              )}
+            </div>
+          </div>
+        </main>
+      </SiteContent>
       <UnfollowDialog
         confirmation={consentRequired ? null : confirmation}
         onCancel={cancelUnfollow}

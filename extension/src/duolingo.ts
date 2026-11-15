@@ -1,4 +1,5 @@
 import type {
+  ComparedFollowingUser,
   DuolingoFollowingPageDto,
   FollowingComparisonResult,
   FollowingPageSummary,
@@ -197,18 +198,30 @@ export async function getFollowingSummary(
 
   const followingById = new Map(following.users.map((user) => [user.userId, user]));
   const followerIds = new Set(followers.users.map((user) => user.userId));
-  const missingFromFollowers = [...followingById.values()].filter(
-    (user) => !followerIds.has(user.userId),
-  );
-
   const followersComplete = followers.cursor === null && followerIds.size === followers.totalUsers;
+  const comparedFollowing = Array.from(
+    followingById.values(),
+    ({ userId, username, displayName, picture }): ComparedFollowingUser => ({
+      userId,
+      username: typeof username === 'string' ? username.trim() : '',
+      displayName: typeof displayName === 'string' ? displayName.trim() : '',
+      picture: readPicture(picture),
+      relationship: followerIds.has(userId)
+        ? 'mutual'
+        : followersComplete
+          ? 'non-mutual'
+          : 'unknown',
+    }),
+  );
   const nonMutualFollowing = followersComplete
-    ? missingFromFollowers.map(({ userId, username, displayName, picture }) => ({
-        userId,
-        username: typeof username === 'string' ? username.trim() : '',
-        displayName: typeof displayName === 'string' ? displayName.trim() : '',
-        picture: readPicture(picture),
-      }))
+    ? comparedFollowing
+        .filter(({ relationship }) => relationship === 'non-mutual')
+        .map(({ userId, username, displayName, picture }) => ({
+          userId,
+          username,
+          displayName,
+          picture,
+        }))
     : null;
 
   return {
@@ -222,11 +235,12 @@ export async function getFollowingSummary(
       totalFollowing: following.totalUsers,
       checkedFollowers: followerIds.size,
       totalFollowers: followers.totalUsers,
-      mutualUsers: followingById.size - missingFromFollowers.length,
+      mutualUsers: comparedFollowing.filter(({ relationship }) => relationship === 'mutual').length,
       nonMutualUsers: nonMutualFollowing?.length ?? null,
       accountUsername: username,
       accountPicture,
       nonMutualFollowing,
+      following: comparedFollowing,
     },
   };
 }

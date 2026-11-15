@@ -42,6 +42,12 @@ export type NonMutualFollowingUser = Pick<
   'userId' | 'username' | 'displayName'
 > & { picture?: string | null };
 
+export type FollowingRelationship = 'mutual' | 'non-mutual' | 'unknown';
+
+export type ComparedFollowingUser = NonMutualFollowingUser & {
+  relationship: FollowingRelationship;
+};
+
 export interface FollowingComparison {
   checkedFollowing: number;
   totalFollowing: number;
@@ -50,6 +56,7 @@ export interface FollowingComparison {
   mutualUsers: number;
   nonMutualUsers: number | null;
   nonMutualFollowing: NonMutualFollowingUser[] | null;
+  following?: ComparedFollowingUser[];
   accountUsername: string;
   accountPicture?: string | null;
 }

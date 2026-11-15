@@ -1,7 +1,7 @@
 import english from '../../privacy/index.html?raw';
 import russian from '../../privacy/ru/index.html?raw';
 import ukrainian from '../../privacy/uk/index.html?raw';
-import { SiteHeader } from '../SiteLayout';
+import { SiteContent, SiteHeader } from '../SiteLayout';
 import { useSite } from '../useSite';
 
 function policyBody(html: string): string {
@@ -18,15 +18,17 @@ export function PrivacyPage() {
   return (
     <>
       <SiteHeader site={site} />
-      <main className="information-page">
-        <article
-          className="panel information-panel"
-          dangerouslySetInnerHTML={{ __html: policy[site.locale] }}
-        />
-        <div className="information-actions">
-          <Link to="/">{site.messages.backToHome}</Link>
-        </div>
-      </main>
+      <SiteContent label={site.messages.privacy}>
+        <main className="information-page">
+          <article
+            className="panel information-panel"
+            dangerouslySetInnerHTML={{ __html: policy[site.locale] }}
+          />
+          <div className="information-actions">
+            <Link to="/">{site.messages.backToHome}</Link>
+          </div>
+        </main>
+      </SiteContent>
     </>
   );
 }

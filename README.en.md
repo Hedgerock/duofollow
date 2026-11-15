@@ -11,10 +11,10 @@ You’ll need desktop Chrome and the **DuoFollow Connector** extension. To build
 1. Sign in to Duolingo and open [DuoFollow](https://hedgerock.github.io/duofollow/) in the same Chrome profile.
 2. Select **Manage Duolingo access**. Read which data DuoFollow uses, select **Open settings**, and choose **Grant access**.
 3. Return to DuoFollow, enter the username of the signed-in account, and select **Compare my follows**.
-4. Search by name or `@username`. The arrow on each row opens that person’s Duolingo profile.
+4. Switch between all received, mutual, and non-mutual follows. Search by name or `@username`, or sort by name. The arrow on each row opens that person’s Duolingo profile.
 5. To unfollow someone, select the person icon with a minus and confirm in the dialog.
 
-The counter above the list shows how many of your follows DuoFollow could check. The header links to the profile used for the comparison.
+The counters show how many follows and followers DuoFollow checked. Mutual follows are highlighted in the full list of received profiles. If the followers list is incomplete, the other profiles are marked as unconfirmed. The header links to the profile used for the comparison.
 
 If DuoFollow asks you to enable the extension or sign in to Duolingo, follow the steps in the dialog and select **Check again**.
 
@@ -41,3 +41,5 @@ Run `npm run dev -- --strictPort` and use DuoFollow at [http://localhost:5173/du
 [Privacy policy](https://hedgerock.github.io/duofollow/privacy/)
 
 [Developer guide (Russian)](docs/guidelines/development-guidelines.md)
+
+[Changelog](CHANGELOG.md)

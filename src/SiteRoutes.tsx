@@ -2,7 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import App from './App';
 import { AccessPage } from './pages/AccessPage';
 import { PrivacyPage } from './pages/PrivacyPage';
-import { SiteHeader, SiteLayout } from './SiteLayout';
+import { SiteContent, SiteHeader, SiteLayout } from './SiteLayout';
 import { useSite } from './useSite';
 
 function NotFoundPage() {
@@ -10,11 +10,13 @@ function NotFoundPage() {
   return (
     <>
       <SiteHeader site={site} />
-      <main className="information-page">
-        <div className="panel information-panel">
-          <h1>{site.messages.pageNotFound}</h1>
-        </div>
-      </main>
+      <SiteContent label={site.messages.pageNotFound}>
+        <main className="information-page">
+          <div className="panel information-panel">
+            <h1>{site.messages.pageNotFound}</h1>
+          </div>
+        </main>
+      </SiteContent>
     </>
   );
 }

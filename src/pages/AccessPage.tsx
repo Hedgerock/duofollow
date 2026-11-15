@@ -5,7 +5,7 @@ import russian from '../../extension/_locales/ru/messages.json';
 import ukrainian from '../../extension/_locales/uk/messages.json';
 import { privacyPath } from '../../extension/src/locales';
 import { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
-import { SiteHeader } from '../SiteLayout';
+import { SiteContent, SiteHeader } from '../SiteLayout';
 import { useSite } from '../useSite';
 
 const access = { en: english, ru: russian, uk: ukrainian };
@@ -29,33 +29,35 @@ export function AccessPage() {
   return (
     <>
       <SiteHeader site={site} />
-      <main className="information-page">
-        <article className="panel information-panel">
-          <h1>{copy.accessTitle.message}</h1>
-          <p>{copy.accessSession.message}</p>
-          <p>{copy.accessData.message}</p>
-          <p>{copy.accessRecurring.message}</p>
-          <p>{site.messages.accessHelp(copy.accessGrant.message, copy.accessRevoke.message)}</p>
-          <div className="information-actions">
-            <button
-              className="primary-button"
-              type="button"
-              disabled={state === 'opening'}
-              onClick={() => void openSettings()}
-            >
-              {site.messages.connection.openSettings}
-            </button>
-            <Link to={`/${privacyPath(site.locale)}`}>{site.messages.privacy}</Link>
-            <Link to="/">{site.messages.backToHome}</Link>
-          </div>
-          {state === 'error' && (
-            <p role="alert">
-              <strong>{site.messages.notifications.settingsError}.</strong>{' '}
-              {site.messages.notifications.settingsHint}
-            </p>
-          )}
-        </article>
-      </main>
+      <SiteContent label={copy.accessTitle.message}>
+        <main className="information-page">
+          <article className="panel information-panel">
+            <h1>{copy.accessTitle.message}</h1>
+            <p>{copy.accessSession.message}</p>
+            <p>{copy.accessData.message}</p>
+            <p>{copy.accessRecurring.message}</p>
+            <p>{site.messages.accessHelp(copy.accessGrant.message, copy.accessRevoke.message)}</p>
+            <div className="information-actions">
+              <button
+                className="primary-button"
+                type="button"
+                disabled={state === 'opening'}
+                onClick={() => void openSettings()}
+              >
+                {site.messages.connection.openSettings}
+              </button>
+              <Link to={`/${privacyPath(site.locale)}`}>{site.messages.privacy}</Link>
+              <Link to="/">{site.messages.backToHome}</Link>
+            </div>
+            {state === 'error' && (
+              <p role="alert">
+                <strong>{site.messages.notifications.settingsError}.</strong>{' '}
+                {site.messages.notifications.settingsHint}
+              </p>
+            )}
+          </article>
+        </main>
+      </SiteContent>
     </>
   );
 }

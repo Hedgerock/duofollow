@@ -8,20 +8,27 @@ import {
   type RefObject,
 } from 'react';
 import type {
+  ComparedFollowingUser,
   FollowingComparison,
   FollowingComparisonResult,
-  NonMutualFollowingUser,
 } from '../../extension/src/dto/DuolingoFollowingDto';
 import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
 import type { Locale } from '../../extension/src/locales';
 import { localizedError, translations } from '../i18n/messages';
 import type { NotificationInput } from '../notifications';
+import { getProfileDisplayName } from './profiles';
 
 type ComparisonRequest = { kind: 'comparison'; username: string };
 export type FollowingActivity = RefObject<{ kind: 'comparison' | 'unfollow' } | null>;
+export type FollowingSortOrder = 'received' | 'name-asc' | 'name-desc';
+export type FollowingView = 'all' | 'mutual' | 'non-mutual';
 
 const ACCOUNT_STORAGE_KEY = 'duofollow.accountUsername';
-const EMPTY_USERS: NonMutualFollowingUser[] = [];
+const EMPTY_USERS: ComparedFollowingUser[] = [];
+
+function normalizeSearch(value: string) {
+  return value.normalize('NFC').toLowerCase();
+}
 
 function readSavedUsername(): string {
   try {
@@ -53,7 +60,9 @@ export function useFollowingComparison(
     accountUsername ? { kind: 'comparison', username: accountUsername } : null,
   );
   const [comparison, setComparison] = useState<FollowingComparison | null>(null);
-  const [nonMutualQuery, setNonMutualQuery] = useState('');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<FollowingSortOrder>('received');
+  const [view, setView] = useState<FollowingView>('non-mutual');
   // React commits state asynchronously. Share ownership of the current operation between both hooks.
   const activity = useRef<FollowingActivity['current']>(request);
   const pendingRequest = useRef<{
@@ -122,7 +131,7 @@ export function useFollowingComparison(
         saveUsername(data.accountUsername);
         setComparison(data);
         setAccountUsername(data.accountUsername);
-        setNonMutualQuery('');
+        setQuery('');
         if (quietRequest.current === request) return;
 
         const { format } = new Intl.NumberFormat(locale);
@@ -160,7 +169,7 @@ export function useFollowingComparison(
     setRequest(null);
     setComparison(null);
     setAccountUsername('');
-    setNonMutualQuery('');
+    setQuery('');
     try {
       window.localStorage.removeItem(ACCOUNT_STORAGE_KEY);
     } catch {
@@ -181,22 +190,55 @@ export function useFollowingComparison(
         totalFollowing: Math.max(0, previous.totalFollowing - 1),
         nonMutualUsers: users.length,
         nonMutualFollowing: users,
+        following: previous.following?.filter((user) => user.userId !== userId),
       };
     });
   }, []);
 
+  const following = comparison?.following;
   const nonMutualFollowing = comparison?.nonMutualFollowing;
-  const searchTerm = nonMutualQuery.trim().replace(/^@/, '').toLowerCase();
-  const visibleNonMutual = useMemo(() => {
-    const users = nonMutualFollowing ?? EMPTY_USERS;
-    if (!searchTerm) return users;
-
-    return users.filter(
-      ({ displayName, username }) =>
-        displayName.toLowerCase().includes(searchTerm) ||
-        username.toLowerCase().includes(searchTerm),
+  const canShowNonMutual = nonMutualFollowing != null;
+  const activeView = !following
+    ? 'non-mutual'
+    : !canShowNonMutual && view === 'non-mutual'
+      ? 'all'
+      : view;
+  const viewUsers = useMemo(() => {
+    if (following) {
+      return activeView === 'all'
+        ? following
+        : following.filter(({ relationship }) => relationship === activeView);
+    }
+    return (
+      nonMutualFollowing?.map((user): ComparedFollowingUser => ({
+        ...user,
+        relationship: 'non-mutual',
+      })) ?? EMPTY_USERS
     );
-  }, [nonMutualFollowing, searchTerm]);
+  }, [activeView, following, nonMutualFollowing]);
+  const orderedUsers = useMemo(() => {
+    if (sort === 'received' || viewUsers.length < 2) return viewUsers;
+
+    const { compare } = new Intl.Collator(locale, { sensitivity: 'base', numeric: true });
+    const userLabel = translations[locale].user;
+    const direction = sort === 'name-asc' ? 1 : -1;
+    return [...viewUsers].sort(
+      (left, right) =>
+        direction *
+        (compare(getProfileDisplayName(left, userLabel), getProfileDisplayName(right, userLabel)) ||
+          compare(left.username, right.username)),
+    );
+  }, [locale, viewUsers, sort]);
+  const searchTerm = normalizeSearch(query.trim().replace(/^@/, ''));
+  const visibleFollowing = useMemo(() => {
+    if (!searchTerm) return orderedUsers;
+
+    return orderedUsers.filter(
+      ({ displayName, username }) =>
+        normalizeSearch(displayName).includes(searchTerm) ||
+        normalizeSearch(username).includes(searchTerm),
+    );
+  }, [orderedUsers, searchTerm]);
 
   return {
     accountUsername,
@@ -207,9 +249,18 @@ export function useFollowingComparison(
     comparison,
     activity,
     removeSubscription,
-    nonMutualQuery,
-    setNonMutualQuery,
-    searchTerm,
-    visibleNonMutual,
+    followingList: {
+      activeView,
+      setView,
+      hasFullView: following !== undefined,
+      canShowNonMutual,
+      total: viewUsers.length,
+      query,
+      setQuery,
+      sort,
+      setSort,
+      searchTerm,
+      users: visibleFollowing,
+    },
   };
 }
