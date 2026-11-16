@@ -8,13 +8,14 @@
 - Switch between all received, mutual, and non-mutual follows. The all-received view highlights mutual follows and labels unconfirmed profiles when the followers list is incomplete.
 - Follows can be sorted by name in either direction or shown in the order received.
 - Browser integration tests and screenshot comparisons can run in Docker Compose.
+- The home page provides Open Graph metadata and a 1200 × 630 image for link previews.
 
 ### Changed
 
 - The header and footer stay in place while the main content scrolls. The scrollbar follows the site theme.
-
+- Small screens place the sort control beside search and explain an unavailable non-mutual filter next to the view buttons.
+- The list header highlights the selected view’s count and shows matches out of that total during search.
 - Relationship markers now show a tooltip from the pointer or keyboard and keep profile rows free of status text.
-
 - The page keeps a minimum width of 320 CSS px. Dialogs and notifications fit the visible viewport.
 - The developer guide links to separate pages for the Connector, comparison, release checks, and roadmap.
 

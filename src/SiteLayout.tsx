@@ -98,12 +98,12 @@ export function SiteLayout() {
     },
   };
   const title = privacyMatch
-    ? site.messages.privacy
+    ? `DuoFollow — ${site.messages.privacy}`
     : accessMatch
-      ? site.messages.manageAccess
-      : site.messages.subtitle;
+      ? `DuoFollow — ${site.messages.manageAccess}`
+      : site.messages.homeTitle;
   useEffect(() => {
-    document.title = `DuoFollow — ${title}`;
+    document.title = title;
   }, [title]);
 
   return (

@@ -209,7 +209,7 @@ export function Workspace({
                         : messages.amongChecked}
                     </small>
                   </article>
-                  {comparison.nonMutualUsers === null && (
+                  {!hasFullView && comparison.nonMutualUsers === null && (
                     <p className="comparison-coverage-note">{messages.incompleteFollowersNote}</p>
                   )}
                   {!hasFullView && (
@@ -234,10 +234,9 @@ export function Workspace({
                         )}
                       </p>
                     </div>
-                    <span className="count" aria-live="polite">
-                      {searchTerm
-                        ? `${formatNumber(users.length)} ${messages.ofTotal(formatNumber(total))}`
-                        : formatNumber(total)}
+                    <span className="following-count" aria-live="polite" aria-atomic="true">
+                      <strong>{formatNumber(searchTerm ? users.length : total)}</strong>
+                      {searchTerm && <small> {messages.ofTotal(formatNumber(total))}</small>}
                     </span>
                   </div>
 
@@ -247,6 +246,7 @@ export function Workspace({
                         className="following-views"
                         role="group"
                         aria-label={messages.followingViewLabel}
+                        aria-describedby={!canShowNonMutual ? 'following-filter-note' : undefined}
                       >
                         {followingViews.map((view) => (
                           <button
@@ -261,6 +261,11 @@ export function Workspace({
                           </button>
                         ))}
                       </div>
+                      {!canShowNonMutual && (
+                        <p id="following-filter-note" className="following-filter-note">
+                          {messages.incompleteFollowersNote}
+                        </p>
+                      )}
                       {activeView === 'all' && (
                         <ul
                           className="following-legend"
@@ -291,18 +296,38 @@ export function Workspace({
                         value={query}
                         onChange={(event) => followingList.setQuery(event.target.value)}
                       />
-                      <select
-                        className="following-sort"
-                        aria-label={messages.sortLabel}
-                        value={sort}
-                        onChange={(event) =>
-                          followingList.setSort(event.currentTarget.value as FollowingSortOrder)
-                        }
+                      <div
+                        className="following-sort-control"
+                        data-custom-order={sort !== 'received'}
                       >
-                        <option value="received">{messages.sortReceived}</option>
-                        <option value="name-asc">{messages.sortNameAsc}</option>
-                        <option value="name-desc">{messages.sortNameDesc}</option>
-                      </select>
+                        <select
+                          className="following-sort"
+                          aria-label={messages.sortLabel}
+                          title={messages.sortLabel}
+                          value={sort}
+                          onChange={(event) =>
+                            followingList.setSort(event.currentTarget.value as FollowingSortOrder)
+                          }
+                        >
+                          <option value="received">{messages.sortReceived}</option>
+                          <option value="name-asc">{messages.sortNameAsc}</option>
+                          <option value="name-desc">{messages.sortNameDesc}</option>
+                        </select>
+                        <svg
+                          className="following-sort-icon"
+                          width="20"
+                          height="20"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M4 6h11M4 12h8M4 18h5m10-12v12m-3-3 3 3 3-3" />
+                        </svg>
+                      </div>
                     </div>
                   )}
 

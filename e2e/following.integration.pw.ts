@@ -3,11 +3,14 @@ import { connectorCommands, openComparison } from './connector-fixture';
 
 test('filters received profiles and switches views without comparing again', async ({ page }) => {
   const panel = await openComparison(page);
+  const count = panel.locator('.following-count');
+  await expect(count.locator('strong')).toHaveText('3');
   const marker = panel.locator('.relationship-marker[data-relationship="mutual"]');
   await expect(marker).toHaveAccessibleName('Mutual');
   await expect(panel.locator('[data-following-id]')).toHaveCount(3);
   await panel.getByRole('searchbox').fill('セリ');
   await expect(panel.locator('[data-following-id]')).toHaveCount(1);
+  await expect(count).toHaveText('1 of 3');
   await expect(panel.getByText('セリーナ')).toBeVisible();
   await panel
     .getByRole('group', { name: 'Show follows' })
@@ -46,6 +49,19 @@ test('marks incomplete follower data at 320 px without offering unfollow', async
   await page.setViewportSize({ width: 320, height: 760 });
   const panel = await openComparison(page, { incomplete: true });
   await expect(panel.getByRole('button', { name: 'Non-mutual', exact: true })).toBeDisabled();
+  await expect(panel.getByRole('group', { name: 'Show follows' })).toHaveAccessibleDescription(
+    'A full followers list is required.',
+  );
+  await expect(panel.getByText('A full followers list is required.')).toBeVisible();
+  const search = await panel.getByRole('searchbox').boundingBox();
+  const sort = panel.getByRole('combobox', { name: 'Sort follows' });
+  const sortBounds = await sort.boundingBox();
+  expect(sortBounds).toMatchObject({ width: 44, y: search?.y });
+  await sort.selectOption('name-asc');
+  await expect(panel.locator('[data-following-id]').first()).toHaveAttribute(
+    'data-following-id',
+    '4',
+  );
   const marker = panel.locator('.relationship-marker[data-relationship="unknown"]').first();
   await expect(marker).toHaveAccessibleName('Unconfirmed');
   await expect(panel.getByRole('button', { name: /^Unfollow / })).toHaveCount(0);
