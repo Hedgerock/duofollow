@@ -1,4 +1,4 @@
-export function ComparisonSkeleton() {
+export function ComparisonSkeleton({ rowHeight }: { rowHeight: number }) {
   return (
     <div className="comparison-skeleton" aria-hidden="true" inert>
       <div className="stats">
@@ -26,7 +26,7 @@ export function ComparisonSkeleton() {
 
         <ul className="users live-following-list virtual-following">
           {[0, 1, 2, 3, 4, 5, 6].map((index) => (
-            <li className="user" key={index}>
+            <li className="user" key={index} style={{ height: rowHeight }}>
               <div className="user-info">
                 <span className="skeleton-bar skeleton-label" />
                 <span className="skeleton-bar skeleton-caption" />

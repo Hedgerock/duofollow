@@ -12,6 +12,7 @@ export default defineConfig({
         'privacy/ru/index.html',
         'privacy/uk/index.html',
         'access/index.html',
+        'settings/index.html',
       ],
     },
   },

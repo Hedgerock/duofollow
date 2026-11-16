@@ -1,16 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import viteConfig from '../../vite.config';
 import { SiteRoutes } from '../SiteRoutes';
 
 beforeEach(() => {
+  vi.stubEnv('BASE_URL', viteConfig.base ?? '/');
   vi.stubGlobal('window', {
     localStorage: { getItem: () => null },
     navigator: { languages: ['en-US'] },
   });
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
 
 function render(path: string) {
   const base = import.meta.env.BASE_URL;
@@ -30,6 +35,7 @@ describe('DuoFollow routes', () => {
     const html = render(path);
     expect(html).toContain('class="page"');
     expect(html).toContain('class="topbar"');
+    expect(html).toContain('src="/duofollow/duofollow.svg"');
     expect(html).toMatch(/class="brand site-home-link" href="\/duofollow\/"/);
     expect(html).toContain(`<h1>${heading}</h1>`);
     expect(html).toContain('mailto:devdmitrovasyliev@gmail.com');
@@ -42,8 +48,10 @@ describe('DuoFollow routes', () => {
     expect(html).toContain('<h1>Duolingo access</h1>');
     expect(html).toContain('Open settings');
     expect(html).toContain('Back to comparison');
-    expect(html).toMatch(/href="\/duofollow\/"[^>]*>Back to comparison<\/a>/);
-    expect(html).toContain('href="/duofollow/privacy/"');
+    expect(html).toContain('class="secondary-button information-button" href="/duofollow/"');
+    expect(html).toContain(
+      'class="secondary-button information-button" href="/duofollow/privacy/"',
+    );
     expect(html).not.toContain('duolingo-username');
   });
 });

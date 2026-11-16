@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Workspace } from '../App';
 import { ConnectionDialog } from '../ConnectionDialog';
+import { RelationshipLegend } from '../following/RelationshipLegend';
 import { ThemeToggle } from '../ThemeToggle';
 import type { ConnectorStatus } from '../../extension/src/dto/ConnectorSession';
 import { ProfileAvatar } from '../ProfileAvatar';
@@ -715,13 +716,8 @@ describe('comparison screen', () => {
         [1, incomplete ? 'unknown' : 'non-mutual'],
         [2, 'mutual'],
       ]);
-      const legend = findElement(
-        app.render(),
-        (node) => node.props.className === 'following-legend',
-      );
-      expect(
-        findElements(legend, (node) => node.type === 'li').map((node) => node.props.children),
-      ).toEqual(['Взаимная', incomplete ? 'Не проверено' : 'Невзаимная']);
+      const legend = findElement(app.render(), (node) => node.type === RelationshipLegend);
+      expect(legend.props.relationships).toEqual(['mutual', incomplete ? 'unknown' : 'non-mutual']);
       const search = findElement(app.render(), (node) => node.props.type === 'search');
       runEvent(search, 'onChange', { target: { value: 'أحمد' } });
       expect(shown()).toEqual([[1, incomplete ? 'unknown' : 'non-mutual']]);

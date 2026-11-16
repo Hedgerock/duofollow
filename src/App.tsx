@@ -2,6 +2,8 @@ import { Link } from 'react-router';
 import { privacyPath } from '../extension/src/locales';
 import { ConnectionDialog } from './ConnectionDialog';
 import { ComparisonSkeleton } from './following/ComparisonSkeleton';
+import { RelationshipLegend } from './following/RelationshipLegend';
+import { FOLLOWING_ROW_HEIGHT } from './following/useFollowingViewport';
 import { getDuolingoProfileUrl } from './following/profiles';
 import type { FollowingSortOrder, FollowingView } from './following/useFollowingComparison';
 import type { WorkspaceState } from './following/useWorkspace';
@@ -10,6 +12,7 @@ import { ProfileAvatar } from './ProfileAvatar';
 import { LanguageSelect, SiteContent, SiteHeader } from './SiteLayout';
 import { UnfollowDialog } from './UnfollowDialog';
 import { useSite, useWorkspaceState, type SitePreferences } from './useSite';
+import { fontSizes } from './useAppearance';
 import { VirtualFollowingList } from './VirtualFollowingList';
 
 const followingViews: FollowingView[] = ['all', 'mutual', 'non-mutual'];
@@ -25,7 +28,8 @@ export function Workspace({
   site: SitePreferences;
   workspace: WorkspaceState;
 }) {
-  const { locale, messages } = site;
+  const { appearance, locale, messages } = site;
+  const rowHeight = Math.ceil(FOLLOWING_ROW_HEIGHT * fontSizes[appearance.fontSize]);
   const formatNumber = new Intl.NumberFormat(locale).format;
   const privacyHref = `/${privacyPath(locale)}`;
   const {
@@ -169,7 +173,7 @@ export function Workspace({
             </form>
           </section>
           <div className="comparison-results" aria-busy={isLoading}>
-            {isLoading && <ComparisonSkeleton />}
+            {isLoading && <ComparisonSkeleton rowHeight={rowHeight} />}
             <div
               className="comparison-content"
               aria-hidden={isLoading || undefined}
@@ -267,23 +271,10 @@ export function Workspace({
                         </p>
                       )}
                       {activeView === 'all' && (
-                        <ul
-                          className="following-legend"
-                          role="list"
-                          aria-label={messages.relationshipLegend}
-                        >
-                          <li className="relationship-badge" data-relationship="mutual">
-                            {messages.relationships.mutual}
-                          </li>
-                          <li
-                            className="relationship-badge"
-                            data-relationship={canShowNonMutual ? 'non-mutual' : 'unknown'}
-                          >
-                            {canShowNonMutual
-                              ? messages.relationships['non-mutual']
-                              : messages.relationships.unknown}
-                          </li>
-                        </ul>
+                        <RelationshipLegend
+                          relationships={['mutual', canShowNonMutual ? 'non-mutual' : 'unknown']}
+                          messages={messages}
+                        />
                       )}
                     </div>
                   )}
@@ -334,6 +325,7 @@ export function Workspace({
                   <VirtualFollowingList
                     key={comparison.accountUsername}
                     users={users}
+                    rowHeight={rowHeight}
                     viewKey={`${activeView}:${sort}:${sort === 'received' ? '' : locale}:${searchTerm}`}
                     label={listTitle}
                     showRelationships={activeView === 'all'}

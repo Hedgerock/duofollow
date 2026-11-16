@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
-import { Link, Outlet, useLocation, useMatch, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router';
 import { locales, matchLocale, privacyPath } from '../extension/src/locales';
 import { useWorkspace } from './following/useWorkspace';
 import { ThemeToggle } from './ThemeToggle';
@@ -59,6 +59,26 @@ export function SiteHeader({
       <div className="topbar-controls">
         {children}
         <ThemeToggle theme={site.theme} onToggle={site.toggleTheme} messages={site.messages} />
+        <NavLink
+          to="/settings/"
+          end
+          className="theme-toggle settings-link"
+          aria-label={site.messages.appearance.title}
+          title={site.messages.appearance.title}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            aria-hidden="true"
+          >
+            <path d="M5 3v4m0 4v10M12 3v10m0 4v4M19 3v4m0 4v10M2 7h6m1 6h6m1-6h6" />
+          </svg>
+        </NavLink>
         {languageControl}
       </div>
     </header>
@@ -83,6 +103,7 @@ export function SiteContent({ label, children }: { label: string; children: Reac
 export function SiteLayout() {
   const privacyMatch = useMatch('/privacy/:language?');
   const accessMatch = useMatch('/access');
+  const settingsMatch = useMatch('/settings');
   const workspaceVisible = Boolean(useMatch('/'));
   const routeLocale = privacyMatch
     ? (matchLocale(privacyMatch.params.language) ?? 'en')
@@ -101,13 +122,21 @@ export function SiteLayout() {
     ? `DuoFollow — ${site.messages.privacy}`
     : accessMatch
       ? `DuoFollow — ${site.messages.manageAccess}`
-      : site.messages.homeTitle;
+      : settingsMatch
+        ? 'DuoFollow — ' + site.messages.appearance.title
+        : site.messages.homeTitle;
   useEffect(() => {
     document.title = title;
   }, [title]);
 
   return (
-    <div className="page" data-theme={site.theme}>
+    <div
+      className="page"
+      data-theme={site.theme}
+      data-font-size={site.appearance.fontSize}
+      data-font-family={site.appearance.fontFamily}
+      data-color-vision={site.appearance.colorVision}
+    >
       <Outlet context={{ site, workspace }} />
       <footer>
         <span>{site.messages.independent}</span>

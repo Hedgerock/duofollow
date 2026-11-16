@@ -19,6 +19,7 @@ import type { Messages } from './i18n/messages';
 
 interface ListProps {
   users: ComparedFollowingUser[];
+  rowHeight?: number;
   viewKey: string;
   label: string;
   showRelationships: boolean;
@@ -33,6 +34,7 @@ interface ListProps {
 interface RowProps {
   user: ComparedFollowingUser;
   index: number;
+  rowHeight: number;
   total: number;
   showRelationships: boolean;
   unfollowingId: number | null;
@@ -44,6 +46,7 @@ interface RowProps {
 const FollowingRow = memo(function FollowingRow({
   user,
   index,
+  rowHeight,
   total,
   showRelationships,
   unfollowingId,
@@ -61,7 +64,7 @@ const FollowingRow = memo(function FollowingRow({
       className="user virtual-following-row"
       data-following-id={userId}
       data-relationship={showRelationships ? relationship : undefined}
-      style={{ top: index * FOLLOWING_ROW_HEIGHT, height: FOLLOWING_ROW_HEIGHT }}
+      style={{ top: index * rowHeight, height: rowHeight }}
       aria-posinset={index + 1}
       aria-setsize={total}
       onFocus={() => onFocusedUserChange(userId)}
@@ -135,6 +138,7 @@ const FollowingRow = memo(function FollowingRow({
 
 export const VirtualFollowingList = memo(function VirtualFollowingList({
   users,
+  rowHeight = FOLLOWING_ROW_HEIGHT,
   viewKey,
   label,
   showRelationships,
@@ -149,6 +153,7 @@ export const VirtualFollowingList = memo(function VirtualFollowingList({
   const { viewportRef, indices, updateRange, setFocusedUserId } = useFollowingViewport(
     users,
     viewKey,
+    rowHeight,
   );
   useFollowingRemovalAnimation(viewportRef, removingId, onRemovalComplete);
 
@@ -165,12 +170,13 @@ export const VirtualFollowingList = memo(function VirtualFollowingList({
         <li className="empty">{emptyMessage}</li>
       ) : (
         <>
-          <li aria-hidden="true" style={{ height: total * FOLLOWING_ROW_HEIGHT }} />
+          <li aria-hidden="true" style={{ height: total * rowHeight }} />
           {indices.map((index) => (
             <FollowingRow
               key={users[index].userId}
               user={users[index]}
               index={index}
+              rowHeight={rowHeight}
               total={total}
               showRelationships={showRelationships}
               unfollowingId={unfollowingId}

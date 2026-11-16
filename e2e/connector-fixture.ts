@@ -4,7 +4,16 @@ import type {
   FollowingComparisonResult,
 } from '../extension/src/dto/DuolingoFollowingDto';
 
-function comparison(incomplete: boolean): FollowingComparisonResult {
+type ComparisonIdentity = {
+  accountUsername: string;
+  profile: Pick<ComparedFollowingUser, 'displayName' | 'username'>;
+};
+
+function comparison(
+  incomplete: boolean,
+  profileCount: number,
+  identity?: ComparisonIdentity,
+): FollowingComparisonResult {
   const profiles: ComparedFollowingUser[] = [
     { userId: 2, displayName: 'セリーナ', username: 'selina', relationship: 'mutual' },
     {
@@ -17,9 +26,22 @@ function comparison(incomplete: boolean): FollowingComparisonResult {
       userId: 4,
       displayName: 'Anna Rivers',
       username: 'anna_r',
+      ...identity?.profile,
       relationship: incomplete ? 'unknown' : 'non-mutual',
     },
   ];
+  for (let userId = 5; profiles.length < profileCount; userId += 1) {
+    const suffix = String(userId).padStart(5, '0');
+    profiles.push({
+      userId,
+      displayName: 'Profile ' + suffix,
+      username: 'profile_' + suffix,
+      relationship: userId % 3 === 0 ? 'mutual' : incomplete ? 'unknown' : 'non-mutual',
+    });
+  }
+  const mutual = profiles.filter(({ relationship }) => relationship === 'mutual').length;
+  const totalFollowing = Math.max(8, profiles.length);
+  const checkedFollowers = mutual + 1;
   const nonMutual = incomplete
     ? null
     : profiles.filter(({ relationship }) => relationship === 'non-mutual');
@@ -28,7 +50,7 @@ function comparison(incomplete: boolean): FollowingComparisonResult {
     firstPage: {
       received: profiles.length,
       cursor: 'v1:500',
-      totalUsers: 8,
+      totalUsers: totalFollowing,
       isFollowingTrue: profiles.length,
       isFollowingFalse: 0,
       isFollowedByTrue: 0,
@@ -39,13 +61,13 @@ function comparison(incomplete: boolean): FollowingComparisonResult {
     duplicatedUsers: 0,
     uniqueUsers: profiles.length,
     comparison: {
-      accountUsername: 'lingua_demo',
+      accountUsername: identity?.accountUsername ?? 'lingua_demo',
       accountPicture: null,
       checkedFollowing: profiles.length,
-      totalFollowing: 8,
-      checkedFollowers: 2,
-      totalFollowers: incomplete ? 5 : 2,
-      mutualUsers: 1,
+      totalFollowing,
+      checkedFollowers,
+      totalFollowers: incomplete ? checkedFollowers + 3 : checkedFollowers,
+      mutualUsers: mutual,
       nonMutualUsers: nonMutual?.length ?? null,
       nonMutualFollowing: nonMutual,
       following: profiles,
@@ -55,8 +77,19 @@ function comparison(incomplete: boolean): FollowingComparisonResult {
 
 export async function openComparison(
   page: Page,
-  { incomplete = false, theme = 'dark' }: { incomplete?: boolean; theme?: 'dark' | 'light' } = {},
+  {
+    incomplete = false,
+    theme = 'dark',
+    profileCount = 3,
+    identity,
+  }: {
+    incomplete?: boolean;
+    theme?: 'dark' | 'light';
+    profileCount?: number;
+    identity?: ComparisonIdentity;
+  } = {},
 ) {
+  const summary = comparison(incomplete, profileCount, identity);
   await page.addInitScript(
     ({ summary, theme }) => {
       localStorage.setItem('duofollow.language', 'en');
@@ -97,10 +130,10 @@ export async function openComparison(
       });
       if (!Reflect.get(window, 'chrome')) Reflect.set(window, 'chrome', chrome);
     },
-    { summary: comparison(incomplete), theme },
+    { summary, theme },
   );
   await page.goto('/duofollow/');
-  await page.locator('#duolingo-username').fill('lingua_demo');
+  await page.locator('#duolingo-username').fill(identity?.accountUsername ?? 'lingua_demo');
   await page.getByRole('button', { name: 'Compare my follows' }).click();
   await expect(page.getByRole('group', { name: 'Show follows' })).toBeVisible();
   await page.getByRole('button', { name: /Dismiss notification “Comparison complete”/ }).click();

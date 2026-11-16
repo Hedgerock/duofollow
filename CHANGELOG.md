@@ -9,6 +9,8 @@
 - Follows can be sorted by name in either direction or shown in the order received.
 - Browser integration tests and screenshot comparisons can run in Docker Compose.
 - The home page provides Open Graph metadata and a 1200 × 630 image for link previews.
+- Settings let visitors change text size and typeface and distinguish follow statuses by solid, dashed, and dotted markers.
+- A Chromium load test tracks retained JS heap, DOM nodes, and event listeners on a virtual list of 10,000 profiles.
 
 ### Changed
 
@@ -22,4 +24,5 @@
 ### Fixed
 
 - Profile names and usernames use separate text directions. Search matches canonically equivalent Unicode names.
+- Long usernames, translated list headings, and Connector buttons fit at 125% text size.
 - Returning from the privacy policy or access page rechecks a failed Connector status before showing a warning.

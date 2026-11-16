@@ -3,6 +3,7 @@ import russian from '../../privacy/ru/index.html?raw';
 import ukrainian from '../../privacy/uk/index.html?raw';
 import { SiteContent, SiteHeader } from '../SiteLayout';
 import { useSite } from '../useSite';
+import { BackToComparisonLink } from './BackToComparisonLink';
 
 function policyBody(html: string): string {
   const match = /<main>([\s\S]*?)<\/main>/.exec(html);
@@ -25,11 +26,10 @@ export function PrivacyPage() {
             dangerouslySetInnerHTML={{ __html: policy[site.locale] }}
           />
           <div className="information-actions">
-            <Link to="/">{site.messages.backToHome}</Link>
+            <BackToComparisonLink label={site.messages.backToHome} />
           </div>
         </main>
       </SiteContent>
     </>
   );
 }
-import { Link } from 'react-router';

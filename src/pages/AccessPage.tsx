@@ -7,6 +7,7 @@ import { privacyPath } from '../../extension/src/locales';
 import { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
 import { SiteContent, SiteHeader } from '../SiteLayout';
 import { useSite } from '../useSite';
+import { BackToComparisonLink } from './BackToComparisonLink';
 
 const access = { en: english, ru: russian, uk: ukrainian };
 const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSION_ID);
@@ -46,8 +47,13 @@ export function AccessPage() {
               >
                 {site.messages.connection.openSettings}
               </button>
-              <Link to={`/${privacyPath(site.locale)}`}>{site.messages.privacy}</Link>
-              <Link to="/">{site.messages.backToHome}</Link>
+              <Link
+                className="secondary-button information-button"
+                to={`/${privacyPath(site.locale)}`}
+              >
+                {site.messages.privacy}
+              </Link>
+              <BackToComparisonLink label={site.messages.backToHome} />
             </div>
             {state === 'error' && (
               <p role="alert">

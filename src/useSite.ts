@@ -3,9 +3,10 @@ import type { Locale } from '../extension/src/locales';
 import type { WorkspaceState } from './following/useWorkspace';
 import { useLocale } from './i18n/useLocale';
 import { useTheme } from './ThemeToggle';
+import { useAppearance } from './useAppearance';
 
 export function useSitePreferences(routeLocale?: Locale) {
-  return { ...useLocale(routeLocale), ...useTheme() };
+  return { ...useLocale(routeLocale), ...useTheme(), ...useAppearance() };
 }
 
 export type SitePreferences = ReturnType<typeof useSitePreferences>;

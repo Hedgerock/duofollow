@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router';
 import App from './App';
 import { AccessPage } from './pages/AccessPage';
 import { PrivacyPage } from './pages/PrivacyPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { SiteContent, SiteHeader, SiteLayout } from './SiteLayout';
 import { useSite } from './useSite';
 
@@ -35,6 +36,8 @@ export function SiteRoutes() {
         <Route path="privacy/uk/index.html" element={<Navigate to="/privacy/uk/" replace />} />
         <Route path="access" element={<AccessPage />} />
         <Route path="access/index.html" element={<Navigate to="/access/" replace />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings/index.html" element={<Navigate to="/settings/" replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

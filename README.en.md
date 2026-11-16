@@ -20,7 +20,7 @@ Colored bars in the all-received view show each profile’s status. If the follo
 
 If DuoFollow asks you to enable the extension or sign in to Duolingo, follow the steps in the dialog and select **Check again**.
 
-To revoke access, select the lock in the header, open the Connector settings, and choose **Disconnect**. You can also open the settings from the extension icon. The header lets you change the site language and theme.
+To revoke access, select the lock in the header, open the Connector settings, and choose **Disconnect**. You can also open the settings from the extension icon. The header lets you change the site language and theme. Open **Settings** to enlarge text, change the typeface, or turn on patterns for follow statuses.
 
 ## Install from source
 

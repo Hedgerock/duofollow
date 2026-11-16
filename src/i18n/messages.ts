@@ -5,6 +5,15 @@ type ConnectionIssue = Exclude<ConnectorStatus, 'ready'>;
 
 const ru = {
   language: 'Язык',
+  appearance: {
+    title: 'Настройки',
+    fontSize: 'Размер текста',
+    fontFamily: 'Шрифт',
+    families: { system: 'Системный', wide: 'Широкий', serif: 'С засечками' },
+    colorVision: 'Режим для дальтоников',
+    colorVisionHelp:
+      'Статусы подписок различаются по цвету и узору: сплошная линия, штрихи или точки.',
+  },
   subtitle: 'Управление подписками',
   homeTitle: 'DuoFollow — Кто не подписан на тебя в Duolingo',
   privacy: 'Конфиденциальность',
@@ -133,6 +142,14 @@ export type Messages = typeof ru;
 
 const en = {
   language: 'Language',
+  appearance: {
+    title: 'Settings',
+    fontSize: 'Text size',
+    fontFamily: 'Typeface',
+    families: { system: 'System', wide: 'Wide sans serif', serif: 'Serif' },
+    colorVision: 'Color vision mode',
+    colorVisionHelp: 'Follow status markers use a solid, dashed, or dotted line as well as color.',
+  },
   subtitle: 'Subscription Manager',
   homeTitle: 'DuoFollow — Find who doesn’t follow you back on Duolingo',
   privacy: 'Privacy Policy',
@@ -258,6 +275,15 @@ const en = {
 
 const uk = {
   language: 'Мова',
+  appearance: {
+    title: 'Налаштування',
+    fontSize: 'Розмір тексту',
+    fontFamily: 'Шрифт',
+    families: { system: 'Системний', wide: 'Широкий', serif: 'Із зарубками' },
+    colorVision: 'Режим для дальтоніків',
+    colorVisionHelp:
+      'Статуси підписок відрізняються за кольором і візерунком: суцільна лінія, риски або крапки.',
+  },
   subtitle: 'Керування підписками',
   homeTitle: 'DuoFollow — Хто не підписаний на тебе в Duolingo',
   privacy: 'Політика конфіденційності',

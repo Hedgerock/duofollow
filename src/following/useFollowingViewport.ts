@@ -4,7 +4,11 @@ import type { NonMutualFollowingUser } from '../../extension/src/dto/DuolingoFol
 export const FOLLOWING_ROW_HEIGHT = 68;
 const OVERSCAN = 4;
 
-export function useFollowingViewport(users: NonMutualFollowingUser[], viewKey: string) {
+export function useFollowingViewport(
+  users: NonMutualFollowingUser[],
+  viewKey: string,
+  rowHeight = FOLLOWING_ROW_HEIGHT,
+) {
   const viewportRef = useRef<HTMLUListElement>(null);
   const [range, setRange] = useState({ start: 0, end: 0 });
   const [focusedUserId, setFocusedUserId] = useState<number | null>(null);
@@ -13,16 +17,16 @@ export function useFollowingViewport(users: NonMutualFollowingUser[], viewKey: s
   const updateRange = useCallback(
     (viewport: HTMLUListElement) => {
       const height = viewport.clientHeight;
-      const maxScrollTop = Math.max(0, total * FOLLOWING_ROW_HEIGHT - height);
+      const maxScrollTop = Math.max(0, total * rowHeight - height);
       const top = Math.max(0, Math.min(viewport.scrollTop, maxScrollTop));
-      const start = Math.max(0, Math.floor(top / FOLLOWING_ROW_HEIGHT) - OVERSCAN);
-      const end = Math.min(total, Math.ceil((top + height) / FOLLOWING_ROW_HEIGHT) + OVERSCAN);
+      const start = Math.max(0, Math.floor(top / rowHeight) - OVERSCAN);
+      const end = Math.min(total, Math.ceil((top + height) / rowHeight) + OVERSCAN);
 
       setRange((previous) =>
         previous.start === start && previous.end === end ? previous : { start, end },
       );
     },
-    [total],
+    [rowHeight, total],
   );
 
   useLayoutEffect(() => {
