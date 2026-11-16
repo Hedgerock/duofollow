@@ -1,4 +1,4 @@
-import { ConnectorError } from './dto/ConnectorError.js';
+import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
 
 export function assertDuolingoResponse(response: Response, message: string): void {
   if (response.ok) return;

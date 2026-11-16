@@ -1,10 +1,16 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { ProfileAvatar } from '../ProfileAvatar';
-import { createRenderer, findElement, findElements, runEvent } from './reactHarness';
+
+import { ProfileAvatar } from '@duofollow/src/ProfileAvatar';
+import {
+  createRenderer,
+  findElement,
+  findElements,
+  runEvent,
+} from '@duofollow/src/test/reactHarness';
 
 vi.mock('react', async (original) => ({
   ...(await original<typeof import('react')>()),
-  ...(await import('./reactHarness')).mockHooks,
+  ...(await import('@duofollow/src/test/reactHarness')).mockHooks,
 }));
 
 afterEach(() => vi.useRealTimers());

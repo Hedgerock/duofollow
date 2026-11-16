@@ -1,5 +1,6 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import type { NonMutualFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
+import { type RefObject, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
+
+import type { NonMutualFollowingUser } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
 export const FOLLOWING_ROW_HEIGHT = 68;
 const OVERSCAN = 4;

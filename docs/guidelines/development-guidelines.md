@@ -4,7 +4,7 @@ DuoFollow — неофициальное приложение на React и Type
 
 ## Запуск локально
 
-Понадобится Node.js 22. Из корня проекта:
+Понадобится Node.js 22.13 или новее в ветке 22. Из корня проекта:
 
 ```bash
 npm ci
@@ -26,6 +26,27 @@ VITE_DUOFOLLOW_EXTENSION_ID=<ID установленного расширени�
 
 Для проверки сайта из `dist` выполни `npm run build`, останови dev-сервер и запусти `npm run preview -- --port 5173 --strictPort`.
 Открой `http://localhost:5173/duofollow/`. Порт 5173 входит в список разрешённых адресов коннектора.
+
+## Линтинг и импорты
+
+Из корня проекта запусти `npm run lint`. Чтобы применить автоисправления ESLint, выполни `npm run lint -- --fix`.
+ESLint проверяет JavaScript и TypeScript, правила и зависимости React Hooks, алиасы и порядок импортов.
+`npm run format:check` отдельно сверяет форматирование через Prettier.
+
+Указывай внутренний путь от корня репозитория до файла через `@duofollow/*`: например,
+`@duofollow/src/pages/SettingsPage` и `@duofollow/extension/src/locales`. В импортах модулей опускай расширение файла.
+Для ресурсов сохраняй расширение и суффикс запроса, например `@duofollow/privacy/index.html?raw`.
+
+Порядок импортов с одной пустой строкой между группами:
+
+1. Встроенные модули Node.js с префиксом `node:`.
+2. Сторонние пакеты.
+3. Внутренние модули через `@duofollow/*`.
+4. Импорты только типов через `import type`.
+5. Стили и другие импорты ради побочных эффектов в исходном относительном порядке.
+
+TypeScript и Playwright используют `compilerOptions.paths` из корневого `tsconfig.json`. Vite настраивает тот же алиас
+для сайта и Vitest. Connector проверяет типы через TypeScript и собирает `background.js` и `access.js` через esbuild.
 
 ## Состояние интерфейса
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { DuoFollowConnector } from './DuoFollowConnector';
+
+import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 
 const client = new DuoFollowConnector('test-extension');
 

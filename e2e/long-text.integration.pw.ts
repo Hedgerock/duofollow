@@ -1,5 +1,6 @@
-import { expect, test, type Locator } from 'playwright/test';
-import { connectorCommands, openComparison } from './connector-fixture';
+import { expect, type Locator, test } from 'playwright/test';
+
+import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
 
 const identity = {
   accountUsername: 'test_profile_'.repeat(6),

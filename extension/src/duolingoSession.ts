@@ -1,7 +1,11 @@
-import type { DuolingoSessionStatus } from './dto/ConnectorSession';
-import { ConnectorError } from './dto/ConnectorError.js';
-import { duolingoEndpoints } from './duolingoEndpoints.js';
-import { assertDuolingoResponse, readDuolingoJson } from './duolingoResponse.js';
+import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
+import {
+  assertDuolingoResponse,
+  readDuolingoJson,
+} from '@duofollow/extension/src/duolingoResponse';
+
+import type { DuolingoSessionStatus } from '@duofollow/extension/src/dto/ConnectorSession';
 
 function readSessionUserId(token: string | undefined): string | null {
   const payload = token?.split('.')[1];

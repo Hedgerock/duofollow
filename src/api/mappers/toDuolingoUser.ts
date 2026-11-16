@@ -1,5 +1,5 @@
-import type { DuolingoFollowingUserDto } from '../dto/DuolingoFollowingDto';
-import type { DuolingoUser } from '../../domain/models/DuolingoUser';
+import type { DuolingoFollowingUserDto } from '@duofollow/src/api/dto/DuolingoFollowingDto';
+import type { DuolingoUser } from '@duofollow/src/domain/models/DuolingoUser';
 
 export function toDuolingoUser(dto: DuolingoFollowingUserDto): DuolingoUser {
   return {

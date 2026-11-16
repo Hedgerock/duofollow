@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { matchLocale, type Locale } from '../../extension/src/locales';
-import { translations } from './messages';
+
+import { type Locale, matchLocale } from '@duofollow/extension/src/locales';
+import { translations } from '@duofollow/src/i18n/messages';
 
 const languageKey = 'duofollow.language';
 

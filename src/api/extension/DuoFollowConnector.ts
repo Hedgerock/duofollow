@@ -1,9 +1,10 @@
-import { ConnectorError } from '../../../extension/src/dto/ConnectorError';
+import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+
+import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
 import type {
   FollowingComparisonResult,
   UnfollowResult,
-} from '../../../extension/src/dto/DuolingoFollowingDto';
-import type { ConnectorStatus } from '../../../extension/src/dto/ConnectorSession';
+} from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
 interface ConnectorResponse {
   success: boolean;

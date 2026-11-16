@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import russian from '@duofollow/extension/_locales/ru/messages.json';
+import ukrainian from '@duofollow/extension/_locales/uk/messages.json';
 import {
   ACCESS_CONSENT_KEY,
   ACCESS_CONSENT_VERSION,
   DUOLINGO_PERMISSIONS,
-} from '../../extension/src/duolingoAccess';
-import russian from '../../extension/_locales/ru/messages.json';
-import ukrainian from '../../extension/_locales/uk/messages.json';
+} from '@duofollow/extension/src/duolingoAccess';
 
 function control() {
   return Object.assign(new EventTarget(), { hidden: true, disabled: false, textContent: '' });
@@ -80,7 +81,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe('extension access settings', () => {
   it('localizes the privacy link without requesting access', async () => {
     uiLanguage = 'uk';
-    await import('../../extension/src/access');
+    await import('@duofollow/extension/src/access');
     await vi.waitFor(() => expect(grant.hidden).toBe(false));
     expect(document.documentElement.lang).toBe('uk');
     expect(status.textContent).toBe('Доступ відключено.');
@@ -93,7 +94,7 @@ describe('extension access settings', () => {
       permitted = true;
       return true;
     });
-    await import('../../extension/src/access');
+    await import('@duofollow/extension/src/access');
     await vi.waitFor(() => expect(grant.hidden).toBe(false));
     expect(requestPermissions).not.toHaveBeenCalled();
 
@@ -113,7 +114,7 @@ describe('extension access settings', () => {
   it('clears the consent before revoking permissions', async () => {
     storedConsent = ACCESS_CONSENT_VERSION;
     permitted = true;
-    await import('../../extension/src/access');
+    await import('@duofollow/extension/src/access');
     await vi.waitFor(() => expect(revoke.hidden).toBe(false));
 
     revoke.dispatchEvent(new Event('click'));

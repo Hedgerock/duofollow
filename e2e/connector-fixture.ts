@@ -1,8 +1,9 @@
 import { expect, type Page } from 'playwright/test';
+
 import type {
   ComparedFollowingUser,
   FollowingComparisonResult,
-} from '../extension/src/dto/DuolingoFollowingDto';
+} from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
 type ComparisonIdentity = {
   accountUsername: string;

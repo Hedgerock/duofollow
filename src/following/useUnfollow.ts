@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ConnectorError, isConnectorErrorCode } from '../../extension/src/dto/ConnectorError';
-import type { NonMutualFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
-import type { Locale } from '../../extension/src/locales';
-import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
-import { localizedError, translations } from '../i18n/messages';
-import type { NotificationInput } from '../notifications';
-import type { FollowingActivity } from './useFollowingComparison';
-import { getProfileIdentifier } from './profiles';
+
+import { ConnectorError, isConnectorErrorCode } from '@duofollow/extension/src/dto/ConnectorError';
+import { getProfileIdentifier } from '@duofollow/src/following/profiles';
+import { localizedError, translations } from '@duofollow/src/i18n/messages';
+
+import type { NonMutualFollowingUser } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type { Locale } from '@duofollow/extension/src/locales';
+import type { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
+import type { FollowingActivity } from '@duofollow/src/following/useFollowingComparison';
+import type { NotificationInput } from '@duofollow/src/notifications';
 
 type UnfollowAction = {
   kind: 'unfollow';

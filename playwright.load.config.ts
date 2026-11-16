@@ -1,5 +1,6 @@
 import { defineConfig } from 'playwright/test';
-import browserConfig from './playwright.config';
+
+import browserConfig from '@duofollow/playwright.config';
 
 export default defineConfig({
   ...browserConfig,

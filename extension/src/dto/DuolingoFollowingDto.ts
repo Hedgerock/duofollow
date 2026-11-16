@@ -1,4 +1,4 @@
-import type { ConnectorFailure } from './ConnectorError';
+import type { ConnectorFailure } from '@duofollow/extension/src/dto/ConnectorError';
 
 export interface DuolingoFollowingUserDto {
   userId: number;

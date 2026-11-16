@@ -1,9 +1,11 @@
 import { useOutletContext } from 'react-router';
-import type { Locale } from '../extension/src/locales';
-import type { WorkspaceState } from './following/useWorkspace';
-import { useLocale } from './i18n/useLocale';
-import { useTheme } from './ThemeToggle';
-import { useAppearance } from './useAppearance';
+
+import { useLocale } from '@duofollow/src/i18n/useLocale';
+import { useTheme } from '@duofollow/src/ThemeToggle';
+import { useAppearance } from '@duofollow/src/useAppearance';
+
+import type { Locale } from '@duofollow/extension/src/locales';
+import type { WorkspaceState } from '@duofollow/src/following/useWorkspace';
 
 export function useSitePreferences(routeLocale?: Locale) {
   return { ...useLocale(routeLocale), ...useTheme(), ...useAppearance() };

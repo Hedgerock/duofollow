@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { FollowingRelationship } from '../../extension/src/dto/DuolingoFollowingDto';
+
+import type { FollowingRelationship } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
 const GAP = 12;
 const EDGE = 8;

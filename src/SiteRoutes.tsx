@@ -1,10 +1,11 @@
 import { Navigate, Route, Routes } from 'react-router';
-import App from './App';
-import { AccessPage } from './pages/AccessPage';
-import { PrivacyPage } from './pages/PrivacyPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { SiteContent, SiteHeader, SiteLayout } from './SiteLayout';
-import { useSite } from './useSite';
+
+import App from '@duofollow/src/App';
+import { AccessPage } from '@duofollow/src/pages/AccessPage';
+import { PrivacyPage } from '@duofollow/src/pages/PrivacyPage';
+import { SettingsPage } from '@duofollow/src/pages/SettingsPage';
+import { SiteContent, SiteHeader, SiteLayout } from '@duofollow/src/SiteLayout';
+import { useSite } from '@duofollow/src/useSite';
 
 function NotFoundPage() {
   const site = useSite();

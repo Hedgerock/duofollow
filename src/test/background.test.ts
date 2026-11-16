@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { ACCESS_CONSENT_KEY } from '@duofollow/extension/src/duolingoAccess';
+import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
+
 import type {
   FollowingComparisonResult,
   UnfollowResult,
-} from '../../extension/src/dto/DuolingoFollowingDto';
-import { duolingoEndpoints } from '../../extension/src/duolingoEndpoints';
-import { ACCESS_CONSENT_KEY } from '../../extension/src/duolingoAccess';
+} from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
 type Listener = (
   message: unknown,
@@ -104,7 +106,7 @@ beforeEach(async () => {
       },
     },
   });
-  await import('../../extension/src/background');
+  await import('@duofollow/extension/src/background');
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -195,7 +197,7 @@ describe('extension worker', () => {
     getManifest.mockReturnValue({
       externally_connectable: { matches: ['https://hedgerock.github.io/*'] },
     });
-    await import('../../extension/src/background');
+    await import('@duofollow/extension/src/background');
     const reply = vi.fn();
     listener({ type: 'PING' }, { url: approvedOrigin }, reply);
     expect(reply).not.toHaveBeenCalled();

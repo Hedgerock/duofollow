@@ -1,19 +1,24 @@
 import { Link } from 'react-router';
-import { privacyPath } from '../extension/src/locales';
-import { ConnectionDialog } from './ConnectionDialog';
-import { ComparisonSkeleton } from './following/ComparisonSkeleton';
-import { RelationshipLegend } from './following/RelationshipLegend';
-import { FOLLOWING_ROW_HEIGHT } from './following/useFollowingViewport';
-import { getDuolingoProfileUrl } from './following/profiles';
-import type { FollowingSortOrder, FollowingView } from './following/useFollowingComparison';
-import type { WorkspaceState } from './following/useWorkspace';
-import { NotificationViewport } from './notifications';
-import { ProfileAvatar } from './ProfileAvatar';
-import { LanguageSelect, SiteContent, SiteHeader } from './SiteLayout';
-import { UnfollowDialog } from './UnfollowDialog';
-import { useSite, useWorkspaceState, type SitePreferences } from './useSite';
-import { fontSizes } from './useAppearance';
-import { VirtualFollowingList } from './VirtualFollowingList';
+
+import { privacyPath } from '@duofollow/extension/src/locales';
+import { ConnectionDialog } from '@duofollow/src/ConnectionDialog';
+import { ComparisonSkeleton } from '@duofollow/src/following/ComparisonSkeleton';
+import { getDuolingoProfileUrl } from '@duofollow/src/following/profiles';
+import { RelationshipLegend } from '@duofollow/src/following/RelationshipLegend';
+import { FOLLOWING_ROW_HEIGHT } from '@duofollow/src/following/useFollowingViewport';
+import { NotificationViewport } from '@duofollow/src/notifications';
+import { ProfileAvatar } from '@duofollow/src/ProfileAvatar';
+import { LanguageSelect, SiteContent, SiteHeader } from '@duofollow/src/SiteLayout';
+import { UnfollowDialog } from '@duofollow/src/UnfollowDialog';
+import { fontSizes } from '@duofollow/src/useAppearance';
+import { type SitePreferences, useSite, useWorkspaceState } from '@duofollow/src/useSite';
+import { VirtualFollowingList } from '@duofollow/src/VirtualFollowingList';
+
+import type {
+  FollowingSortOrder,
+  FollowingView,
+} from '@duofollow/src/following/useFollowingComparison';
+import type { WorkspaceState } from '@duofollow/src/following/useWorkspace';
 
 const followingViews: FollowingView[] = ['all', 'mutual', 'non-mutual'];
 

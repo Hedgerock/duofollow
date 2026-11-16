@@ -1,8 +1,9 @@
-import type { NonMutualFollowingUser } from '../extension/src/dto/DuolingoFollowingDto';
-import { getProfileIdentifier } from './following/profiles';
-import type { Messages } from './i18n/messages';
-import { ProfileAvatar } from './ProfileAvatar';
-import { useModalDialog } from './useModalDialog';
+import { getProfileIdentifier } from '@duofollow/src/following/profiles';
+import { ProfileAvatar } from '@duofollow/src/ProfileAvatar';
+import { useModalDialog } from '@duofollow/src/useModalDialog';
+
+import type { NonMutualFollowingUser } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type { Messages } from '@duofollow/src/i18n/messages';
 
 export interface UnfollowConfirmation {
   account: string;

@@ -1,22 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Workspace } from '../App';
-import { ConnectionDialog } from '../ConnectionDialog';
-import { RelationshipLegend } from '../following/RelationshipLegend';
-import { ThemeToggle } from '../ThemeToggle';
-import type { ConnectorStatus } from '../../extension/src/dto/ConnectorSession';
-import { ProfileAvatar } from '../ProfileAvatar';
-import type { AccessChange } from '../api/extension/DuoFollowConnector';
-import { useWorkspace } from '../following/useWorkspace';
-import { LanguageSelect, SiteHeader } from '../SiteLayout';
-import { useSitePreferences } from '../useSite';
-import { NotificationViewport } from '../notifications';
-import { UnfollowDialog } from '../UnfollowDialog';
-import { VirtualFollowingList } from '../VirtualFollowingList';
+
+import { Workspace } from '@duofollow/src/App';
+import { ConnectionDialog } from '@duofollow/src/ConnectionDialog';
+import { RelationshipLegend } from '@duofollow/src/following/RelationshipLegend';
+import { useWorkspace } from '@duofollow/src/following/useWorkspace';
+import { NotificationViewport } from '@duofollow/src/notifications';
+import { ProfileAvatar } from '@duofollow/src/ProfileAvatar';
+import { LanguageSelect, SiteHeader } from '@duofollow/src/SiteLayout';
+import {
+  createRenderer,
+  findElement,
+  findElements,
+  renderChild,
+  runEvent,
+} from '@duofollow/src/test/reactHarness';
+import { ThemeToggle } from '@duofollow/src/ThemeToggle';
+import { UnfollowDialog } from '@duofollow/src/UnfollowDialog';
+import { useSitePreferences } from '@duofollow/src/useSite';
+import { VirtualFollowingList } from '@duofollow/src/VirtualFollowingList';
+
+import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
 import type {
   FollowingComparisonResult,
   UnfollowResult,
-} from '../../extension/src/dto/DuolingoFollowingDto';
-import { createRenderer, findElement, findElements, renderChild, runEvent } from './reactHarness';
+} from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type { AccessChange } from '@duofollow/src/api/extension/DuoFollowConnector';
 
 const { getConnectionStatus, getFollowingSummary, unfollow } = vi.hoisted(() => ({
   getConnectionStatus: vi.fn<() => Promise<ConnectorStatus>>(),
@@ -25,7 +33,7 @@ const { getConnectionStatus, getFollowingSummary, unfollow } = vi.hoisted(() => 
 }));
 let onAccessChanged: (change: AccessChange) => void;
 
-vi.mock('../api/extension/DuoFollowConnector', () => ({
+vi.mock('@duofollow/src/api/extension/DuoFollowConnector', () => ({
   DuoFollowConnector: class {
     getConnectionStatus = getConnectionStatus;
     getFollowingSummary = getFollowingSummary;
@@ -40,7 +48,7 @@ vi.mock('../api/extension/DuoFollowConnector', () => ({
 
 vi.mock('react', async (original) => ({
   ...(await original<typeof import('react')>()),
-  ...(await import('./reactHarness')).mockHooks,
+  ...(await import('@duofollow/src/test/reactHarness')).mockHooks,
 }));
 
 function success(accountUsername: string, incomplete = false): FollowingComparisonResult {

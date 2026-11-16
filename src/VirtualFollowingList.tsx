@@ -1,21 +1,23 @@
 import { memo } from 'react';
-import type {
-  ComparedFollowingUser,
-  NonMutualFollowingUser,
-} from '../extension/src/dto/DuolingoFollowingDto';
+
 import {
   getDuolingoProfileUrl,
   getProfileDisplayName,
   getProfileIdentifier,
-} from './following/profiles';
+} from '@duofollow/src/following/profiles';
+import { RelationshipMarker } from '@duofollow/src/following/RelationshipMarker';
 import {
   FOLLOWING_ROW_HEIGHT,
   useFollowingRemovalAnimation,
   useFollowingViewport,
-} from './following/useFollowingViewport';
-import { ProfileAvatar } from './ProfileAvatar';
-import { RelationshipMarker } from './following/RelationshipMarker';
-import type { Messages } from './i18n/messages';
+} from '@duofollow/src/following/useFollowingViewport';
+import { ProfileAvatar } from '@duofollow/src/ProfileAvatar';
+
+import type {
+  ComparedFollowingUser,
+  NonMutualFollowingUser,
+} from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type { Messages } from '@duofollow/src/i18n/messages';
 
 interface ListProps {
   users: ComparedFollowingUser[];

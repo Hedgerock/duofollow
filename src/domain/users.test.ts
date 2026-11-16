@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { findNonMutualFollowing, type DuoUser } from './users';
+
+import { type DuoUser, findNonMutualFollowing } from '@duofollow/src/domain/users';
 const user = (id: string): DuoUser => ({ id, username: id, displayName: id });
 describe('findNonMutualFollowing', () => {
   it('returns only users who do not follow back', () => {

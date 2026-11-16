@@ -1,14 +1,18 @@
-import { ConnectorError, describeConnectorError } from './dto/ConnectorError.js';
-import type { ConnectorAccessResult } from './dto/ConnectorSession';
-import { getFollowingSummary, unfollow } from './duolingo.js';
+import {
+  ConnectorError,
+  describeConnectorError,
+} from '@duofollow/extension/src/dto/ConnectorError';
+import { getFollowingSummary, unfollow } from '@duofollow/extension/src/duolingo';
 import {
   ACCESS_CONSENT_KEY,
   ACCESS_CONSENT_VERSION,
   ACCESS_REQUIRED,
   DUOLINGO_PERMISSIONS,
   hasDuolingoAccess,
-} from './duolingoAccess.js';
-import { checkDuolingoSession } from './duolingoSession.js';
+} from '@duofollow/extension/src/duolingoAccess';
+import { checkDuolingoSession } from '@duofollow/extension/src/duolingoSession';
+
+import type { ConnectorAccessResult } from '@duofollow/extension/src/dto/ConnectorSession';
 
 const allowedOrigins = new Set(
   chrome.runtime.getManifest().externally_connectable?.matches?.map((pattern) => {

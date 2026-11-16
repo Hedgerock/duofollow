@@ -1,10 +1,12 @@
 import { useLayoutEffect, useState } from 'react';
-import type { Locale } from '../../extension/src/locales';
-import { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
-import { useConnectorStatus } from '../connection/useConnectorStatus';
-import { useNotifications } from '../notifications';
-import { useFollowingComparison } from './useFollowingComparison';
-import { useUnfollow } from './useUnfollow';
+
+import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
+import { useConnectorStatus } from '@duofollow/src/connection/useConnectorStatus';
+import { useFollowingComparison } from '@duofollow/src/following/useFollowingComparison';
+import { useUnfollow } from '@duofollow/src/following/useUnfollow';
+import { useNotifications } from '@duofollow/src/notifications';
+
+import type { Locale } from '@duofollow/extension/src/locales';
 
 const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSION_ID);
 

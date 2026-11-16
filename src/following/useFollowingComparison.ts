@@ -1,23 +1,28 @@
 import {
+  type RefObject,
   useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type RefObject,
 } from 'react';
-import { ConnectorError, type ConnectorErrorCode } from '../../extension/src/dto/ConnectorError';
+
+import {
+  ConnectorError,
+  type ConnectorErrorCode,
+} from '@duofollow/extension/src/dto/ConnectorError';
+import { getProfileDisplayName } from '@duofollow/src/following/profiles';
+import { localizedError, translations } from '@duofollow/src/i18n/messages';
+
 import type {
   ComparedFollowingUser,
   FollowingComparison,
   FollowingComparisonResult,
-} from '../../extension/src/dto/DuolingoFollowingDto';
-import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
-import type { Locale } from '../../extension/src/locales';
-import { localizedError, translations } from '../i18n/messages';
-import type { NotificationInput } from '../notifications';
-import { getProfileDisplayName } from './profiles';
+} from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type { Locale } from '@duofollow/extension/src/locales';
+import type { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
+import type { NotificationInput } from '@duofollow/src/notifications';
 
 type ComparisonRequest = { kind: 'comparison'; username: string };
 export type FollowingActivity = RefObject<{ kind: 'comparison' | 'unfollow' } | null>;

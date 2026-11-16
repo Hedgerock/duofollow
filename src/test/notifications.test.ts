@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { NotificationViewport, useNotifications } from '../notifications';
-import { translations } from '../i18n/messages';
-import { createRenderer, findElement, renderChild, runEvent } from './reactHarness';
+
+import { translations } from '@duofollow/src/i18n/messages';
+import { NotificationViewport, useNotifications } from '@duofollow/src/notifications';
+import {
+  createRenderer,
+  findElement,
+  renderChild,
+  runEvent,
+} from '@duofollow/src/test/reactHarness';
 
 vi.mock('react', async (original) => ({
   ...(await original<typeof import('react')>()),
-  ...(await import('./reactHarness')).mockHooks,
+  ...(await import('@duofollow/src/test/reactHarness')).mockHooks,
 }));
 
 afterEach(() => {

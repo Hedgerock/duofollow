@@ -1,4 +1,4 @@
-import type { DuoUser, DuolingoClient } from '../domain/users';
+import type { DuolingoClient, DuoUser } from '@duofollow/src/domain/users';
 
 const people: DuoUser[] = [
   { id: '1', username: 'linguaexplorer', displayName: 'Lingua Explorer' },

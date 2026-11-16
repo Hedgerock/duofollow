@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Messages } from './i18n/messages';
+
+import type { Messages } from '@duofollow/src/i18n/messages';
 
 type NotificationKind = 'info' | 'success' | 'error';
 

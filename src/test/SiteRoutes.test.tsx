@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import viteConfig from '../../vite.config';
-import { SiteRoutes } from '../SiteRoutes';
+
+import { SiteRoutes } from '@duofollow/src/SiteRoutes';
+import viteConfig from '@duofollow/vite.config';
 
 beforeEach(() => {
   vi.stubEnv('BASE_URL', viteConfig.base ?? '/');

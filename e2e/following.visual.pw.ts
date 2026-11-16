@@ -1,5 +1,6 @@
 import { expect, test } from 'playwright/test';
-import { openComparison } from './connector-fixture';
+
+import { openComparison } from '@duofollow/e2e/connector-fixture';
 
 test.use({ contextOptions: { reducedMotion: 'no-preference' } });
 

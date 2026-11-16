@@ -1,9 +1,9 @@
-import english from '../../privacy/index.html?raw';
-import russian from '../../privacy/ru/index.html?raw';
-import ukrainian from '../../privacy/uk/index.html?raw';
-import { SiteContent, SiteHeader } from '../SiteLayout';
-import { useSite } from '../useSite';
-import { BackToComparisonLink } from './BackToComparisonLink';
+import english from '@duofollow/privacy/index.html?raw';
+import russian from '@duofollow/privacy/ru/index.html?raw';
+import ukrainian from '@duofollow/privacy/uk/index.html?raw';
+import { BackToComparisonLink } from '@duofollow/src/pages/BackToComparisonLink';
+import { SiteContent, SiteHeader } from '@duofollow/src/SiteLayout';
+import { useSite } from '@duofollow/src/useSite';
 
 function policyBody(html: string): string {
   const match = /<main>([\s\S]*?)<\/main>/.exec(html);

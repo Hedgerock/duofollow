@@ -4,8 +4,8 @@ import {
   cpSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   readdirSync,
+  readFileSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -13,7 +13,9 @@ import {
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, URL } from 'node:url';
+
+import { buildSync } from 'esbuild';
 
 const extensionRoot = fileURLToPath(new URL('../', import.meta.url));
 const dist = join(extensionRoot, 'dist');
@@ -22,9 +24,19 @@ const require = createRequire(import.meta.url);
 
 function build(output, { development = false } = {}) {
   const tsc = require.resolve('typescript/bin/tsc');
-  execFileSync(process.execPath, [tsc, '--outDir', output], {
+  execFileSync(process.execPath, [tsc, '--noEmit'], {
     cwd: extensionRoot,
     stdio: 'inherit',
+  });
+  buildSync({
+    absWorkingDir: extensionRoot,
+    entryPoints: ['src/background.ts', 'src/access.ts'],
+    outdir: output,
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    tsconfig: 'tsconfig.json',
   });
   const config = JSON.parse(readFileSync(manifest, 'utf8'));
   if (development) {
@@ -35,6 +47,14 @@ function build(output, { development = false } = {}) {
   cpSync(join(extensionRoot, '_locales'), join(output, '_locales'), { recursive: true });
   copyFileSync(join(extensionRoot, '..', 'LICENSE'), join(output, 'LICENSE'));
   cpSync(join(extensionRoot, 'icons'), join(output, 'icons'), { recursive: true });
+}
+
+function removePackageDirectory(directory) {
+  const resolvedDirectory = realpathSync(directory);
+  if (dirname(resolvedDirectory) !== realpathSync(dist)) {
+    throw new Error(`Refusing to remove a directory outside dist: ${resolvedDirectory}`);
+  }
+  rmSync(resolvedDirectory, { recursive: true, force: true });
 }
 
 function createZip() {
@@ -64,11 +84,7 @@ function createZip() {
     renameSync(archive, join(dist, filename));
     console.log(`Created extension/dist/${filename}`);
   } finally {
-    const resolvedTemporaryDirectory = realpathSync(temporaryDirectory);
-    if (dirname(resolvedTemporaryDirectory) !== realpathSync(dist)) {
-      throw new Error(`Refusing to remove a directory outside dist: ${resolvedTemporaryDirectory}`);
-    }
-    rmSync(resolvedTemporaryDirectory, { recursive: true, force: true });
+    removePackageDirectory(temporaryDirectory);
   }
 }
 

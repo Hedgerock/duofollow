@@ -1,4 +1,4 @@
-import type { ConnectorErrorCode } from './ConnectorError';
+import type { ConnectorErrorCode } from '@duofollow/extension/src/dto/ConnectorError';
 
 export type DuolingoSessionStatus = 'ready' | 'signed-out' | 'duolingo-unavailable';
 

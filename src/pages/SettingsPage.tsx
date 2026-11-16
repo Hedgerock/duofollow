@@ -1,8 +1,8 @@
-import { RelationshipLegend } from '../following/RelationshipLegend';
-import { SiteContent, SiteHeader } from '../SiteLayout';
-import { fontFamilies, fontSizes } from '../useAppearance';
-import { useSite } from '../useSite';
-import { BackToComparisonLink } from './BackToComparisonLink';
+import { RelationshipLegend } from '@duofollow/src/following/RelationshipLegend';
+import { BackToComparisonLink } from '@duofollow/src/pages/BackToComparisonLink';
+import { SiteContent, SiteHeader } from '@duofollow/src/SiteLayout';
+import { fontFamilies, fontSizes } from '@duofollow/src/useAppearance';
+import { useSite } from '@duofollow/src/useSite';
 
 const sizes = Object.keys(fontSizes) as (keyof typeof fontSizes)[];
 

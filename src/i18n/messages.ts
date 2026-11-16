@@ -1,9 +1,10 @@
 import {
-  isConnectorErrorCode,
   type ConnectorErrorCode,
-} from '../../extension/src/dto/ConnectorError';
-import type { ConnectorStatus } from '../../extension/src/dto/ConnectorSession';
-import type { Locale } from '../../extension/src/locales';
+  isConnectorErrorCode,
+} from '@duofollow/extension/src/dto/ConnectorError';
+
+import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
+import type { Locale } from '@duofollow/extension/src/locales';
 
 type ConnectionIssue = Exclude<ConnectorStatus, 'ready'>;
 

@@ -1,14 +1,18 @@
+import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
+import {
+  assertDuolingoResponse,
+  readDuolingoJson,
+} from '@duofollow/extension/src/duolingoResponse';
+import { getDuolingoSessionUserId } from '@duofollow/extension/src/duolingoSession';
+
 import type {
   ComparedFollowingUser,
   DuolingoFollowingPageDto,
   FollowingComparisonResult,
   FollowingPageSummary,
   UnfollowResult,
-} from './dto/DuolingoFollowingDto';
-import { ConnectorError } from './dto/ConnectorError.js';
-import { duolingoEndpoints } from './duolingoEndpoints.js';
-import { assertDuolingoResponse, readDuolingoJson } from './duolingoResponse.js';
-import { getDuolingoSessionUserId } from './duolingoSession.js';
+} from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
 const pendingUnfollows = new Set<string>();
 const UNCONFIRMED_UNFOLLOW = 'Ответ Duolingo не удалось проверить.';

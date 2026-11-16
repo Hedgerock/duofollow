@@ -1,5 +1,6 @@
-import { expect, test, type CDPSession, type Locator } from 'playwright/test';
-import { connectorCommands, openComparison } from './connector-fixture';
+import { type CDPSession, expect, type Locator, test } from 'playwright/test';
+
+import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
 
 const profileCount = 10_000;
 const warmupCycles = 6;

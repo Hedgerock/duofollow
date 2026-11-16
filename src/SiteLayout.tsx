@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router';
-import { locales, matchLocale, privacyPath } from '../extension/src/locales';
-import { useWorkspace } from './following/useWorkspace';
-import { ThemeToggle } from './ThemeToggle';
-import { useSitePreferences, type SitePreferences } from './useSite';
+
+import { locales, matchLocale, privacyPath } from '@duofollow/extension/src/locales';
+import { useWorkspace } from '@duofollow/src/following/useWorkspace';
+import { ThemeToggle } from '@duofollow/src/ThemeToggle';
+import { type SitePreferences, useSitePreferences } from '@duofollow/src/useSite';
 
 const languageNames = { ru: 'Русский', en: 'English', uk: 'Українська' };
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import type { Messages } from './i18n/messages';
+
+import type { Messages } from '@duofollow/src/i18n/messages';
 
 type Theme = 'light' | 'dark';
 const THEME_STORAGE_KEY = 'duofollow.theme';

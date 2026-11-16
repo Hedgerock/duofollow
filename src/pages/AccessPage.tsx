@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router';
-import english from '../../extension/_locales/en/messages.json';
-import russian from '../../extension/_locales/ru/messages.json';
-import ukrainian from '../../extension/_locales/uk/messages.json';
-import { privacyPath } from '../../extension/src/locales';
-import { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
-import { SiteContent, SiteHeader } from '../SiteLayout';
-import { useSite } from '../useSite';
-import { BackToComparisonLink } from './BackToComparisonLink';
+
+import english from '@duofollow/extension/_locales/en/messages.json';
+import russian from '@duofollow/extension/_locales/ru/messages.json';
+import ukrainian from '@duofollow/extension/_locales/uk/messages.json';
+import { privacyPath } from '@duofollow/extension/src/locales';
+import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
+import { BackToComparisonLink } from '@duofollow/src/pages/BackToComparisonLink';
+import { SiteContent, SiteHeader } from '@duofollow/src/SiteLayout';
+import { useSite } from '@duofollow/src/useSite';
 
 const access = { en: english, ru: russian, uk: ukrainian };
 const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSION_ID);

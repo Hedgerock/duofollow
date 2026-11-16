@@ -1,8 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router';
-import type { ConnectorStatus } from '../extension/src/dto/ConnectorSession';
-import type { Messages } from './i18n/messages';
-import { useModalDialog } from './useModalDialog';
+
+import { useModalDialog } from '@duofollow/src/useModalDialog';
+
+import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
+import type { Messages } from '@duofollow/src/i18n/messages';
 
 interface ConnectionDialogProps {
   issue: Exclude<ConnectorStatus, 'ready'>;

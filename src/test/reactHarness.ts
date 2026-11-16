@@ -40,7 +40,7 @@ function useRef<T>(initial: T): { current: T } {
   return frame.values[index] as { current: T };
 }
 
-function useMemo<T>(create: () => T, deps: Dependencies): T {
+function rememberValue<T>(create: () => T, deps: Dependencies): T {
   const index = frame.index++;
   let cached = frame.memos.get(index);
   if (!cached || !sameDependencies(cached.deps, deps)) {
@@ -70,8 +70,8 @@ export const mockHooks = {
   memo: <T>(component: T) => component,
   useState,
   useRef,
-  useMemo,
-  useCallback: <T>(callback: T, deps: Dependencies) => useMemo(() => callback, deps),
+  useMemo: rememberValue,
+  useCallback: <T>(callback: T, deps: Dependencies) => rememberValue(() => callback, deps),
   useEffect,
   useLayoutEffect: useEffect,
 };

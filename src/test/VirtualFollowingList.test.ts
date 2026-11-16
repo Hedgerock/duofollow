@@ -1,13 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ComparedFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
-import { RelationshipMarker } from '../following/RelationshipMarker';
-import { VirtualFollowingList } from '../VirtualFollowingList';
-import { translations } from '../i18n/messages';
-import { createRenderer, findElement, findElements, renderChild, runEvent } from './reactHarness';
+
+import { RelationshipMarker } from '@duofollow/src/following/RelationshipMarker';
+import { translations } from '@duofollow/src/i18n/messages';
+import {
+  createRenderer,
+  findElement,
+  findElements,
+  renderChild,
+  runEvent,
+} from '@duofollow/src/test/reactHarness';
+import { VirtualFollowingList } from '@duofollow/src/VirtualFollowingList';
+
+import type { ComparedFollowingUser } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
 vi.mock('react', async (original) => ({
   ...(await original<typeof import('react')>()),
-  ...(await import('./reactHarness')).mockHooks,
+  ...(await import('@duofollow/src/test/reactHarness')).mockHooks,
 }));
 
 const users: ComparedFollowingUser[] = Array.from({ length: 10_000 }, (_, index) => ({

@@ -1,5 +1,5 @@
-import type { ComparedFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
-import type { Messages } from '../i18n/messages';
+import type { ComparedFollowingUser } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type { Messages } from '@duofollow/src/i18n/messages';
 
 export function RelationshipLegend({
   relationships,

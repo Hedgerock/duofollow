@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { ConnectorStatus } from '../../extension/src/dto/ConnectorSession';
-import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
+
+import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
+import type { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 
 const CHECK_INTERVAL_MS = 20_000;
 const RECHECK_DELAY_MS = 250;

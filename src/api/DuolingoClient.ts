@@ -1,4 +1,4 @@
-import { DuolingoUser } from '../domain/models/DuolingoUser.ts';
+import type { DuolingoUser } from '@duofollow/src/domain/models/DuolingoUser';
 
 export interface DuolingoClient {
   getFollowers(userId: string): Promise<DuolingoUser[]>;

@@ -3,8 +3,8 @@ import {
   ACCESS_CONSENT_VERSION,
   DUOLINGO_PERMISSIONS,
   hasDuolingoAccess,
-} from './duolingoAccess.js';
-import { matchLocale, privacyPath } from './locales.js';
+} from '@duofollow/extension/src/duolingoAccess';
+import { matchLocale, privacyPath } from '@duofollow/extension/src/locales';
 
 const grant = document.querySelector<HTMLButtonElement>('#grant-access')!;
 const revoke = document.querySelector<HTMLButtonElement>('#revoke-access')!;
