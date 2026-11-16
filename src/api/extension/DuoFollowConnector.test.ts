@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ConnectorError,
+  getConnectorErrorDetails,
+} from '@duofollow/extension/src/dto/ConnectorError';
+import {
+  isConnectorFailure,
+  isConnectorSuccess,
+} from '@duofollow/extension/src/dto/ConnectorResult';
 import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 
 const client = new DuoFollowConnector('test-extension');
@@ -19,7 +27,68 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('Connector result checks', () => {
+  it('requires a strict boolean success flag', () => {
+    expect(isConnectorSuccess({ success: true })).toBe(true);
+    for (const result of [
+      null,
+      undefined,
+      true,
+      [],
+      {},
+      { success: false },
+      { success: 1 },
+      { success: 'true' },
+    ]) {
+      expect(isConnectorSuccess(result)).toBe(false);
+    }
+  });
+
+  it('recognizes a failure with an error message and an optional error code', () => {
+    expect(isConnectorFailure({ success: false, error: 'Legacy error' })).toBe(true);
+    expect(
+      isConnectorFailure({ success: false, error: 'New error', errorCode: 'FUTURE_CODE' }),
+    ).toBe(true);
+    for (const result of [
+      null,
+      false,
+      { success: 'false', error: 'Error' },
+      { success: false },
+      { success: false, error: 403 },
+    ]) {
+      expect(isConnectorFailure(result)).toBe(false);
+    }
+  });
+
+  it('reads error details for notifications', () => {
+    expect(getConnectorErrorDetails(new ConnectorError('ACCESS_REQUIRED', 'Grant access'))).toEqual(
+      {
+        error: 'Grant access',
+        errorCode: 'ACCESS_REQUIRED',
+      },
+    );
+    expect(getConnectorErrorDetails(new Error('Offline'))).toEqual({ error: 'Offline' });
+    expect(getConnectorErrorDetails(null)).toEqual({ error: '' });
+  });
+});
+
 describe('DuoFollowConnector', () => {
+  it('rejects a truthy non-boolean reply in settings, comparison and unfollow', async () => {
+    stubRuntime({
+      success: 'true',
+      comparison: { accountUsername: 'Learner', nonMutualFollowing: null },
+      targetUserId: 202,
+    });
+
+    await expect(client.openDuolingoSettings()).rejects.toThrow();
+    await expect(client.getFollowingSummary('Learner')).rejects.toMatchObject({
+      errorCode: 'INVALID_RESPONSE',
+    });
+    await expect(client.unfollow('Learner', 202)).rejects.toMatchObject({
+      errorCode: 'UNFOLLOW_UNCONFIRMED',
+    });
+  });
+
   it('sends the username and accepts a partial comparison', async () => {
     const result = {
       success: true,

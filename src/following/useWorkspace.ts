@@ -10,6 +10,11 @@ import type { Locale } from '@duofollow/extension/src/locales';
 
 const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSION_ID);
 
+/**
+ * Coordinates connection status, comparison, unfollow actions, and notifications.
+ * Keep this hook mounted in the shared layout so navigation preserves comparison state.
+ * Revoking access clears the stored account and results.
+ */
 export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
   const { status, revision, refreshConnection } = useConnectorStatus(connector, workspaceVisible);
   const [dismissedRevision, setDismissedRevision] = useState<number | null>(null);

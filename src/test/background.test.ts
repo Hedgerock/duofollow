@@ -53,6 +53,7 @@ const getCookie =
 const sessionCookie = (id: number) => ({
   value: `fixture.${btoa(JSON.stringify({ sub: id, exp: 4_000_000_000 }))}.signature`,
 });
+let sessionStorage: Record<string, unknown>;
 const getSettings = vi.fn<() => Promise<Record<string, unknown>>>();
 const containsPermissions = vi.fn<() => Promise<boolean>>();
 const openOptionsPage = vi.fn<() => Promise<void>>();
@@ -63,6 +64,7 @@ let connectListener: (port: chrome.runtime.Port) => void;
 
 beforeEach(async () => {
   vi.resetModules();
+  sessionStorage = {};
   fetchMock.mockReset();
   getCookie.mockReset().mockResolvedValue(sessionCookie(account.id));
   getSettings.mockReset().mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1 });
@@ -84,6 +86,10 @@ beforeEach(async () => {
       },
     },
     storage: {
+      session: {
+        get: async (key: string) => ({ [key]: sessionStorage[key] }),
+        set: async (values: Record<string, unknown>) => Object.assign(sessionStorage, values),
+      },
       local: { get: getSettings, remove: vi.fn(async () => {}) },
       onChanged: {
         addListener(callback: typeof storageChanged) {
@@ -109,14 +115,15 @@ beforeEach(async () => {
   await import('@duofollow/extension/src/background');
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe('extension worker', () => {
-  const checkConnection = () =>
+  const checkConnection = (url = approvedOrigin) =>
     new Promise((resolve) => {
-      expect(listener({ type: 'GET_DUOLINGO_ACCESS' }, { url: approvedOrigin }, resolve)).toBe(
-        true,
-      );
+      expect(listener({ type: 'GET_DUOLINGO_ACCESS' }, { url }, resolve)).toBe(true);
     });
 
   it('only reports the session on the DuoFollow page', () => {
@@ -290,6 +297,138 @@ describe('extension worker', () => {
     },
   );
 
+  it('shares one verification between pages and caches readiness for 60 seconds', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    let complete!: (response: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const first = checkConnection();
+    const second = checkConnection('https://hedgerock.github.io/duofollow/');
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    complete(followers([]));
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { session: 'ready' },
+      { session: 'ready' },
+    ]);
+    vi.setSystemTime(Date.now() + 59_999);
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    fetchMock.mockResolvedValueOnce(followers([]));
+    vi.setSystemTime(Date.now() + 1);
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reuse a verified result after sign-out, account switch or regrant', async () => {
+    fetchMock.mockImplementation(async () => followers([]));
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    getCookie.mockResolvedValue(null);
+    await expect(checkConnection()).resolves.toEqual({ session: 'signed-out' });
+    getCookie.mockResolvedValue(sessionCookie(999));
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.get('viewerId')).toBe('999');
+
+    getSettings.mockResolvedValue({});
+    storageChanged({ [ACCESS_CONSENT_KEY]: { oldValue: 1 } }, 'local');
+    await expect(checkConnection()).resolves.toEqual({ session: 'consent-required' });
+    getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1 });
+    storageChanged({ [ACCESS_CONSENT_KEY]: { newValue: 1 } }, 'local');
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('discards a late successful response from a previous account', async () => {
+    let complete!: (response: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const first = checkConnection();
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+    getCookie.mockResolvedValue(sessionCookie(999));
+    fetchMock.mockResolvedValueOnce(followers([]));
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    complete(followers([]));
+    await expect(first).resolves.toEqual({ session: 'signed-out' });
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['120', 120_000],
+    ['Mon, 16 Nov 2026 12:03:00 GMT', 180_000],
+    ['invalid', 60_000],
+    [null, 60_000],
+  ])('shares the HTTP 429 cooldown from a Retry-After value of %s', async (header, delay) => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-16T12:00:00Z'));
+    const limited = { session: 'duolingo-unavailable', errorCode: 'RATE_LIMITED' };
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, {
+        status: 429,
+        headers: header === null ? undefined : { 'Retry-After': header },
+      }),
+    );
+    await expect(checkConnection()).resolves.toEqual(limited);
+    vi.setSystemTime(Date.now() + delay - 1);
+    await expect(checkConnection('https://hedgerock.github.io/duofollow/')).resolves.toEqual(
+      limited,
+    );
+
+    vi.resetModules();
+    await import('@duofollow/extension/src/background');
+    await expect(checkConnection()).resolves.toEqual(limited);
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    vi.setSystemTime(Date.now() + 1);
+    fetchMock.mockResolvedValueOnce(followers([]));
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses a rate limit from comparison to postpone the next session check', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
+    await expect(compare(account.username)).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    await expect(checkConnection()).resolves.toEqual({
+      session: 'duolingo-unavailable',
+      errorCode: 'RATE_LIMITED',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the longer pause from parallel Duolingo responses', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    fetchMock
+      .mockResolvedValueOnce(resolveAccount())
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'Retry-After': '120' } }))
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'Retry-After': '5' } }));
+    await expect(compare(account.username)).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    vi.setSystemTime(Date.now() + 6_000);
+    await expect(checkConnection()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('rechecks the session after a cooldown even if readiness was cached before it', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    fetchMock
+      .mockResolvedValueOnce(followers([]))
+      .mockResolvedValueOnce(new Response(null, { status: 429, headers: { 'Retry-After': '5' } }))
+      .mockResolvedValueOnce(followers([]));
+
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    await expect(compare(account.username)).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    vi.setSystemTime(Date.now() + 5_000);
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('checks authenticated access using one follower and reports status without session data', async () => {
     getCookie.mockResolvedValue({
       value: `fixture.${btoa(JSON.stringify({ sub: '101', exp: 4_000_000_000 }))}.signature`,
@@ -300,7 +439,9 @@ describe('extension worker', () => {
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
       .mockRejectedValueOnce(new TypeError('Network error'));
 
+    vi.useFakeTimers({ toFake: ['Date'] });
     await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    vi.setSystemTime(Date.now() + 60_000);
     await expect(checkConnection()).resolves.toEqual({ session: 'signed-out' });
     await expect(checkConnection()).resolves.toEqual({ session: 'duolingo-unavailable' });
     await expect(checkConnection()).resolves.toEqual({ session: 'duolingo-unavailable' });
@@ -411,6 +552,9 @@ describe('extension worker', () => {
           { userId: 2, picture: 'http://example.com/avatar.png' },
           { userId: 3, picture: 'https://user:password@example.com/avatar.png' },
           { userId: 4, picture: 'not a URL' },
+          { userId: 5, picture: 'https://example.com/avatar.png' },
+          { userId: 6, picture: 'https://simg-ssl.duolingo.com:444/avatar.png' },
+          { userId: 7, picture: 'https://simg-ssl.duolingo.com.example.com/avatar.png' },
         ]),
       )
       .mockResolvedValueOnce(followers([]));
@@ -424,6 +568,9 @@ describe('extension worker', () => {
           { userId: 2, picture: null },
           { userId: 3, picture: null },
           { userId: 4, picture: null },
+          { userId: 5, picture: null },
+          { userId: 6, picture: null },
+          { userId: 7, picture: null },
         ],
       },
     });

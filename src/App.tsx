@@ -26,6 +26,10 @@ export default function App() {
   return <Workspace site={useSite()} workspace={useWorkspaceState()} />;
 }
 
+/**
+ * Renders the comparison screen from the state owned by SiteLayout.
+ * Disables connector-dependent controls whenever the connection is unavailable.
+ */
 export function Workspace({
   site,
   workspace,

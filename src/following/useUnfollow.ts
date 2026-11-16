@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { ConnectorError, isConnectorErrorCode } from '@duofollow/extension/src/dto/ConnectorError';
+import {
+  ConnectorError,
+  getConnectorErrorDetails,
+  isConnectorErrorCode,
+} from '@duofollow/extension/src/dto/ConnectorError';
+import { isConnectorFailure } from '@duofollow/extension/src/dto/ConnectorResult';
 import { getProfileIdentifier } from '@duofollow/src/following/profiles';
 import { localizedError, translations } from '@duofollow/src/i18n/messages';
 
@@ -96,7 +101,7 @@ export function useUnfollow({
     try {
       const result = await connector.unfollow(pending.account, user.userId);
       if (activity.current !== pending) return;
-      if (!result.success) {
+      if (isConnectorFailure(result)) {
         if (isConnectorErrorCode(result.errorCode)) {
           throw new ConnectorError(result.errorCode, result.error);
         }
@@ -120,8 +125,7 @@ export function useUnfollow({
     } catch (error) {
       if (activity.current !== pending) return;
       closeAction(pending);
-      const details = error instanceof Error ? error.message : '';
-      const code = error instanceof ConnectorError ? error.errorCode : undefined;
+      const { error: details, errorCode: code } = getConnectorErrorDetails(error);
       const needsComparison = !code || code === 'UNFOLLOW_UNCONFIRMED';
       const copy = translations[currentLocale.current].notifications;
       notify({

@@ -19,7 +19,7 @@ it('suppresses requests for a failed avatar across remounts, then allows a retry
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
 
-  const picture = 'https://example.com/failed.png';
+  const picture = 'https://simg-ssl.duolingo.com/failed.png';
   const renderAvatar = (url = picture) =>
     ProfileAvatar({ name: 'Test Account', picture: url, lazy: true });
   const getImages = (tree: unknown) => findElements(tree, (node) => node.type === 'img');
@@ -37,7 +37,7 @@ it('suppresses requests for a failed avatar across remounts, then allows a retry
     findElement(recent, (node) => node.props.className === 'profile-avatar').props.children,
   ).toBe('TA');
   expect(
-    getImages(remounted.render(() => renderAvatar('https://example.com/new.png'))),
+    getImages(remounted.render(() => renderAvatar('https://simg-ssl.duolingo.com/new.png'))),
   ).toHaveLength(1);
 
   vi.advanceTimersByTime(60_000);

@@ -1,5 +1,7 @@
 import { memo, useState } from 'react';
 
+import { parseDuolingoAvatarUrl } from '@duofollow/extension/src/duolingoAvatarUrl';
+
 interface ProfileAvatarProps {
   name: string;
   picture?: string | null;
@@ -30,16 +32,23 @@ function getInitials(name: string) {
     .toLocaleUpperCase();
 }
 
+/**
+ * Shows an avatar from an approved origin, with initials as a fallback.
+ * A failed image is temporarily skipped when its row remounts during scrolling.
+ */
 export const ProfileAvatar = memo(function ProfileAvatar({
   name,
   picture,
   lazy = false,
 }: ProfileAvatarProps) {
   const [failedPicture, setFailedPicture] = useState<string | null>(null);
-  const retryAt = picture ? failedAvatars.get(picture) : undefined;
+  const allowedPicture = parseDuolingoAvatarUrl(picture)?.href;
+  const retryAt = allowedPicture ? failedAvatars.get(allowedPicture) : undefined;
   const src =
-    picture && picture !== failedPicture && (retryAt === undefined || retryAt <= Date.now())
-      ? picture
+    allowedPicture &&
+    allowedPicture !== failedPicture &&
+    (retryAt === undefined || retryAt <= Date.now())
+      ? allowedPicture
       : null;
 
   return (

@@ -101,6 +101,17 @@ export function SiteContent({ label, children }: { label: string; children: Reac
   );
 }
 
+/**
+ * Keeps site preferences and the comparison workspace mounted across child routes.
+ * Child pages read both through the React Router outlet context.
+ *
+ * @example
+ * ```tsx
+ * <Route element={<SiteLayout />}>
+ *   <Route index element={<App />} />
+ * </Route>
+ * ```
+ */
 export function SiteLayout() {
   const privacyMatch = useMatch('/privacy/:language?');
   const accessMatch = useMatch('/access');

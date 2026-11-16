@@ -1,4 +1,8 @@
 import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import {
+  isConnectorFailure,
+  isConnectorSuccess,
+} from '@duofollow/extension/src/dto/ConnectorResult';
 
 import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
 import type {
@@ -14,6 +18,10 @@ interface ConnectorResponse {
 
 export type AccessChange = 'granted' | 'revoked' | 'disconnected';
 
+/**
+ * Exchanges messages with the browser extension and listens for permission changes.
+ * Maps transport failures and incompatible responses into errors or connection states.
+ */
 export class DuoFollowConnector {
   constructor(private readonly extensionId: string) {}
 
@@ -74,8 +82,8 @@ export class DuoFollowConnector {
   }
 
   async openDuolingoSettings(): Promise<void> {
-    const result = await this.send<ConnectorResponse>({ type: 'OPEN_DUOLINGO_SETTINGS' }, 7_000);
-    if (result.success !== true) throw new Error('Настройки Connector недоступны.');
+    const result = await this.send<unknown>({ type: 'OPEN_DUOLINGO_SETTINGS' }, 7_000);
+    if (!isConnectorSuccess(result)) throw new Error('Настройки Connector недоступны.');
   }
 
   watchAccessChanges(onChange: (change: AccessChange) => void): (() => void) | undefined {
@@ -116,9 +124,9 @@ export class DuoFollowConnector {
       { type: 'GET_FOLLOWING_SUMMARY', username },
       30_000,
     );
-    if (result.success === false && typeof result.error === 'string') return result;
+    if (isConnectorFailure(result)) return result;
     if (
-      result.success !== true ||
+      !isConnectorSuccess(result) ||
       typeof result.comparison?.accountUsername !== 'string' ||
       !result.comparison.accountUsername ||
       result.comparison.nonMutualFollowing === undefined
@@ -136,9 +144,9 @@ export class DuoFollowConnector {
       { type: 'UNFOLLOW', username, targetUserId },
       45_000,
     );
-    if (result.success === false && typeof result.error === 'string') return result;
+    if (isConnectorFailure(result)) return result;
 
-    if (result.success !== true || result.targetUserId !== targetUserId) {
+    if (!isConnectorSuccess(result) || result.targetUserId !== targetUserId) {
       throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Расширение вернуло неожиданный ответ.');
     }
 

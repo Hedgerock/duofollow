@@ -1,5 +1,6 @@
 import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
+import { checkSessionRateLimit } from '@duofollow/extension/src/duolingoRateLimit';
 import {
   assertDuolingoResponse,
   readDuolingoJson,
@@ -38,10 +39,61 @@ export async function getDuolingoSessionUserId(signal: AbortSignal): Promise<str
   return readSessionUserId(cookie?.value);
 }
 
+const READY_TTL_MS = 60_000;
+
+interface SessionVerification {
+  userId: string;
+  signal: AbortSignal;
+  readyAt?: number;
+  pending?: Promise<DuolingoSessionStatus>;
+}
+
+let verification: SessionVerification | undefined;
+
+/**
+ * Checks the current Duolingo session after the worker has verified access.
+ * Concurrent callers share the probe for the same account and grant. Successful results expire after 60 seconds.
+ *
+ * @param signal The current access grant’s signal. Revoking access cancels the probe and invalidates its result.
+ */
 export async function checkDuolingoSession(signal: AbortSignal): Promise<DuolingoSessionStatus> {
   const userId = await getDuolingoSessionUserId(signal);
-  if (!userId) return 'signed-out';
+  if (!userId) {
+    if (verification?.signal === signal) verification = undefined;
+    return 'signed-out';
+  }
 
+  const lastRetryAt = await checkSessionRateLimit();
+  signal.throwIfAborted();
+  if (verification?.userId !== userId || verification.signal !== signal) {
+    verification = { userId, signal };
+  }
+  const active = verification;
+  if (
+    active.readyAt !== undefined &&
+    active.readyAt >= lastRetryAt &&
+    Date.now() - active.readyAt < READY_TTL_MS
+  )
+    return 'ready';
+  active.pending ??= verifyDuolingoSession(userId, signal)
+    .then(async (status) => {
+      if (status === 'ready') await checkSessionRateLimit();
+      if ((await getDuolingoSessionUserId(signal)) !== userId || verification !== active) {
+        return 'signed-out';
+      }
+      if (status === 'ready') active.readyAt = Date.now();
+      return status;
+    })
+    .finally(() => {
+      active.pending = undefined;
+    });
+  return active.pending;
+}
+
+async function verifyDuolingoSession(
+  userId: string,
+  signal: AbortSignal,
+): Promise<DuolingoSessionStatus> {
   const endpoint = duolingoEndpoints.followers;
   const url = endpoint.url(userId);
   url.searchParams.set('viewerId', userId);
@@ -57,7 +109,7 @@ export async function checkDuolingoSession(signal: AbortSignal): Promise<Duoling
   });
 
   if (response.status === 401) return 'signed-out';
-  assertDuolingoResponse(response, `Duolingo session check returned HTTP ${response.status}`);
+  await assertDuolingoResponse(response, `Duolingo session check returned HTTP ${response.status}`);
   const data = await readDuolingoJson<{ followers?: { users?: unknown } } | null>(
     response,
     'Duolingo session check returned invalid JSON',

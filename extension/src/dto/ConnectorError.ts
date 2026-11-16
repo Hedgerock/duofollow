@@ -31,13 +31,17 @@ export function isConnectorErrorCode(value: unknown): value is ConnectorErrorCod
   return errorCodes.some((code) => code === value);
 }
 
-export function describeConnectorError(
-  error: unknown,
-): Pick<ConnectorFailure, 'error' | 'errorCode'> {
-  const message = error instanceof Error ? error.message : 'Unknown error';
-  if (error instanceof ConnectorError) return { error: message, errorCode: error.errorCode };
-  if (error instanceof Error && error.name === 'TimeoutError') {
-    return { error: message, errorCode: 'TIMEOUT' };
+type ConnectorErrorDetails = Pick<ConnectorFailure, 'error' | 'errorCode'>;
+
+export function getConnectorErrorDetails(error: unknown, fallback = ''): ConnectorErrorDetails {
+  if (error instanceof ConnectorError) return { error: error.message, errorCode: error.errorCode };
+  return { error: error instanceof Error ? error.message : fallback };
+}
+
+export function describeConnectorError(error: unknown): ConnectorErrorDetails {
+  const details = getConnectorErrorDetails(error, 'Unknown error');
+  if (details.errorCode === undefined && error instanceof Error && error.name === 'TimeoutError') {
+    return { error: details.error, errorCode: 'TIMEOUT' };
   }
-  return { error: message };
+  return details;
 }

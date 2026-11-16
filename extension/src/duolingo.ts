@@ -1,4 +1,5 @@
 import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import { parseDuolingoAvatarUrl } from '@duofollow/extension/src/duolingoAvatarUrl';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
 import {
   assertDuolingoResponse,
@@ -23,29 +24,22 @@ type RelationshipPage = DuolingoFollowingPageDto['following'];
 type DuolingoAccount = { userId: string; username: string; picture: string | null };
 
 function readPicture(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
+  const url = parseDuolingoAvatarUrl(value);
+  if (!url) return null;
 
-  try {
-    const picture = value.trim();
-    const url = new URL(picture.startsWith('//') ? `https:${picture}` : picture);
-    if (url.protocol !== 'https:' || url.username || url.password) return null;
+  const path = url.pathname.replace(/\/$/, '');
+  const isAvatarRenderBase =
+    url.hostname === 'd3gq3s1iyyx31w.cloudfront.net' &&
+    path.startsWith('/static/render/bg/') &&
+    /-\d+$/.test(path);
+  const isProfilePhotoBase =
+    url.hostname === 'simg-ssl.duolingo.com' && /^\/avatar\/[^/]+$/.test(path);
 
-    const path = url.pathname.replace(/\/$/, '');
-    const isAvatarRenderBase =
-      url.hostname === 'd3gq3s1iyyx31w.cloudfront.net' &&
-      path.startsWith('/static/render/bg/') &&
-      /-\d+$/.test(path);
-    const isProfilePhotoBase =
-      url.hostname === 'simg-ssl.duolingo.com' && /^\/avatar\/[^/]+$/.test(path);
-
-    if (isAvatarRenderBase || isProfilePhotoBase) {
-      url.pathname = `${path}/medium`;
-    }
-
-    return url.href;
-  } catch {
-    return null;
+  if (isAvatarRenderBase || isProfilePhotoBase) {
+    url.pathname = `${path}/medium`;
   }
+
+  return url.href;
 }
 
 async function getRelationshipPage(
@@ -65,10 +59,11 @@ async function getRelationshipPage(
   const response = await fetch(url, {
     method: endpoint.method,
     credentials: 'include',
+    redirect: 'error',
     signal: requestSignal,
   });
 
-  assertDuolingoResponse(response, `Duolingo ${list} returned HTTP ${response.status}`);
+  await assertDuolingoResponse(response, `Duolingo ${list} returned HTTP ${response.status}`);
   const data = await readDuolingoJson<Partial<Record<RelationshipList, RelationshipPage>> | null>(
     response,
     `Duolingo ${list} returned invalid JSON`,
@@ -139,6 +134,7 @@ async function resolveDuolingoAccount(
   const options = {
     method: endpoint.method,
     credentials: 'include' as const,
+    redirect: 'error' as const,
     signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
   };
   let response = await fetch(url, options);
@@ -149,7 +145,7 @@ async function resolveDuolingoAccount(
     response = await fetch(fallbackUrl, options);
   }
 
-  assertDuolingoResponse(response, `Поиск профиля Duolingo вернул HTTP ${response.status}.`);
+  await assertDuolingoResponse(response, `Поиск профиля Duolingo вернул HTTP ${response.status}.`);
   const data = await readDuolingoJson<{
     users?: Array<{ id?: unknown; username?: unknown; picture?: unknown }>;
   } | null>(response, 'Duolingo вернул некорректный JSON при поиске профиля.', options.signal);
@@ -297,7 +293,7 @@ export async function unfollow(
           : '';
       const message = `Duolingo вернул HTTP ${response.status}.${hint}`;
       if (response.status >= 500) throw new ConnectorError('UNFOLLOW_UNCONFIRMED', message);
-      assertDuolingoResponse(response, message);
+      await assertDuolingoResponse(response, message);
     }
 
     const data: { successful?: unknown } | null = await response.json().catch(() => {

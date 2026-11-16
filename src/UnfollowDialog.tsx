@@ -18,6 +18,10 @@ interface UnfollowDialogProps {
   messages: Messages;
 }
 
+/**
+ * Shows the target profile and the account that will unfollow it.
+ * The parent owns the request and can retain the profile during the closing animation.
+ */
 export function UnfollowDialog({
   confirmation,
   onCancel,

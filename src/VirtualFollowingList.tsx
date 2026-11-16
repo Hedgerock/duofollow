@@ -22,6 +22,7 @@ import type { Messages } from '@duofollow/src/i18n/messages';
 interface ListProps {
   users: ComparedFollowingUser[];
   rowHeight?: number;
+  /** Reset scroll when the visible view, search, or sort order changes. */
   viewKey: string;
   label: string;
   showRelationships: boolean;
@@ -138,6 +139,10 @@ const FollowingRow = memo(function FollowingRow({
   );
 });
 
+/**
+ * Renders the visible rows, a small overscan, and the focused row when it scrolls off-screen.
+ * Use a fixed row height for the current font size so the viewport can calculate row positions.
+ */
 export const VirtualFollowingList = memo(function VirtualFollowingList({
   users,
   rowHeight = FOLLOWING_ROW_HEIGHT,

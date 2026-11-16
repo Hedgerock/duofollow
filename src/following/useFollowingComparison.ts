@@ -9,9 +9,10 @@ import {
 } from 'react';
 
 import {
-  ConnectorError,
   type ConnectorErrorCode,
+  getConnectorErrorDetails,
 } from '@duofollow/extension/src/dto/ConnectorError';
+import { isConnectorFailure } from '@duofollow/extension/src/dto/ConnectorResult';
 import { getProfileDisplayName } from '@duofollow/src/following/profiles';
 import { localizedError, translations } from '@duofollow/src/i18n/messages';
 
@@ -128,7 +129,7 @@ export function useFollowingComparison(
       (response) => {
         if (!finishRequest()) return;
 
-        if (!response.success) {
+        if (isConnectorFailure(response)) {
           reportError(response.error, response.errorCode);
           return;
         }
@@ -150,10 +151,8 @@ export function useFollowingComparison(
       },
       (error: unknown) => {
         if (!finishRequest()) return;
-        reportError(
-          error instanceof Error ? error.message : '',
-          error instanceof ConnectorError ? error.errorCode : undefined,
-        );
+        const details = getConnectorErrorDetails(error);
+        reportError(details.error, details.errorCode);
       },
     );
 

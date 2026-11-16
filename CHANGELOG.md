@@ -14,6 +14,9 @@
 
 ### Changed
 
+- Browser tabs share Duolingo session checks and pause them after HTTP 429.
+- The site loads avatars from approved hosts and shows initials for other URLs.
+
 - The header and footer stay in place while the main content scrolls. The scrollbar follows the site theme.
 - Small screens place the sort control beside search and explain an unavailable non-mutual filter next to the view buttons.
 - The list header highlights the selected view’s count and shows matches out of that total during search.

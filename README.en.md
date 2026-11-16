@@ -24,7 +24,7 @@ To revoke access, select the lock in the header, open the Connector settings, an
 
 ## Install from source
 
-With Node.js 22 installed, run these commands from the repository root.
+With Node.js 22.13 or a newer 22.x release installed, run these commands from the repository root.
 
 ```sh
 npm ci

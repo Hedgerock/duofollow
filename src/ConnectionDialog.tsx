@@ -16,6 +16,10 @@ interface ConnectionDialogProps {
   languageControl: ReactNode;
 }
 
+/**
+ * Shows recovery steps for the current Connector issue and tracks a retry in progress.
+ * The parent owns connection status and can dismiss the dialog while the issue persists.
+ */
 export function ConnectionDialog({
   issue,
   open,
