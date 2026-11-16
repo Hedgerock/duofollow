@@ -2,6 +2,7 @@ import { expect, type Page } from 'playwright/test';
 
 import type {
   ComparedFollowingUser,
+  FollowingComparison,
   FollowingComparisonResult,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
@@ -14,7 +15,7 @@ function comparison(
   incomplete: boolean,
   profileCount: number,
   identity?: ComparisonIdentity,
-): FollowingComparisonResult {
+): Extract<FollowingComparisonResult, { success: true }> {
   const profiles: ComparedFollowingUser[] = [
     { userId: 2, displayName: 'セリーナ', username: 'selina', relationship: 'mutual' },
     {
@@ -83,16 +84,22 @@ export async function openComparison(
     theme = 'dark',
     profileCount = 3,
     identity,
+    refreshFields,
   }: {
     incomplete?: boolean;
     theme?: 'dark' | 'light';
     profileCount?: number;
     identity?: ComparisonIdentity;
+    refreshFields?: Partial<Record<keyof FollowingComparison, unknown>>;
   } = {},
 ) {
   const summary = comparison(incomplete, profileCount, identity);
+  const refreshSummary = refreshFields
+    ? { ...summary, comparison: { ...summary.comparison, ...refreshFields } }
+    : undefined;
   await page.addInitScript(
-    ({ summary, theme }) => {
+    ({ summary, refreshSummary, theme }) => {
+      let response: unknown = summary;
       localStorage.setItem('duofollow.language', 'en');
       localStorage.setItem('duofollow.theme', theme);
       const commands: string[] = [];
@@ -117,7 +124,8 @@ export async function openComparison(
                   reply({ session: 'ready' });
                   return;
                 case 'GET_FOLLOWING_SUMMARY':
-                  reply(summary);
+                  reply(response);
+                  if (refreshSummary) response = refreshSummary;
                   return;
                 case 'UNFOLLOW':
                   reply({ success: true, targetUserId: message.targetUserId });
@@ -131,7 +139,7 @@ export async function openComparison(
       });
       if (!Reflect.get(window, 'chrome')) Reflect.set(window, 'chrome', chrome);
     },
-    { summary, theme },
+    { summary, refreshSummary, theme },
   );
   await page.goto('/duofollow/');
   await page.locator('#duolingo-username').fill(identity?.accountUsername ?? 'lingua_demo');

@@ -26,6 +26,8 @@
 
 ### Fixed
 
+- A malformed comparison reply shows an error and preserves the previous results.
+
 - Connector messages distinguish expired sessions, rate limits, timeouts, and unexpected replies. An unconfirmed unfollow prompts a fresh comparison.
 
 - Profile names and usernames use separate text directions. Search matches canonically equivalent Unicode names.

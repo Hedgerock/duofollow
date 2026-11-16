@@ -24,6 +24,18 @@ test('filters received profiles and switches views without comparing again', asy
   ).toHaveLength(1);
 });
 
+test('reports a malformed comparison and restores the previous list', async ({ page }) => {
+  const panel = await openComparison(page, { refreshFields: { following: {} } });
+  await expect(panel.locator('[data-following-id]')).toHaveCount(3);
+
+  await page.getByRole('button', { name: 'Compare my follows' }).click();
+
+  await expect(page.getByText('Could not compare follows')).toBeVisible();
+  await expect(page.getByText('The response was unexpected.', { exact: false })).toBeVisible();
+  await expect(panel.locator('[data-following-id]')).toHaveCount(3);
+  await expect(panel.getByText('セリーナ')).toBeVisible();
+});
+
 test('tracks the cursor and exposes the same tooltip from the keyboard', async ({ page }) => {
   const panel = await openComparison(page);
   const marker = panel.locator('.relationship-marker[data-relationship="mutual"]');

@@ -3,6 +3,7 @@ import {
   isConnectorFailure,
   isConnectorSuccess,
 } from '@duofollow/extension/src/dto/ConnectorResult';
+import { isFollowingComparison } from '@duofollow/src/api/extension/isFollowingComparison';
 
 import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
 import type {
@@ -125,12 +126,7 @@ export class DuoFollowConnector {
       30_000,
     );
     if (isConnectorFailure(result)) return result;
-    if (
-      !isConnectorSuccess(result) ||
-      typeof result.comparison?.accountUsername !== 'string' ||
-      !result.comparison.accountUsername ||
-      result.comparison.nonMutualFollowing === undefined
-    ) {
+    if (!isConnectorSuccess(result) || !isFollowingComparison(result.comparison)) {
       throw new ConnectorError(
         'INVALID_RESPONSE',
         'Outdated connector response. Reload the extension.',

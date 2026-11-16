@@ -10,7 +10,20 @@ import {
 } from '@duofollow/extension/src/dto/ConnectorResult';
 import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 
+import type { FollowingComparison } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+
 const client = new DuoFollowConnector('test-extension');
+const comparison: FollowingComparison = {
+  accountUsername: 'Learner',
+  checkedFollowing: 1,
+  totalFollowing: 8,
+  checkedFollowers: 0,
+  totalFollowers: 2,
+  mutualUsers: 0,
+  nonMutualUsers: null,
+  nonMutualFollowing: null,
+};
+const profile = { userId: 2, displayName: '', username: '', picture: null };
 
 function stubRuntime(response?: unknown, lastError?: { message: string }) {
   const sendMessage = vi.fn(
@@ -76,7 +89,7 @@ describe('DuoFollowConnector', () => {
   it('rejects a truthy non-boolean reply in settings, comparison and unfollow', async () => {
     stubRuntime({
       success: 'true',
-      comparison: { accountUsername: 'Learner', nonMutualFollowing: null },
+      comparison,
       targetUserId: 202,
     });
 
@@ -89,11 +102,8 @@ describe('DuoFollowConnector', () => {
     });
   });
 
-  it('sends the username and accepts a partial comparison', async () => {
-    const result = {
-      success: true,
-      comparison: { accountUsername: 'Learner', nonMutualFollowing: null },
-    };
+  it('sends the username and accepts a legacy partial comparison without the full list', async () => {
+    const result = { success: true, comparison };
     const sendMessage = stubRuntime(result);
     await expect(client.getFollowingSummary('Learner')).resolves.toEqual(result);
     expect(sendMessage).toHaveBeenCalledWith(
@@ -101,6 +111,53 @@ describe('DuoFollowConnector', () => {
       { type: 'GET_FOLLOWING_SUMMARY', username: 'Learner' },
       expect.any(Function),
     );
+  });
+
+  it('accepts a legacy reply containing a non-mutual profile with only an ID', async () => {
+    const result = {
+      success: true,
+      comparison: {
+        ...comparison,
+        totalFollowers: 0,
+        nonMutualUsers: 1,
+        nonMutualFollowing: [profile],
+      },
+    };
+    stubRuntime(result);
+    await expect(client.getFollowingSummary('Learner')).resolves.toEqual(result);
+  });
+
+  it('accepts a current partial comparison with unconfirmed profiles', async () => {
+    const result = {
+      success: true,
+      comparison: { ...comparison, following: [{ ...profile, relationship: 'unknown' }] },
+    };
+    stubRuntime(result);
+    await expect(client.getFollowingSummary('Learner')).resolves.toEqual(result);
+  });
+
+  it.each([
+    ['an object in following', { following: {} }],
+    ['null in following', { following: null }],
+    ['a missing array entry', { following: Array<unknown>(1) }],
+    ['an unknown relationship', { following: [{ ...profile, relationship: 'invalid' }] }],
+    ['a non-string username', { following: [{ ...profile, username: 2, relationship: 'mutual' }] }],
+    ['a non-string display name', { nonMutualFollowing: [{ ...profile, displayName: null }] }],
+    ['a missing non-mutual list', { nonMutualFollowing: undefined }],
+    ['an object in the non-mutual list', { nonMutualFollowing: {} }],
+    ['a null profile', { nonMutualFollowing: [null] }],
+    ['an invalid profile ID', { nonMutualFollowing: [{ ...profile, userId: '2' }] }],
+    ['an invalid avatar field', { nonMutualFollowing: [{ ...profile, picture: {} }] }],
+    ['an invalid account avatar', { accountPicture: 2 }],
+    ['an invalid counter', { checkedFollowing: '1' }],
+    ['a missing counter', { checkedFollowers: undefined }],
+    ['an invalid non-mutual counter', { nonMutualUsers: -1 }],
+    ['a blank account name', { accountUsername: ' ' }],
+  ])('rejects %s in a successful reply', async (_description, fields) => {
+    stubRuntime({ success: true, comparison: { ...comparison, ...fields } });
+    await expect(client.getFollowingSummary('Learner')).rejects.toMatchObject({
+      errorCode: 'INVALID_RESPONSE',
+    });
   });
 
   it('passes a worker error through to the app', async () => {
