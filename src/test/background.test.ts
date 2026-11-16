@@ -140,8 +140,14 @@ describe('extension worker', () => {
     await expect(checkConnection()).resolves.toEqual({ session: 'consent-required' });
     containsPermissions.mockResolvedValue(false);
     await expect(checkConnection()).resolves.toEqual({ session: 'consent-required' });
-    await expect(compare(account.username)).resolves.toMatchObject({ success: false });
-    await expect(unfollow()).resolves.toMatchObject({ success: false });
+    await expect(compare(account.username)).resolves.toMatchObject({
+      success: false,
+      errorCode: 'ACCESS_REQUIRED',
+    });
+    await expect(unfollow()).resolves.toMatchObject({
+      success: false,
+      errorCode: 'ACCESS_REQUIRED',
+    });
     expect(getCookie).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -266,6 +272,21 @@ describe('extension worker', () => {
     await expect(checkConnection()).resolves.toEqual({ session: 'signed-out' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['RATE_LIMITED', () => Promise.resolve(new Response(null, { status: 429 }))],
+    ['TIMEOUT', () => Promise.reject(new DOMException('Timed out', 'TimeoutError'))],
+    ['INVALID_RESPONSE', () => Promise.resolve(Response.json({ followers: null }))],
+  ])(
+    'preserves %s on unavailable session checks for newer clients',
+    async (errorCode, response) => {
+      fetchMock.mockImplementationOnce(response);
+      await expect(checkConnection()).resolves.toEqual({
+        session: 'duolingo-unavailable',
+        errorCode,
+      });
+    },
+  );
 
   it('checks authenticated access using one follower and reports status without session data', async () => {
     getCookie.mockResolvedValue({
@@ -513,14 +534,27 @@ describe('extension worker', () => {
     });
   });
 
-  it.each([401, 403, 429])('preserves HTTP %i from Duolingo', async (status) => {
+  it.each([
+    [401, 'SIGNED_OUT'],
+    [403, 'ACCESS_DENIED'],
+    [429, 'RATE_LIMITED'],
+  ])('maps HTTP %i from Duolingo to %s', async (status, errorCode) => {
     fetchMock
       .mockResolvedValueOnce(resolveAccount())
       .mockResolvedValueOnce(new Response(null, { status }))
       .mockResolvedValueOnce(followers([]));
     await expect(compare('Learner')).resolves.toMatchObject({
       success: false,
+      errorCode,
       error: expect.stringContaining(`HTTP ${status}`),
+    });
+  });
+
+  it('returns TIMEOUT when the comparison request expires', async () => {
+    fetchMock.mockRejectedValueOnce(new DOMException('Timed out', 'TimeoutError'));
+    await expect(compare('Learner')).resolves.toMatchObject({
+      success: false,
+      errorCode: 'TIMEOUT',
     });
   });
 
@@ -528,6 +562,7 @@ describe('extension worker', () => {
     fetchMock.mockResolvedValueOnce(new Response('{'));
     await expect(compare('Learner')).resolves.toMatchObject({
       success: false,
+      errorCode: 'INVALID_RESPONSE',
       error: expect.stringContaining('JSON'),
     });
     fetchMock
@@ -536,6 +571,7 @@ describe('extension worker', () => {
       .mockResolvedValueOnce(followers([]));
     await expect(compare('Learner')).resolves.toEqual({
       success: false,
+      errorCode: 'INVALID_RESPONSE',
       error: 'Duolingo returned an invalid following page',
     });
     fetchMock.mockRejectedValueOnce(new Error('Network unavailable'));
@@ -633,12 +669,17 @@ describe('extension worker', () => {
     ['non-boolean success', () => Promise.resolve(Response.json({ successful: 'true' }))],
     ['invalid JSON', () => Promise.resolve(new Response('{'))],
     ['a network failure', () => Promise.reject(new Error('Connection closed'))],
+    ['a timeout', () => Promise.reject(new DOMException('Timed out', 'TimeoutError'))],
+    ['HTTP 503', () => Promise.resolve(new Response(null, { status: 503 }))],
   ])('keeps deletion unconfirmed after %s', async (_name, outcome) => {
     fetchMock
       .mockResolvedValueOnce(resolveAccount())
       .mockResolvedValueOnce(following([{ userId: 202 }]))
       .mockImplementationOnce(outcome);
-    await expect(unfollow()).resolves.toMatchObject({ success: false });
+    await expect(unfollow()).resolves.toMatchObject({
+      success: false,
+      errorCode: 'UNFOLLOW_UNCONFIRMED',
+    });
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 

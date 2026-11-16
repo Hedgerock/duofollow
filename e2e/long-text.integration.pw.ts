@@ -9,7 +9,7 @@ const identity = {
   },
 };
 
-test.use({ reducedMotion: 'reduce' });
+test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {

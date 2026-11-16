@@ -1,3 +1,7 @@
+import {
+  isConnectorErrorCode,
+  type ConnectorErrorCode,
+} from '../../extension/src/dto/ConnectorError';
 import type { ConnectorStatus } from '../../extension/src/dto/ConnectorSession';
 import type { Locale } from '../../extension/src/locales';
 
@@ -120,8 +124,32 @@ const ru = {
           'Вернись в DuoFollow и нажми «Проверить снова».',
         ],
       },
+      'rate-limited': {
+        title: 'Duolingo ограничил частоту запросов',
+        steps: ['Подожди и нажми «Проверить снова».'],
+      },
+      'duolingo-timeout': {
+        title: 'Проверка сессии заняла слишком много времени',
+        steps: ['Проверь доступность Duolingo и нажми «Проверить снова».'],
+      },
+      'duolingo-response-invalid': {
+        title: 'Duolingo вернул неожиданный ответ',
+        steps: ['Нажми «Проверить снова». Если ошибка повторится, обнови DuoFollow Connector.'],
+      },
     } satisfies Record<ConnectionIssue, { title: string; steps: string[] }>,
   },
+  connectorErrors: {
+    ACCESS_REQUIRED: 'Разреши доступ в настройках DuoFollow Connector.',
+    SIGNED_OUT: 'Войди в Duolingo в том же профиле Chrome.',
+    ACCESS_DENIED: 'Duolingo отклонил запрос. Проверь, что открыт нужный аккаунт.',
+    RATE_LIMITED: 'Duolingo ограничил частоту запросов. Подожди перед повторной попыткой.',
+    TIMEOUT: 'Запрос занял слишком много времени. Попробуй ещё раз.',
+    INVALID_RESPONSE:
+      'Получен неожиданный ответ. Повтори запрос. Если ошибка повторится, обнови DuoFollow Connector.',
+    CONNECTOR_UNAVAILABLE: 'Связь с Connector потеряна. Проверь, что расширение включено.',
+    ACCOUNT_MISMATCH: 'Укажи имя аккаунта, в который ты вошёл в Duolingo.',
+    UNFOLLOW_UNCONFIRMED: 'Не удалось узнать, была ли подписка удалена.',
+  } satisfies Record<ConnectorErrorCode, string>,
   notifications: {
     label: 'Уведомления',
     close: (title: string) => `Закрыть уведомление «${title}»`,
@@ -255,8 +283,33 @@ const en = {
           'Return to DuoFollow and select “Check again”.',
         ],
       },
+      'rate-limited': {
+        title: 'Duolingo is limiting requests',
+        steps: ['Wait a little, then select “Check again”.'],
+      },
+      'duolingo-timeout': {
+        title: 'The session check took too long',
+        steps: ['Check that Duolingo is reachable, then select “Check again”.'],
+      },
+      'duolingo-response-invalid': {
+        title: 'Duolingo returned an unexpected response',
+        steps: ['Select “Check again”. If it keeps happening, update DuoFollow Connector.'],
+      },
     },
   },
+  connectorErrors: {
+    ACCESS_REQUIRED: 'Grant Duolingo access in the DuoFollow Connector settings.',
+    SIGNED_OUT: 'Sign in to Duolingo in the same Chrome profile.',
+    ACCESS_DENIED: 'Duolingo refused the request. Check which account is signed in.',
+    RATE_LIMITED: 'Duolingo is limiting requests. Wait before trying again.',
+    TIMEOUT: 'The request took too long. Try again.',
+    INVALID_RESPONSE:
+      'The response was unexpected. Try again. If it keeps happening, update DuoFollow Connector.',
+    CONNECTOR_UNAVAILABLE:
+      'The connection to Connector was lost. Check that the extension is enabled.',
+    ACCOUNT_MISMATCH: 'Enter the username of the account signed in to Duolingo.',
+    UNFOLLOW_UNCONFIRMED: 'DuoFollow could not tell whether the follow was removed.',
+  } satisfies Record<ConnectorErrorCode, string>,
   notifications: {
     label: 'Notifications',
     close: (title: string) => `Dismiss notification “${title}”`,
@@ -390,8 +443,32 @@ const uk = {
           'Повернися в DuoFollow й натисни «Перевірити знову».',
         ],
       },
+      'rate-limited': {
+        title: 'Duolingo обмежив частоту запитів',
+        steps: ['Зачекай і натисни «Перевірити знову».'],
+      },
+      'duolingo-timeout': {
+        title: 'Перевірка сеансу тривала надто довго',
+        steps: ['Перевір доступність Duolingo й натисни «Перевірити знову».'],
+      },
+      'duolingo-response-invalid': {
+        title: 'Duolingo повернув неочікувану відповідь',
+        steps: ['Натисни «Перевірити знову». Якщо помилка повториться, онови DuoFollow Connector.'],
+      },
     },
   },
+  connectorErrors: {
+    ACCESS_REQUIRED: 'Надай доступ до Duolingo в налаштуваннях DuoFollow Connector.',
+    SIGNED_OUT: 'Увійди в Duolingo в тому самому профілі Chrome.',
+    ACCESS_DENIED: 'Duolingo відхилив запит. Перевір, у який акаунт ти ввійшов.',
+    RATE_LIMITED: 'Duolingo обмежив частоту запитів. Зачекай перед повторною спробою.',
+    TIMEOUT: 'Запит тривав надто довго. Спробуй ще раз.',
+    INVALID_RESPONSE:
+      'Отримано неочікувану відповідь. Спробуй ще раз. Якщо помилка повториться, онови DuoFollow Connector.',
+    CONNECTOR_UNAVAILABLE: 'Зв’язок із Connector втрачено. Перевір, чи розширення ввімкнене.',
+    ACCOUNT_MISMATCH: 'Вкажи ім’я акаунта, у який ти ввійшов у Duolingo.',
+    UNFOLLOW_UNCONFIRMED: 'Не вдалося з’ясувати, чи видалено підписку.',
+  } satisfies Record<ConnectorErrorCode, string>,
   notifications: {
     label: 'Сповіщення',
     close: (title: string) => `Закрити сповіщення «${title}»`,
@@ -410,7 +487,13 @@ const uk = {
 
 export const translations: Record<Locale, Messages> = { ru, en, uk };
 
-export function localizedError(locale: Locale, details: string, fallback = ''): string {
+export function localizedError(
+  locale: Locale,
+  details: string,
+  fallback = '',
+  errorCode?: ConnectorErrorCode,
+): string {
+  if (isConnectorErrorCode(errorCode)) return translations[locale].connectorErrors[errorCode];
   if (locale === 'ru') return details || fallback;
   return [details.match(/\bHTTP [1-5]\d{2}\b/)?.[0], fallback].filter(Boolean).join(' · ');
 }

@@ -572,6 +572,24 @@ describe('comparison screen', () => {
     expect(visibleAccounts(app.render())).toContain('Saved');
   });
 
+  it.each([
+    ['en-US', 'Duolingo is limiting requests. Wait before trying again.'],
+    ['uk-UA', 'Duolingo обмежив частоту запитів. Зачекай перед повторною спробою.'],
+    ['ru-RU', 'Duolingo ограничил частоту запросов. Подожди перед повторной попыткой.'],
+  ])('shows the localized rate limit for %s instead of worker details', async (locale, message) => {
+    getFollowingSummary.mockResolvedValueOnce({
+      success: false,
+      error: 'HTTP 429',
+      errorCode: 'RATE_LIMITED',
+    });
+    const app = mountApp(undefined, false, locale);
+    await app.connect();
+    app.edit('Learner');
+    app.submit();
+    await flush();
+    expect(app.notifications()).toMatchObject([{ kind: 'error', message }]);
+  });
+
   it('preserves the current result when editing or when the next submission fails', async () => {
     getFollowingSummary
       .mockResolvedValueOnce(success('First'))
@@ -984,6 +1002,32 @@ describe('comparison screen', () => {
       ]),
     );
   });
+
+  it.each([
+    [
+      'UNFOLLOW_UNCONFIRMED',
+      'DuoFollow could not tell whether the follow was removed. Compare your follows before trying again.',
+    ],
+    ['RATE_LIMITED', 'Duolingo is limiting requests. Wait before trying again.'],
+  ] as const)(
+    'retains the profile and shows the correct action for %s',
+    async (errorCode, message) => {
+      getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+      unfollow.mockResolvedValueOnce({ success: false, error: 'worker details', errorCode });
+      const app = mountApp('Saved', false, 'en-US');
+      await app.connect();
+      await flush();
+      const users = app.list().props.users as unknown[];
+      runEvent(app.list(), 'onUnfollow', users[0]);
+      runEvent(app.dialog(), 'onConfirm');
+      await flush();
+      expect(app.list().props).toMatchObject({ users, unfollowingId: null, removingId: null });
+      expect(app.notifications()).toEqual(
+        expect.arrayContaining([expect.objectContaining({ kind: 'error', message })]),
+      );
+      expect(unfollow).toHaveBeenCalledOnce();
+    },
+  );
 
   it('keeps the list and offers a fresh comparison after a refusal or a lost reply', async () => {
     getFollowingSummary.mockResolvedValueOnce(success('Saved'));

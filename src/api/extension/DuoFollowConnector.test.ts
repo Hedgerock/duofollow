@@ -63,6 +63,16 @@ describe('DuoFollowConnector', () => {
     await expect(client.getConnectionStatus()).resolves.toBe('connector-unavailable');
   });
 
+  it.each([
+    ['RATE_LIMITED', 'rate-limited'],
+    ['TIMEOUT', 'duolingo-timeout'],
+    ['INVALID_RESPONSE', 'duolingo-response-invalid'],
+    ['UNRECOGNIZED', 'duolingo-unavailable'],
+  ])('maps a session code %s to the UI status %s', async (errorCode, status) => {
+    stubRuntime({ session: 'duolingo-unavailable', errorCode });
+    await expect(client.getConnectionStatus()).resolves.toBe(status);
+  });
+
   it('reports missing consent and only opens access settings on request', async () => {
     stubRuntime({ session: 'consent-required' });
     await expect(client.getConnectionStatus()).resolves.toBe('consent-required');
@@ -86,7 +96,9 @@ describe('DuoFollowConnector', () => {
     );
     for (const unexpected of [{ success: true }, { success: true, targetUserId: 303 }]) {
       stubRuntime(unexpected);
-      await expect(client.unfollow('Learner', 202)).rejects.toThrow('неожиданный ответ');
+      await expect(client.unfollow('Learner', 202)).rejects.toMatchObject({
+        errorCode: 'UNFOLLOW_UNCONFIRMED',
+      });
     }
   });
 
@@ -112,11 +124,23 @@ describe('DuoFollowConnector', () => {
   it('times out after 30 seconds when Chrome never replies', async () => {
     vi.useFakeTimers();
     vi.stubGlobal('chrome', { runtime: { sendMessage: vi.fn() } });
-    const assertion = expect(client.getFollowingSummary('Learner')).rejects.toThrow(
-      'Connector response timed out',
-    );
+    const assertion = expect(client.getFollowingSummary('Learner')).rejects.toMatchObject({
+      errorCode: 'TIMEOUT',
+    });
     await vi.advanceTimersByTimeAsync(30_000);
     await assertion;
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('treats a lost unfollow reply as an unknown outcome without resending', async () => {
+    vi.useFakeTimers();
+    const sendMessage = vi.fn();
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+    const assertion = expect(client.unfollow('Learner', 202)).rejects.toMatchObject({
+      errorCode: 'UNFOLLOW_UNCONFIRMED',
+    });
+    await vi.advanceTimersByTimeAsync(45_000);
+    await assertion;
+    expect(sendMessage).toHaveBeenCalledOnce();
   });
 });

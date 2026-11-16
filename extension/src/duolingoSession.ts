@@ -1,5 +1,7 @@
 import type { DuolingoSessionStatus } from './dto/ConnectorSession';
+import { ConnectorError } from './dto/ConnectorError.js';
 import { duolingoEndpoints } from './duolingoEndpoints.js';
+import { assertDuolingoResponse, readDuolingoJson } from './duolingoResponse.js';
 
 function readSessionUserId(token: string | undefined): string | null {
   const payload = token?.split('.')[1];
@@ -33,29 +35,32 @@ export async function getDuolingoSessionUserId(signal: AbortSignal): Promise<str
 }
 
 export async function checkDuolingoSession(signal: AbortSignal): Promise<DuolingoSessionStatus> {
-  try {
-    const userId = await getDuolingoSessionUserId(signal);
-    if (!userId) return 'signed-out';
+  const userId = await getDuolingoSessionUserId(signal);
+  if (!userId) return 'signed-out';
 
-    const endpoint = duolingoEndpoints.followers;
-    const url = endpoint.url(userId);
-    url.searchParams.set('viewerId', userId);
-    url.searchParams.set('pageSize', '1');
+  const endpoint = duolingoEndpoints.followers;
+  const url = endpoint.url(userId);
+  url.searchParams.set('viewerId', userId);
+  url.searchParams.set('pageSize', '1');
 
-    const response = await fetch(url, {
-      method: endpoint.method,
-      credentials: 'include',
-      cache: 'no-store',
-      redirect: 'error',
-      signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
-    });
+  const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(5_000)]);
+  const response = await fetch(url, {
+    method: endpoint.method,
+    credentials: 'include',
+    cache: 'no-store',
+    redirect: 'error',
+    signal: requestSignal,
+  });
 
-    if (response.status === 401) return 'signed-out';
-    if (!response.ok) return 'duolingo-unavailable';
-
-    const data: { followers?: { users?: unknown } } | null = await response.json();
-    return Array.isArray(data?.followers?.users) ? 'ready' : 'duolingo-unavailable';
-  } catch {
-    return 'duolingo-unavailable';
+  if (response.status === 401) return 'signed-out';
+  assertDuolingoResponse(response, `Duolingo session check returned HTTP ${response.status}`);
+  const data = await readDuolingoJson<{ followers?: { users?: unknown } } | null>(
+    response,
+    'Duolingo session check returned invalid JSON',
+    requestSignal,
+  );
+  if (!Array.isArray(data?.followers?.users)) {
+    throw new ConnectorError('INVALID_RESPONSE', 'Duolingo session check returned an invalid page');
   }
+  return 'ready';
 }

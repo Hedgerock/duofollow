@@ -23,6 +23,8 @@
 
 ### Fixed
 
+- Connector messages distinguish expired sessions, rate limits, timeouts, and unexpected replies. An unconfirmed unfollow prompts a fresh comparison.
+
 - Profile names and usernames use separate text directions. Search matches canonically equivalent Unicode names.
 - Long usernames, translated list headings, and Connector buttons fit at 125% text size.
 - Returning from the privacy policy or access page rechecks a failed Connector status before showing a warning.

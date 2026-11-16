@@ -1,3 +1,4 @@
+import { ConnectorError } from '../../../extension/src/dto/ConnectorError';
 import type {
   FollowingComparisonResult,
   UnfollowResult,
@@ -46,11 +47,16 @@ export class DuoFollowConnector {
 
   async getConnectionStatus(): Promise<ConnectorStatus> {
     try {
-      const response = await this.send<{ session?: unknown }>(
+      const response = await this.send<{ session?: unknown; errorCode?: unknown }>(
         { type: 'GET_DUOLINGO_ACCESS' },
         7_000,
       );
       const status = response.session;
+      if (status === 'duolingo-unavailable') {
+        if (response.errorCode === 'RATE_LIMITED') return 'rate-limited';
+        if (response.errorCode === 'TIMEOUT') return 'duolingo-timeout';
+        if (response.errorCode === 'INVALID_RESPONSE') return 'duolingo-response-invalid';
+      }
       if (
         status === 'ready' ||
         status === 'signed-out' ||
@@ -109,11 +115,17 @@ export class DuoFollowConnector {
       { type: 'GET_FOLLOWING_SUMMARY', username },
       30_000,
     );
+    if (result.success === false && typeof result.error === 'string') return result;
     if (
-      result.success &&
-      (!result.comparison?.accountUsername || result.comparison.nonMutualFollowing === undefined)
+      result.success !== true ||
+      typeof result.comparison?.accountUsername !== 'string' ||
+      !result.comparison.accountUsername ||
+      result.comparison.nonMutualFollowing === undefined
     ) {
-      throw new Error('Outdated connector response. Reload the extension.');
+      throw new ConnectorError(
+        'INVALID_RESPONSE',
+        'Outdated connector response. Reload the extension.',
+      );
     }
     return result;
   }
@@ -126,7 +138,7 @@ export class DuoFollowConnector {
     if (result.success === false && typeof result.error === 'string') return result;
 
     if (result.success !== true || result.targetUserId !== targetUserId) {
-      throw new Error('Расширение вернуло неожиданный ответ.');
+      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Расширение вернуло неожиданный ответ.');
     }
 
     return result;
@@ -140,13 +152,17 @@ export class DuoFollowConnector {
     timeoutMs: number,
   ): Promise<Result> {
     const runtime = globalThis.chrome?.runtime;
+    const unfollow = message.type === 'UNFOLLOW';
 
     if (!runtime?.sendMessage) {
-      throw new Error('Chrome extension messaging is unavailable');
+      throw new ConnectorError(
+        'CONNECTOR_UNAVAILABLE',
+        'Chrome extension messaging is unavailable',
+      );
     }
 
     if (!this.extensionId) {
-      throw new Error('VITE_DUOFOLLOW_EXTENSION_ID is missing');
+      throw new ConnectorError('CONNECTOR_UNAVAILABLE', 'VITE_DUOFOLLOW_EXTENSION_ID is missing');
     }
 
     let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -157,7 +173,12 @@ export class DuoFollowConnector {
           const error = runtime.lastError;
 
           if (error || !result) {
-            reject(new Error(error?.message ?? 'Empty connector response'));
+            const code = unfollow
+              ? 'UNFOLLOW_UNCONFIRMED'
+              : error
+                ? 'CONNECTOR_UNAVAILABLE'
+                : 'INVALID_RESPONSE';
+            reject(new ConnectorError(code, error?.message ?? 'Empty connector response'));
             return;
           }
 
@@ -166,7 +187,16 @@ export class DuoFollowConnector {
       });
 
       const deadline = new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error('Connector response timed out')), timeoutMs);
+        timeout = setTimeout(
+          () =>
+            reject(
+              new ConnectorError(
+                unfollow ? 'UNFOLLOW_UNCONFIRMED' : 'TIMEOUT',
+                'Connector response timed out',
+              ),
+            ),
+          timeoutMs,
+        );
       });
 
       return await Promise.race([response, deadline]);

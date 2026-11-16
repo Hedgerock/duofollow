@@ -1,3 +1,5 @@
+import type { ConnectorFailure } from './ConnectorError';
+
 export interface DuolingoFollowingUserDto {
   userId: number;
   username: string;
@@ -26,8 +28,7 @@ export interface FollowingPaginationDiagnostics {
   uniqueUsers: number;
 }
 
-export type FollowingPaginationResult =
-  FollowingPaginationDiagnostics | { success: false; error: string };
+export type FollowingPaginationResult = FollowingPaginationDiagnostics | ConnectorFailure;
 
 export interface DuolingoFollowingPageDto {
   following: {
@@ -62,8 +63,6 @@ export interface FollowingComparison {
 }
 
 export type FollowingComparisonResult =
-  | (FollowingPaginationDiagnostics & { comparison: FollowingComparison })
-  | { success: false; error: string };
+  (FollowingPaginationDiagnostics & { comparison: FollowingComparison }) | ConnectorFailure;
 
-export type UnfollowResult =
-  { success: true; targetUserId: number } | { success: false; error: string };
+export type UnfollowResult = { success: true; targetUserId: number } | ConnectorFailure;

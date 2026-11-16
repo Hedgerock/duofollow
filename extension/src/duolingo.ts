@@ -5,7 +5,9 @@ import type {
   FollowingPageSummary,
   UnfollowResult,
 } from './dto/DuolingoFollowingDto';
+import { ConnectorError } from './dto/ConnectorError.js';
 import { duolingoEndpoints } from './duolingoEndpoints.js';
+import { assertDuolingoResponse, readDuolingoJson } from './duolingoResponse.js';
 import { getDuolingoSessionUserId } from './duolingoSession.js';
 
 const pendingUnfollows = new Set<string>();
@@ -55,25 +57,19 @@ async function getRelationshipPage(
   url.searchParams.set('viewerId', userId);
   url.searchParams.set('_', String(Date.now()));
 
+  const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(12_000)]);
   const response = await fetch(url, {
     method: endpoint.method,
     credentials: 'include',
-    signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
+    signal: requestSignal,
   });
 
-  if (!response.ok) {
-    throw new Error(`Duolingo ${list} returned HTTP ${response.status}`);
-  }
-
-  const data: Partial<Record<RelationshipList, RelationshipPage>> | null = await response
-    .json()
-    .catch((error: unknown) => {
-      if (error instanceof SyntaxError) {
-        throw new Error(`Duolingo ${list} returned invalid JSON`);
-      }
-
-      throw error;
-    });
+  assertDuolingoResponse(response, `Duolingo ${list} returned HTTP ${response.status}`);
+  const data = await readDuolingoJson<Partial<Record<RelationshipList, RelationshipPage>> | null>(
+    response,
+    `Duolingo ${list} returned invalid JSON`,
+    requestSignal,
+  );
   const page = data?.[list];
 
   if (
@@ -84,7 +80,7 @@ async function getRelationshipPage(
     page.totalUsers < 0 ||
     (page.cursor != null && typeof page.cursor !== 'string')
   ) {
-    throw new Error(`Duolingo returned an invalid ${list} page`);
+    throw new ConnectorError('INVALID_RESPONSE', `Duolingo returned an invalid ${list} page`);
   }
 
   return page;
@@ -107,6 +103,13 @@ function summarizeFollowingPage(page: RelationshipPage): FollowingPageSummary {
   };
 }
 
+async function requireSessionUserId(signal: AbortSignal): Promise<string> {
+  const userId = await getDuolingoSessionUserId(signal);
+  signal.throwIfAborted();
+  if (!userId) throw new ConnectorError('SIGNED_OUT', 'Войди в Duolingo в этом профиле Chrome.');
+  return userId;
+}
+
 async function resolveDuolingoAccount(
   input: unknown,
   signal: AbortSignal,
@@ -118,9 +121,7 @@ async function resolveDuolingoAccount(
     throw new Error('Укажи имя аккаунта Duolingo, например username.');
   }
 
-  const sessionUserId = await getDuolingoSessionUserId(signal);
-  signal.throwIfAborted();
-  if (!sessionUserId) throw new Error('Войди в Duolingo в этом профиле Chrome.');
+  const sessionUserId = await requireSessionUserId(signal);
 
   const endpoint = duolingoEndpoints.accountLookup;
   const url = endpoint.url();
@@ -144,21 +145,16 @@ async function resolveDuolingoAccount(
     response = await fetch(fallbackUrl, options);
   }
 
-  if (!response.ok) {
-    throw new Error(`Поиск профиля Duolingo вернул HTTP ${response.status}.`);
-  }
-
-  const data: {
+  assertDuolingoResponse(response, `Поиск профиля Duolingo вернул HTTP ${response.status}.`);
+  const data = await readDuolingoJson<{
     users?: Array<{ id?: unknown; username?: unknown; picture?: unknown }>;
-  } | null = await response.json().catch((error: unknown) => {
-    if (error instanceof SyntaxError) {
-      throw new Error('Duolingo вернул некорректный JSON при поиске профиля.');
-    }
-    throw error;
-  });
+  } | null>(response, 'Duolingo вернул некорректный JSON при поиске профиля.', options.signal);
 
   if (!Array.isArray(data?.users)) {
-    throw new Error('Duolingo вернул неожиданный ответ при поиске профиля.');
+    throw new ConnectorError(
+      'INVALID_RESPONSE',
+      'Duolingo вернул неожиданный ответ при поиске профиля.',
+    );
   }
 
   const account = data.users.find(
@@ -171,9 +167,10 @@ async function resolveDuolingoAccount(
   }
 
   if (typeof account.id !== 'number' || !Number.isSafeInteger(account.id) || account.id <= 0) {
-    throw new Error('Duolingo вернул некорректный ID профиля.');
+    throw new ConnectorError('INVALID_RESPONSE', 'Duolingo вернул некорректный ID профиля.');
   }
-  if (String(account.id) !== sessionUserId) throw new Error(ACCOUNT_MISMATCH);
+  if (String(account.id) !== sessionUserId)
+    throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
 
   return {
     userId: String(account.id),
@@ -275,7 +272,8 @@ export async function unfollow(
       throw new Error('Подписки нет среди полученных записей Duolingo.');
     }
 
-    if ((await getDuolingoSessionUserId(signal)) !== userId) throw new Error(ACCOUNT_MISMATCH);
+    if ((await requireSessionUserId(signal)) !== userId)
+      throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
     signal.throwIfAborted();
 
     const endpoint = duolingoEndpoints.unfollow;
@@ -285,7 +283,7 @@ export async function unfollow(
       redirect: 'error',
       signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
     }).catch(() => {
-      throw new Error(UNCONFIRMED_UNFOLLOW);
+      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', UNCONFIRMED_UNFOLLOW);
     });
 
     if (!response.ok) {
@@ -293,14 +291,16 @@ export async function unfollow(
         response.status === 401 || response.status === 403
           ? ' Войди в указанный аккаунт Duolingo в этом профиле браузера.'
           : '';
-      throw new Error(`Duolingo вернул HTTP ${response.status}.${hint}`);
+      const message = `Duolingo вернул HTTP ${response.status}.${hint}`;
+      if (response.status >= 500) throw new ConnectorError('UNFOLLOW_UNCONFIRMED', message);
+      assertDuolingoResponse(response, message);
     }
 
     const data: { successful?: unknown } | null = await response.json().catch(() => {
-      throw new Error(UNCONFIRMED_UNFOLLOW);
+      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', UNCONFIRMED_UNFOLLOW);
     });
     if (data?.successful !== true) {
-      throw new Error('Duolingo не подтвердил отписку.');
+      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Duolingo не подтвердил отписку.');
     }
 
     return { success: true, targetUserId };

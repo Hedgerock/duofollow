@@ -7,6 +7,7 @@ import {
   useState,
   type RefObject,
 } from 'react';
+import { ConnectorError, type ConnectorErrorCode } from '../../extension/src/dto/ConnectorError';
 import type {
   ComparedFollowingUser,
   FollowingComparison,
@@ -101,12 +102,12 @@ export function useFollowingComparison(
       pendingRequest.current = pending;
     }
 
-    function reportError(message: string) {
+    function reportError(message: string, errorCode?: ConnectorErrorCode) {
       notify({
         group: 'comparison',
         kind: 'error',
         title: copy.compareError,
-        message: localizedError(locale, message, copy.checkAccount),
+        message: localizedError(locale, message, copy.checkAccount, errorCode),
       });
     }
 
@@ -123,7 +124,7 @@ export function useFollowingComparison(
         if (!finishRequest()) return;
 
         if (!response.success) {
-          reportError(response.error);
+          reportError(response.error, response.errorCode);
           return;
         }
 
@@ -144,7 +145,10 @@ export function useFollowingComparison(
       },
       (error: unknown) => {
         if (!finishRequest()) return;
-        reportError(error instanceof Error ? error.message : '');
+        reportError(
+          error instanceof Error ? error.message : '',
+          error instanceof ConnectorError ? error.errorCode : undefined,
+        );
       },
     );
 

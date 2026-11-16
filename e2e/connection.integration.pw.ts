@@ -1,6 +1,9 @@
 import { expect, test } from 'playwright/test';
 
-test.use({ viewport: { width: 500, height: 640 }, reducedMotion: 'no-preference' });
+test.use({
+  viewport: { width: 500, height: 640 },
+  contextOptions: { reducedMotion: 'no-preference' },
+});
 
 for (const method of ['Close', 'Escape'] as const) {
   test(`keeps the Connector warning in a column during exit via ${method}`, async ({ page }) => {
@@ -28,3 +31,37 @@ for (const method of ['Close', 'Escape'] as const) {
     await expect(page.locator('main')).toHaveAttribute('inert', '');
   });
 }
+
+test('shows the rate limit while access is checked and unlocks after a successful retry', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('duofollow.language', 'en');
+    const chrome = Reflect.get(window, 'chrome') ?? {};
+    Object.defineProperty(chrome, 'runtime', {
+      configurable: true,
+      value: {
+        sendMessage(_id: string, _message: unknown, reply: (status: unknown) => void) {
+          queueMicrotask(() =>
+            reply(
+              Reflect.get(window, '__duofollowConnectionReady')
+                ? { session: 'ready' }
+                : { session: 'duolingo-unavailable', errorCode: 'RATE_LIMITED' },
+            ),
+          );
+        },
+      },
+    });
+    if (!Reflect.get(window, 'chrome')) Reflect.set(window, 'chrome', chrome);
+  });
+  await page.goto('/duofollow/');
+  const dialog = page.getByRole('dialog', { name: 'Duolingo is limiting requests' });
+  await expect(dialog).toBeVisible();
+  await expect(page.locator('main')).toHaveAttribute('inert', '');
+  await page.evaluate(() => {
+    Reflect.set(window, '__duofollowConnectionReady', true);
+  });
+  await dialog.getByRole('button', { name: 'Check again' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('#duolingo-username')).toBeEnabled();
+});

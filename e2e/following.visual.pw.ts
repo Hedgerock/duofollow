@@ -1,7 +1,7 @@
 import { expect, test } from 'playwright/test';
 import { openComparison } from './connector-fixture';
 
-test.use({ reducedMotion: 'reduce' });
+test.use({ contextOptions: { reducedMotion: 'no-preference' } });
 
 test('desktop dark relationships and tooltip', async ({ page }) => {
   const panel = await openComparison(page);

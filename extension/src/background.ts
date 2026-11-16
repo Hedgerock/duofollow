@@ -1,3 +1,5 @@
+import { ConnectorError, describeConnectorError } from './dto/ConnectorError.js';
+import type { ConnectorAccessResult } from './dto/ConnectorSession';
 import { getFollowingSummary, unfollow } from './duolingo.js';
 import {
   ACCESS_CONSENT_KEY,
@@ -44,7 +46,7 @@ function notifyAccessChange(access: 'granted' | 'revoked') {
 }
 
 function cancelAccess() {
-  accessController.abort(new Error(ACCESS_REQUIRED));
+  accessController.abort(new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED));
   accessController = new AbortController();
   notifyAccessChange('revoked');
 }
@@ -87,17 +89,25 @@ chrome.action.onClicked.addListener(() => {
   });
 });
 
-async function readAccessStatus() {
+async function readAccessStatus(): Promise<ConnectorAccessResult> {
   const { signal } = accessController;
   if (!(await hasDuolingoAccess()) || signal.aborted) return { session: 'consent-required' };
 
-  const session = await checkDuolingoSession(signal);
-  return { session: signal.aborted ? 'consent-required' : session };
+  try {
+    const session = await checkDuolingoSession(signal);
+    return { session: signal.aborted ? 'consent-required' : session };
+  } catch (error) {
+    if (signal.aborted) return { session: 'consent-required' };
+    const { errorCode } = describeConnectorError(error);
+    return errorCode
+      ? { session: 'duolingo-unavailable', errorCode }
+      : { session: 'duolingo-unavailable' };
+  }
 }
 
 async function withAccess<T>(run: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const { signal } = accessController;
-  if (!(await hasDuolingoAccess())) throw new Error(ACCESS_REQUIRED);
+  if (!(await hasDuolingoAccess())) throw new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED);
   signal.throwIfAborted();
   try {
     const result = await run(signal);
@@ -115,7 +125,7 @@ function replyWith(
   failure: { success: false } | { session: 'duolingo-unavailable' } = { success: false },
 ): true {
   void request.then(sendResponse, (error: unknown) => {
-    sendResponse({ ...failure, error: error instanceof Error ? error.message : 'Unknown error' });
+    sendResponse({ ...failure, ...describeConnectorError(error) });
   });
   return true;
 }

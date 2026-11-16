@@ -62,6 +62,12 @@ export function Workspace({
     followingList;
   const listTitle = messages.followingViews[activeView];
 
+  const canManageAccess =
+    status !== 'checking' &&
+    status !== 'consent-required' &&
+    status !== 'connector-unavailable' &&
+    status !== 'connector-outdated';
+
   const languageControl = <LanguageSelect site={site} onChange={clearNotifications} />;
 
   return (
@@ -96,7 +102,7 @@ export function Workspace({
           )
         }
       >
-        {(isReady || status === 'signed-out' || status === 'duolingo-unavailable') && (
+        {canManageAccess && (
           <Link
             to="/access/"
             className="theme-toggle site-control-link"

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ConnectorError, isConnectorErrorCode } from '../../extension/src/dto/ConnectorError';
 import type { NonMutualFollowingUser } from '../../extension/src/dto/DuolingoFollowingDto';
 import type { Locale } from '../../extension/src/locales';
 import type { DuoFollowConnector } from '../api/extension/DuoFollowConnector';
@@ -93,7 +94,12 @@ export function useUnfollow({
     try {
       const result = await connector.unfollow(pending.account, user.userId);
       if (activity.current !== pending) return;
-      if (!result.success) throw new Error(result.error);
+      if (!result.success) {
+        if (isConnectorErrorCode(result.errorCode)) {
+          throw new ConnectorError(result.errorCode, result.error);
+        }
+        throw new Error(result.error);
+      }
 
       const removing: UnfollowAction = { ...pending, phase: 'removing' };
       activity.current = removing;
@@ -113,12 +119,17 @@ export function useUnfollow({
       if (activity.current !== pending) return;
       closeAction(pending);
       const details = error instanceof Error ? error.message : '';
+      const code = error instanceof ConnectorError ? error.errorCode : undefined;
+      const needsComparison = !code || code === 'UNFOLLOW_UNCONFIRMED';
       const copy = translations[currentLocale.current].notifications;
       notify({
         group,
         kind: 'error',
         title: copy.unfollowError,
-        message: [localizedError(currentLocale.current, details), copy.retryUnfollow]
+        message: [
+          localizedError(currentLocale.current, details, '', code),
+          needsComparison ? copy.retryUnfollow : '',
+        ]
           .filter(Boolean)
           .join(' '),
       });
