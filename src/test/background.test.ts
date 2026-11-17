@@ -652,15 +652,20 @@ describe('extension worker', () => {
     },
   );
 
-  it('handles empty lists as a confirmed zero', async () => {
+  it.each([
+    { scenario: 'no followers', profiles: [] },
+    { scenario: 'one follower', profiles: [{ userId: 2 }] },
+  ])('reports zero follows with $scenario', async ({ profiles }) => {
     fetchMock
       .mockResolvedValueOnce(resolveAccount())
       .mockResolvedValueOnce(following([]))
-      .mockResolvedValueOnce(followers([]));
+      .mockResolvedValueOnce(followers(profiles));
+
     await expect(compare('Learner')).resolves.toMatchObject({
       success: true,
       comparison: {
         checkedFollowing: 0,
+        checkedFollowers: profiles.length,
         mutualUsers: 0,
         nonMutualUsers: 0,
         nonMutualFollowing: [],

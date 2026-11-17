@@ -71,4 +71,5 @@ TypeScript и Playwright используют `compilerOptions.paths` из ко�
 - [Сравнение и интерфейс](comparison.md) — охват данных, список, отписка, вёрстка и локализация.
 - [Проверки и выпуск](release.md) — тесты, ZIP для Chrome Web Store и GitHub Pages.
 - [План развития](roadmap.md) — коды ошибок, профиль сессии, браузеры и языки.
+- [Правила написания ADR](adr-guidelines.md).
 - [CHANGELOG](../../CHANGELOG.md) — изменения для пользователей.
