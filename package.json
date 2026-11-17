@@ -13,7 +13,10 @@
     "test:load": "playwright test --config=playwright.load.config.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "test:browser:docker": "docker compose -f compose.test.yml run --rm browser-tests",
+    "test:browser:docker:update-snapshots": "docker compose -f compose.test.yml run --rm browser-tests sh -c \"npm ci --no-audit --no-fund && npm run test:browser -- --project=visual --update-snapshots=all\"",
+    "test:load:docker": "docker compose -f compose.test.yml run --rm browser-tests sh -c \"npm ci --no-audit --no-fund && npm run test:load\""
   },
   "dependencies": {
     "react": "^19.0.0",

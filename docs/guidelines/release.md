@@ -19,6 +19,12 @@ Vitest проверяет полный и неполный Followers, дедуп
 импортов с побочными эффектами и запрет относительных путей. Перед публикацией GitHub Pages CI запускает ESLint, Vitest,
 Prettier и обе сборки. Тесты Connector проверяют общий кэш сессии, паузу после HTTP 429 и смену аккаунта.
 Chromium проверяет, какие источники изображений разрешает политика страницы, и что ошибочный ответ сравнения сохраняет предыдущий список.
+Тест на ширине 1100 CSS px сравнивает высоту закрытых карточек, когда метка «Частично» есть только у одного счётчика.
+Тест повторной загрузки сверяет высоту карточек со скелетом на ширинах 1100 и 320 CSS px, включая двухстрочные подписи.
+Отдельный сценарий при ширине 320 CSS px проверяет раскрытие пояснений к счётчикам, плавное закрытие при уходе фокуса,
+неизменную высоту соседней карточки, подсветку при наведении и отключение переходов при уменьшении движения.
+Украинское пояснение остаётся внутри карточки при размере текста 125 %
+на ширинах 320 и 1100 CSS px.
 
 ### Браузерные и скриншотные тесты
 
@@ -34,13 +40,13 @@ Playwright запускает собранный сайт и подставля�
 Скриншоты сравнивай в Docker. В [compose.test.yml](../../compose.test.yml) закреплены версия Playwright и архитектура Linux AMD64.
 
 ```sh
-docker compose -f compose.test.yml run --rm browser-tests
+npm run test:browser:docker
 ```
 
 Для первой записи эталонов и после согласованного изменения интерфейса запусти следующую команду.
 
 ```sh
-docker compose -f compose.test.yml run --rm browser-tests sh -c "npm ci --no-audit --no-fund && npm run test:browser -- --project=visual --update-snapshots=all"
+npm run test:browser:docker:update-snapshots
 ```
 
 Просмотри обновлённые изображения в `e2e/snapshots/linux` и повтори обычный запуск. После успешного прогона добавь PNG
@@ -60,7 +66,7 @@ docker compose -f compose.test.yml run --rm browser-tests sh -c "npm ci --no-aud
 Локально после установки Chromium запусти `npm run test:load`. Для проверки в закреплённом Linux-окружении используй Docker.
 
 ```sh
-docker compose -f compose.test.yml run --rm browser-tests sh -c "npm ci --no-audit --no-fund && npm run test:load"
+npm run test:load:docker
 ```
 
 ### Ручная проверка перед выпуском

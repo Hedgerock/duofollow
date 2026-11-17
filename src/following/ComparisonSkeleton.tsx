@@ -1,16 +1,6 @@
 export function ComparisonSkeleton({ rowHeight }: { rowHeight: number }) {
   return (
     <div className="comparison-skeleton" aria-hidden="true" inert>
-      <div className="stats">
-        {[0, 1, 2, 3].map((index) => (
-          <article key={index}>
-            <span className="skeleton-bar skeleton-label" />
-            <span className="skeleton-bar skeleton-value" />
-            <span className="skeleton-bar skeleton-caption" />
-          </article>
-        ))}
-      </div>
-
       <div className="panel live-following">
         <div className="panel-heading">
           <div className="skeleton-heading">

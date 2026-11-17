@@ -432,6 +432,7 @@ main[inert] {
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
   gap: 18px;
   margin: 20px 0 28px;
 }
@@ -453,8 +454,12 @@ main[inert] {
   font-size: 2.375rem;
   letter-spacing: -0.04em;
 }
-.stats small {
+.stats small,
+.comparison-coverage-toggle {
   font-size: 0.75rem;
+  line-height: 1.5rem;
+}
+.stats small {
   color: var(--text-muted);
 }
 .stats .accent {
@@ -463,6 +468,98 @@ main[inert] {
 }
 .stats .accent strong {
   color: var(--accent-text);
+}
+
+.comparison-coverage-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  width: fit-content;
+  column-gap: 0.55rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: start;
+}
+
+.comparison-coverage-details .comparison-coverage-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding-inline: 0.3rem;
+  border-radius: 4px;
+  color: var(--text-soft);
+  font-size: inherit;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.comparison-coverage-label::before {
+  content: '';
+  flex: 0 0 auto;
+  inline-size: 0.35em;
+  block-size: 0.35em;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(-45deg);
+}
+
+.comparison-coverage-toggle[aria-expanded='true'] .comparison-coverage-label::before {
+  transform: rotate(45deg);
+}
+
+@media (hover: hover) {
+  .comparison-coverage-toggle:hover .comparison-coverage-label {
+    background-color: var(--surface-hover);
+    color: var(--text);
+  }
+}
+
+.comparison-coverage-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.comparison-coverage-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 180ms ease,
+    opacity 180ms ease,
+    visibility 180ms;
+}
+
+.comparison-coverage-panel[aria-hidden='false'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+}
+
+.comparison-coverage-content {
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.comparison-coverage-explanation {
+  margin: 7px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text-soft);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comparison-coverage-details .comparison-coverage-label,
+  .comparison-coverage-panel {
+    transition: none;
+  }
 }
 
 .comparison-coverage-note {
@@ -1110,11 +1207,6 @@ footer a,
   height: 15px;
 }
 
-.skeleton-value {
-  width: 48px;
-  height: 44px;
-}
-
 .skeleton-caption {
   width: min(46%, 105px);
   height: 13px;
@@ -1140,11 +1232,62 @@ footer a,
   grid-template-columns: minmax(0, 1fr);
 }
 
+.comparison-results > .stats {
+  grid-area: 1 / 1;
+}
+
 .comparison-content,
 .comparison-skeleton {
-  grid-area: 1 / 1;
+  grid-area: 2 / 1;
   align-self: start;
   min-width: 0;
+}
+
+.stats-loading article.accent {
+  background: var(--panel);
+  border-color: var(--border);
+}
+
+.stats-loading article > *,
+.stats-loading .comparison-coverage-note {
+  visibility: hidden;
+}
+
+.stats-loading article > :is(span, strong, small),
+.stats-loading .comparison-coverage-toggle {
+  position: relative;
+}
+
+.stats-loading article > :is(span, strong, small)::before,
+.stats-loading .comparison-coverage-toggle::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 0;
+  transform: translateY(-50%);
+  visibility: visible;
+  border-radius: 6px;
+  background:
+    linear-gradient(105deg, transparent, var(--shimmer), transparent) -100% center / 50% 100%
+      no-repeat,
+    var(--skeleton);
+  animation: stats-skeleton-shimmer 1.45s ease-in-out 3;
+}
+
+.stats-loading article > span::before {
+  inline-size: min(70%, 150px);
+  block-size: min(100%, 15px);
+}
+
+.stats-loading article > strong::before {
+  inline-size: 48px;
+  block-size: min(100%, 2.75rem);
+}
+
+.stats-loading article > small::before,
+.stats-loading .comparison-coverage-toggle::before {
+  inline-size: min(46%, 105px);
+  block-size: 13px;
 }
 
 .comparison-content[aria-hidden='true'] {
@@ -1192,6 +1335,12 @@ footer a,
   }
 }
 
+@keyframes stats-skeleton-shimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+
 @keyframes comparison-in {
   from {
     opacity: 0;
@@ -1204,14 +1353,10 @@ footer a,
   }
 }
 
-@media (max-width: 650px) {
-  .skeleton-value {
-    height: 34px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .skeleton-bar::after,
+  .stats-loading article > :is(span, strong, small)::before,
+  .stats-loading .comparison-coverage-toggle::before,
   .comparison-reveal {
     animation: none;
   }

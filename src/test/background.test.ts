@@ -542,6 +542,35 @@ describe('extension worker', () => {
     }
   });
 
+  it('reports first-page coverage for the observed Following and Followers sizes', async () => {
+    const profiles = (start: number, size: number) =>
+      Array.from({ length: size }, (_, index) => ({ userId: start + index }));
+    fetchMock
+      .mockResolvedValueOnce(resolveAccount())
+      .mockResolvedValueOnce(following(profiles(1, 376), 695))
+      .mockResolvedValueOnce(followers(profiles(1, 130)));
+
+    await expect(compare('Learner')).resolves.toMatchObject({
+      success: true,
+      firstPage: { cursor: 'v1:500' },
+      secondPage: null,
+      comparison: {
+        checkedFollowing: 376,
+        totalFollowing: 695,
+        checkedFollowers: 130,
+        totalFollowers: 130,
+        coverage: { following: 'cursor-present', followers: 'complete' },
+      },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(
+      fetchMock.mock.calls
+        .slice(1)
+        .every(([url]) => !new URL(String(url)).searchParams.has('cursor')),
+    ).toBe(true);
+  });
+
   it('passes HTTPS avatar URLs through and discards invalid or insecure ones', async () => {
     const picture = 'https://simg-ssl.duolingo.com/following.png';
     fetchMock
@@ -628,18 +657,23 @@ describe('extension worker', () => {
   });
 
   it.each([
-    { total: 1, cursor: 'v1:500' },
-    { total: 2, cursor: null },
+    { total: 1, cursor: 'v1:500', status: 'cursor-present' },
+    { total: 2, cursor: null, status: 'total-mismatch' },
+    { total: 1, cursor: undefined, status: 'cursor-missing' },
+    { total: 1, cursor: '', status: 'cursor-missing' },
   ])(
     'reports unknown nonmutual accounts for incomplete followers (%j)',
-    async ({ total, cursor }) => {
+    async ({ total, cursor, status }) => {
       fetchMock
         .mockResolvedValueOnce(resolveAccount())
         .mockResolvedValueOnce(following([{ userId: 1 }, { userId: 2 }]))
-        .mockResolvedValueOnce(followers([{ userId: 1 }], total, cursor));
+        .mockResolvedValueOnce(
+          Response.json({ followers: { users: [{ userId: 1 }], totalUsers: total, cursor } }),
+        );
       await expect(compare('Learner')).resolves.toMatchObject({
         success: true,
         comparison: {
+          coverage: { following: 'cursor-present', followers: status },
           mutualUsers: 1,
           nonMutualUsers: null,
           nonMutualFollowing: null,

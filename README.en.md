@@ -14,7 +14,7 @@ You’ll need desktop Chrome and the **DuoFollow Connector** extension. To build
 4. Choose a list view and search by name or `@username`. Use the sort control next to search to change the order. The arrow on each row opens that person’s Duolingo profile.
 5. To unfollow a non-mutual profile, select the person icon with a minus and confirm in the dialog.
 
-The result cards show how many follows and followers DuoFollow checked. The counter to the right of the list heading shows how many profiles are in the selected view. During search it shows matches out of that view’s total.
+The result cards show how many follows and followers DuoFollow checked. Select **Partial** to see why the check covered only part of a list. The counter to the right of the list heading shows how many profiles are in the selected view. During search it shows matches out of that view’s total.
 
 Colored bars in the all-received view show each profile’s status. If the followers list is incomplete, the **Non-mutual** filter is disabled and an explanation appears below the view buttons. The header links to the profile used for the comparison.
 

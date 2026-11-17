@@ -49,7 +49,17 @@ export type ComparedFollowingUser = NonMutualFollowingUser & {
   relationship: FollowingRelationship;
 };
 
+export const relationshipCoverageStatuses = [
+  'complete',
+  'cursor-present',
+  'cursor-missing',
+  'total-mismatch',
+] as const;
+
+export type RelationshipCoverageStatus = (typeof relationshipCoverageStatuses)[number];
+
 export interface FollowingComparison {
+  coverage?: { following: RelationshipCoverageStatus; followers: RelationshipCoverageStatus };
   checkedFollowing: number;
   totalFollowing: number;
   checkedFollowers: number;

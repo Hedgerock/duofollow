@@ -153,6 +153,9 @@ describe('DuoFollowConnector', () => {
     ['a missing counter', { checkedFollowers: undefined }],
     ['an invalid non-mutual counter', { nonMutualUsers: -1 }],
     ['a blank account name', { accountUsername: ' ' }],
+    ['an invalid coverage value', { coverage: null }],
+    ['a missing coverage status', { coverage: { following: 'complete' } }],
+    ['an unknown coverage status', { coverage: { following: 'complete', followers: 'unknown' } }],
   ])('rejects %s in a successful reply', async (_description, fields) => {
     stubRuntime({ success: true, comparison: { ...comparison, ...fields } });
     await expect(client.getFollowingSummary('Learner')).rejects.toMatchObject({

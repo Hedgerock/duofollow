@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Workspace } from '@duofollow/src/App';
 import { ConnectionDialog } from '@duofollow/src/ConnectionDialog';
+import { CoverageDetails } from '@duofollow/src/following/CoverageDetails';
 import { RelationshipLegend } from '@duofollow/src/following/RelationshipLegend';
 import { useWorkspace } from '@duofollow/src/following/useWorkspace';
 import { NotificationViewport } from '@duofollow/src/notifications';
@@ -691,7 +692,8 @@ describe('comparison screen', () => {
       expect(findElement(followers, (node) => node.type === 'strong').props.children).toBe(
         incomplete ? '3' : '8',
       );
-      expect(findElement(followers, (node) => node.type === 'small').props.children).toBe('из 8');
+      const followersTotal = findElement(followers, (node) => node.type === CoverageDetails);
+      expect(followersTotal.props.total).toBe('из 8');
       expect(findElement(mutual, (node) => node.type === 'small').props.children).toBe(
         incomplete ? 'подтверждено' : 'среди проверенных',
       );
@@ -1003,7 +1005,8 @@ describe('comparison screen', () => {
     expect(
       findElements(stats, (node) => node.type === 'strong').map((node) => node.props.children),
     ).toEqual(['2', '2', '1', '1']);
-    expect(findElements(stats, (node) => node.type === 'small')[0].props.children).toBe('из 9');
+    const followingTotal = findElements(stats, (node) => node.type === CoverageDetails)[0];
+    expect(followingTotal.props.total).toBe('из 9');
     expect(app.notifications()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'success', title: 'Подписка удалена' }),

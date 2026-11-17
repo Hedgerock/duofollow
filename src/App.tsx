@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { privacyPath } from '@duofollow/extension/src/locales';
 import { ConnectionDialog } from '@duofollow/src/ConnectionDialog';
 import { ComparisonSkeleton } from '@duofollow/src/following/ComparisonSkeleton';
+import { CoverageDetails } from '@duofollow/src/following/CoverageDetails';
 import { getDuolingoProfileUrl } from '@duofollow/src/following/profiles';
 import { RelationshipLegend } from '@duofollow/src/following/RelationshipLegend';
 import { FOLLOWING_ROW_HEIGHT } from '@duofollow/src/following/useFollowingViewport';
@@ -70,6 +71,8 @@ export function Workspace({
   const { activeView, hasFullView, canShowNonMutual, total, query, sort, searchTerm, users } =
     followingList;
   const listTitle = messages.followingViews[activeView];
+  const followingCoverage = comparison?.coverage?.following;
+  const followersCoverage = comparison?.coverage?.followers;
 
   const canManageAccess =
     status !== 'checking' &&
@@ -188,56 +191,73 @@ export function Workspace({
             </form>
           </section>
           <div className="comparison-results" aria-busy={isLoading}>
+            {(comparison || isLoading) && (
+              <section
+                className={isLoading ? 'stats stats-loading' : 'stats comparison-reveal'}
+                aria-label={messages.resultsLabel}
+                aria-hidden={isLoading || undefined}
+                inert={isLoading}
+              >
+                <article>
+                  <span>{messages.checked}</span>
+                  <strong>{formatNumber(comparison?.checkedFollowing ?? 0)}</strong>
+                  <CoverageDetails
+                    key={followingCoverage}
+                    status={followingCoverage}
+                    label={messages.checked}
+                    total={messages.ofTotal(formatNumber(comparison?.totalFollowing ?? 0))}
+                    messages={messages}
+                  />
+                </article>
+                <article>
+                  <span>{messages.followersChecked}</span>
+                  <strong>{formatNumber(comparison?.checkedFollowers ?? 0)}</strong>
+                  <CoverageDetails
+                    key={followersCoverage}
+                    status={followersCoverage}
+                    label={messages.followersChecked}
+                    total={messages.ofTotal(formatNumber(comparison?.totalFollowers ?? 0))}
+                    messages={messages}
+                  />
+                </article>
+                <article>
+                  <span>{messages.mutual}</span>
+                  <strong>{formatNumber(comparison?.mutualUsers ?? 0)}</strong>
+                  <small>
+                    {comparison?.nonMutualUsers === null
+                      ? messages.confirmed
+                      : messages.amongChecked}
+                  </small>
+                </article>
+                <article className="accent">
+                  <span>{messages.nonMutual}</span>
+                  <strong>
+                    {comparison?.nonMutualUsers === null
+                      ? '—'
+                      : formatNumber(comparison?.nonMutualUsers ?? 0)}
+                  </strong>
+                  <small>
+                    {comparison?.nonMutualUsers === null
+                      ? messages.incomplete
+                      : messages.amongChecked}
+                  </small>
+                </article>
+                {comparison && !hasFullView && comparison.nonMutualUsers === null && (
+                  <p className="comparison-coverage-note">{messages.incompleteFollowersNote}</p>
+                )}
+                {comparison && !hasFullView && (
+                  <p className="comparison-coverage-note following-upgrade-note">
+                    {messages.updateConnectorForViews}
+                  </p>
+                )}
+              </section>
+            )}
             {isLoading && <ComparisonSkeleton rowHeight={rowHeight} />}
             <div
               className="comparison-content"
               aria-hidden={isLoading || undefined}
               inert={isLoading}
             >
-              {comparison && (
-                <section className="stats comparison-reveal" aria-label={messages.resultsLabel}>
-                  <article>
-                    <span>{messages.checked}</span>
-                    <strong>{formatNumber(comparison.checkedFollowing)}</strong>
-                    <small>{messages.ofTotal(formatNumber(comparison.totalFollowing))}</small>
-                  </article>
-                  <article>
-                    <span>{messages.followersChecked}</span>
-                    <strong>{formatNumber(comparison.checkedFollowers)}</strong>
-                    <small>{messages.ofTotal(formatNumber(comparison.totalFollowers))}</small>
-                  </article>
-                  <article>
-                    <span>{messages.mutual}</span>
-                    <strong>{formatNumber(comparison.mutualUsers)}</strong>
-                    <small>
-                      {comparison.nonMutualUsers === null
-                        ? messages.confirmed
-                        : messages.amongChecked}
-                    </small>
-                  </article>
-                  <article className="accent">
-                    <span>{messages.nonMutual}</span>
-                    <strong>
-                      {comparison.nonMutualUsers === null
-                        ? '—'
-                        : formatNumber(comparison.nonMutualUsers)}
-                    </strong>
-                    <small>
-                      {comparison.nonMutualUsers === null
-                        ? messages.incomplete
-                        : messages.amongChecked}
-                    </small>
-                  </article>
-                  {!hasFullView && comparison.nonMutualUsers === null && (
-                    <p className="comparison-coverage-note">{messages.incompleteFollowersNote}</p>
-                  )}
-                  {!hasFullView && (
-                    <p className="comparison-coverage-note following-upgrade-note">
-                      {messages.updateConnectorForViews}
-                    </p>
-                  )}
-                </section>
-              )}
               {comparison && (hasFullView || canShowNonMutual) && (
                 <section
                   className="panel live-following comparison-reveal"

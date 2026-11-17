@@ -85,12 +85,14 @@ export async function openComparison(
     profileCount = 3,
     identity,
     refreshFields,
+    holdRefresh = false,
   }: {
     incomplete?: boolean;
     theme?: 'dark' | 'light';
     profileCount?: number;
     identity?: ComparisonIdentity;
     refreshFields?: Partial<Record<keyof FollowingComparison, unknown>>;
+    holdRefresh?: boolean;
   } = {},
 ) {
   const summary = comparison(incomplete, profileCount, identity);
@@ -98,8 +100,16 @@ export async function openComparison(
     ? { ...summary, comparison: { ...summary.comparison, ...refreshFields } }
     : undefined;
   await page.addInitScript(
-    ({ summary, refreshSummary, theme }) => {
+    ({ summary, refreshSummary, theme, holdRefresh }) => {
       let response: unknown = summary;
+      let hasCompared = false;
+      const refreshGate = holdRefresh
+        ? new Promise<void>((resolve) => {
+            window.addEventListener('duofollow-test:release-refresh', () => resolve(), {
+              once: true,
+            });
+          })
+        : null;
       localStorage.setItem('duofollow.language', 'en');
       localStorage.setItem('duofollow.theme', theme);
       const commands: string[] = [];
@@ -123,10 +133,14 @@ export async function openComparison(
                 case 'GET_DUOLINGO_ACCESS':
                   reply({ session: 'ready' });
                   return;
-                case 'GET_FOLLOWING_SUMMARY':
-                  reply(response);
+                case 'GET_FOLLOWING_SUMMARY': {
+                  const result = response;
+                  if (hasCompared && refreshGate) void refreshGate.then(() => reply(result));
+                  else reply(result);
+                  hasCompared = true;
                   if (refreshSummary) response = refreshSummary;
                   return;
+                }
                 case 'UNFOLLOW':
                   reply({ success: true, targetUserId: message.targetUserId });
                   return;
@@ -139,7 +153,7 @@ export async function openComparison(
       });
       if (!Reflect.get(window, 'chrome')) Reflect.set(window, 'chrome', chrome);
     },
-    { summary, refreshSummary, theme },
+    { summary, refreshSummary, theme, holdRefresh },
   );
   await page.goto('/duofollow/');
   await page.locator('#duolingo-username').fill(identity?.accountUsername ?? 'lingua_demo');

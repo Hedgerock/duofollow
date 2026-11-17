@@ -36,6 +36,140 @@ test('reports a malformed comparison and restores the previous list', async ({ p
   await expect(panel.getByText('セリーナ')).toBeVisible();
 });
 
+test('matches the comparison skeleton to the result card heights during refresh', async ({
+  page,
+}) => {
+  await openComparison(page, {
+    holdRefresh: true,
+  });
+  const skeleton = page.locator('.comparison-skeleton');
+  const stats = page.locator('.stats');
+  const measure = () =>
+    stats.locator('article').evaluateAll((cards) => cards.map((card) => card.clientHeight));
+  const viewports = [
+    { width: 1100, height: 900 },
+    { width: 320, height: 820 },
+  ];
+
+  await page.getByRole('button', { name: 'Compare my follows' }).click();
+  await expect(skeleton).toBeVisible();
+  await expect(stats).toHaveAttribute('aria-hidden', 'true');
+  const loadingHeights = [];
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    loadingHeights.push(await measure());
+  }
+
+  await page.evaluate(() => window.dispatchEvent(new Event('duofollow-test:release-refresh')));
+  await expect(skeleton).toBeHidden();
+  await expect(stats).not.toHaveAttribute('aria-hidden', 'true');
+  const resultHeights = [];
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    resultHeights.push(await measure());
+  }
+  expect(loadingHeights).toEqual(resultHeights);
+});
+
+test('keeps collapsed result cards the same height with one partial-coverage label', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await openComparison(page, {
+    refreshFields: { coverage: { following: 'cursor-present', followers: 'complete' } },
+  });
+  await page.getByRole('button', { name: 'Compare my follows' }).click();
+  await page.locator('.topbar .language-select').selectOption('ru');
+
+  const cards = page.locator('.stats article');
+  await expect(cards).toHaveCount(4);
+  await expect(cards.first().getByRole('button', { name: /Частично/ })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
+  const [firstHeight, ...otherHeights] = await cards.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().height),
+  );
+  expect(otherHeights).toEqual([firstHeight, firstHeight, firstHeight]);
+});
+
+test('explains partial coverage next to both counters at 320 px', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 820 });
+  const panel = await openComparison(page, {
+    incomplete: true,
+    refreshFields: { coverage: { following: 'cursor-present', followers: 'total-mismatch' } },
+  });
+
+  await page.getByRole('button', { name: 'Compare my follows' }).click();
+
+  const stats = page.locator('.stats');
+  const following = stats.locator('article').nth(0);
+  const followers = stats.locator('article').nth(1);
+  const followingToggle = following.getByRole('button', { name: /Partial/ });
+  const followersToggle = followers.getByRole('button', { name: /Partial/ });
+  const followersLabel = followersToggle.getByText('Partial');
+  const followingPanel = following.locator('.comparison-coverage-panel');
+  const followingExplanation = following.getByText(
+    'Only profiles from the first part of the Duolingo list were checked.',
+  );
+  const followersExplanation = followers.getByText(
+    'The number of profiles received differs from the total shown in Duolingo.',
+  );
+
+  await expect(followingToggle.getByText('Partial')).toBeVisible();
+  await expect(followersLabel).toBeVisible();
+  await expect(followingExplanation).toBeHidden();
+  await expect(followersExplanation).toBeHidden();
+  const statsHeight = () => stats.evaluate((element) => element.clientHeight);
+  const closedHeight = await statsHeight();
+  const followersHeight = () => followers.evaluate((element) => element.clientHeight);
+  const closedFollowersHeight = await followersHeight();
+
+  await followingToggle.press('Enter');
+  await expect(followingToggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(followingExplanation).toBeVisible();
+  await expect(followingPanel).toHaveCSS('opacity', '1');
+  await expect.poll(statsHeight).toBeGreaterThan(closedHeight);
+  expect(await followersHeight()).toBe(closedFollowersHeight);
+
+  await followingPanel.evaluate((element) => {
+    element.addEventListener('transitionrun', (event) => {
+      if (event instanceof TransitionEvent && event.propertyName === 'grid-template-rows') {
+        element.setAttribute('data-collapse-started', 'true');
+      }
+    });
+  });
+  await followingToggle.press('Tab');
+  await expect(followersToggle).toBeFocused();
+  await expect(followingToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(followingPanel).toHaveAttribute('data-collapse-started', 'true');
+  await expect(followingExplanation).toBeHidden();
+  await expect.poll(statsHeight).toBe(closedHeight);
+
+  await followingToggle.press('Space');
+  await expect(followingExplanation).toBeVisible();
+  await followingToggle.press('Escape');
+  await expect(followingExplanation).toBeHidden();
+  await expect(followingToggle).toBeFocused();
+  await expect.poll(statsHeight).toBe(closedHeight);
+
+  await expect(followersLabel).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await followersLabel.hover();
+  await expect(followersLabel).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(followersLabel).toHaveCSS('transition-duration', '0s');
+  await followersLabel.click();
+  await expect(followersExplanation).toBeVisible();
+  await expect(followers.locator('.comparison-coverage-panel')).toHaveCSS(
+    'transition-duration',
+    '0s',
+  );
+  await expect.poll(statsHeight).toBeGreaterThan(closedHeight);
+  await expect(panel.getByRole('button', { name: 'Non-mutual', exact: true })).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
 test('tracks the cursor and exposes the same tooltip from the keyboard', async ({ page }) => {
   const panel = await openComparison(page);
   const marker = panel.locator('.relationship-marker[data-relationship="mutual"]');

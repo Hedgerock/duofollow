@@ -14,6 +14,8 @@
 
 ### Changed
 
+- The **Partial** label opens and closes its explanation without resizing neighboring cards.
+
 - Browser tabs share Duolingo session checks and pause them after HTTP 429.
 - The site loads avatars from approved hosts and shows initials for other URLs.
 

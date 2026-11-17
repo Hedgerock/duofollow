@@ -69,6 +69,39 @@ test('wraps the translated list heading beside a five-digit search total', async
   await expect(row.getByRole('button', { name: /^Отписаться/ })).toBeVisible();
 });
 
+test('keeps the Ukrainian coverage explanation inside its card at 125% text size', async ({
+  page,
+}) => {
+  const panel = await openComparison(page, {
+    refreshFields: { coverage: { following: 'cursor-present', followers: 'complete' } },
+  });
+  await page.getByRole('button', { name: 'Compare my follows' }).click();
+  await page.locator('.topbar .language-select').selectOption('uk');
+  await expect(page.locator('html')).toHaveCSS('font-size', '20px');
+
+  const card = page.locator('.stats article').first();
+  const toggle = card.getByRole('button', { name: /Частково/ });
+  const explanation = card.getByText('Перевірено лише профілі з першої частини списку Duolingo.');
+
+  for (const width of [1100, 320]) {
+    await page.setViewportSize({ width, height: 820 });
+    await toggle.click();
+    await expectNoInlineOverflow(explanation);
+    const cardBounds = await card.boundingBox();
+    const explanationBounds = await explanation.boundingBox();
+    const listBounds = await panel.boundingBox();
+    if (!cardBounds || !explanationBounds || !listBounds) {
+      throw new Error('The coverage card, explanation, and list must be visible');
+    }
+    const explanationBottom = explanationBounds.y + explanationBounds.height;
+    expect(explanationBottom).toBeLessThanOrEqual(cardBounds.y + cardBounds.height);
+    expect(explanationBottom).toBeLessThan(listBounds.y);
+
+    await toggle.press('Escape');
+    await expect(explanation).toBeHidden();
+  }
+});
+
 test('keeps the Ukrainian Connector retry label in its button in a short window', async ({
   page,
 }) => {

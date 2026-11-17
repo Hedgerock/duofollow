@@ -12,6 +12,7 @@ import type {
   DuolingoFollowingPageDto,
   FollowingComparisonResult,
   FollowingPageSummary,
+  RelationshipCoverageStatus,
   UnfollowResult,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
@@ -83,6 +84,14 @@ async function getRelationshipPage(
   }
 
   return page;
+}
+
+function getRelationshipCoverage(
+  { cursor, totalUsers }: RelationshipPage,
+  uniqueUsers: number,
+): RelationshipCoverageStatus {
+  if (cursor === null) return uniqueUsers === totalUsers ? 'complete' : 'total-mismatch';
+  return cursor ? 'cursor-present' : 'cursor-missing';
 }
 
 function summarizeFollowingPage(page: RelationshipPage): FollowingPageSummary {
@@ -195,7 +204,11 @@ export async function getFollowingSummary(
 
   const followingById = new Map(following.users.map((user) => [user.userId, user]));
   const followerIds = new Set(followers.users.map((user) => user.userId));
-  const followersComplete = followers.cursor === null && followerIds.size === followers.totalUsers;
+  const coverage = {
+    following: getRelationshipCoverage(following, followingById.size),
+    followers: getRelationshipCoverage(followers, followerIds.size),
+  };
+  const followersComplete = coverage.followers === 'complete';
   const comparedFollowing = Array.from(
     followingById.values(),
     ({ userId, username, displayName, picture }): ComparedFollowingUser => ({
@@ -228,6 +241,7 @@ export async function getFollowingSummary(
     duplicatedUsers: 0,
     uniqueUsers: followingById.size,
     comparison: {
+      coverage,
       checkedFollowing: followingById.size,
       totalFollowing: following.totalUsers,
       checkedFollowers: followerIds.size,

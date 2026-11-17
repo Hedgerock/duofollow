@@ -1,3 +1,5 @@
+import { relationshipCoverageStatuses } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+
 import type {
   ComparedFollowingUser,
   FollowingComparison,
@@ -6,6 +8,14 @@ import type {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isCoverageStatus(value: unknown): boolean {
+  return relationshipCoverageStatuses.some((status) => status === value);
+}
+
+function hasCoverageStatuses(value: unknown): boolean {
+  return isObject(value) && isCoverageStatus(value.following) && isCoverageStatus(value.followers);
 }
 
 function isCount(value: unknown): boolean {
@@ -51,6 +61,7 @@ export function isFollowingComparison(value: unknown): value is FollowingCompari
     typeof value.accountUsername === 'string' &&
     value.accountUsername.trim().length > 0 &&
     isOptionalPicture(value.accountPicture) &&
+    (value.coverage === undefined || hasCoverageStatuses(value.coverage)) &&
     isCount(value.checkedFollowing) &&
     isCount(value.totalFollowing) &&
     isCount(value.checkedFollowers) &&
