@@ -1,5 +1,11 @@
 import { isConnectorSuccess } from '@duofollow/extension/src/dto/ConnectorResult';
-import { matchLocale } from '@duofollow/extension/src/locales';
+import {
+  EXTENSION_LANGUAGE_KEY,
+  extensionLocale,
+  extensionMessage,
+  localizeExtensionPage,
+  readExtensionLocale,
+} from '@duofollow/extension/src/extensionLocalization';
 import {
   isQuickUnfollowEnabled,
   QUICK_UNFOLLOW_CONSENT_KEY,
@@ -17,15 +23,22 @@ const confirm = document.querySelector<HTMLButtonElement>('#confirm')!;
 const close = document.querySelector<HTMLButtonElement>('#close')!;
 const quickUnfollowHint = document.querySelector<HTMLElement>('#quick-unfollow-hint')!;
 
-document.documentElement.lang = matchLocale(chrome.i18n.getUILanguage()) ?? 'en';
-document.title = `${chrome.i18n.getMessage('unfollowTitle')} — DuoFollow Connector`;
-document.querySelectorAll<HTMLElement>('[data-message]').forEach((element) => {
-  element.textContent = chrome.i18n.getMessage(element.dataset.message!);
-});
+let locale = extensionLocale();
+let statusKey = '';
+
+function setLocale(next: ReturnType<typeof extensionLocale>) {
+  locale = next;
+  localizeExtensionPage(locale, 'unfollowTitle');
+  showStatus(statusKey);
+}
 
 function showStatus(message: string) {
-  status.textContent = chrome.i18n.getMessage(message);
+  statusKey = message;
+  status.textContent = extensionMessage(locale, message);
 }
+
+setLocale(locale);
+void readExtensionLocale().then(setLocale);
 
 async function send<T>(type: 'READ_UNFOLLOW_PREVIEW' | 'CANCEL_UNFOLLOW' | 'CONFIRM_UNFOLLOW') {
   return (await chrome.runtime.sendMessage({ type, requestId })) as T | undefined;
@@ -85,6 +98,9 @@ confirm.addEventListener('click', async () => {
 
 close.addEventListener('click', () => window.close());
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && QUICK_UNFOLLOW_CONSENT_KEY in changes) void refreshQuickUnfollowHint();
+  if (area !== 'local') return;
+  if (EXTENSION_LANGUAGE_KEY in changes)
+    setLocale(extensionLocale(changes[EXTENSION_LANGUAGE_KEY].newValue));
+  if (QUICK_UNFOLLOW_CONSENT_KEY in changes) void refreshQuickUnfollowHint();
 });
 void loadPreview().catch(() => finish('unfollowUnavailable'));

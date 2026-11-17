@@ -127,6 +127,33 @@ chrome.action.onClicked.addListener(() => {
   });
 });
 
+async function openSettingsFromSite(source?: chrome.tabs.Tab): Promise<void> {
+  if (source?.id === undefined) {
+    await chrome.runtime.openOptionsPage();
+    return;
+  }
+
+  const url = chrome.runtime.getURL('access.html');
+  const { id, index, windowId } = source;
+  const contexts = await chrome.runtime.getContexts?.({
+    contextTypes: ['TAB'],
+    frameIds: [0],
+    windowIds: [windowId],
+  });
+  const settings = contexts?.find((context) => context.documentUrl?.split('#')[0] === url);
+
+  if (settings) {
+    const tab = await chrome.tabs.get(settings.tabId);
+    // Moving a tab from the left also shifts the source tab one position left.
+    const nextIndex = tab.index < index ? index : index + 1;
+    if (tab.index !== nextIndex) await chrome.tabs.move(settings.tabId, { index: nextIndex });
+    await chrome.tabs.update(settings.tabId, { active: true });
+    return;
+  }
+
+  await chrome.tabs.create({ url, windowId, index: index + 1, openerTabId: id });
+}
+
 async function readAccessStatus(): Promise<ConnectorAccessResult> {
   const { signal } = accessController;
   if (!(await hasDuolingoAccess()) || signal.aborted) return { session: 'consent-required' };
@@ -211,7 +238,7 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
       return replyWith(readAccessStatus(), sendResponse, { session: 'duolingo-unavailable' });
     case 'OPEN_DUOLINGO_SETTINGS':
       return replyWith(
-        chrome.runtime.openOptionsPage().then(() => ({ success: true })),
+        openSettingsFromSite(sender.tab).then(() => ({ success: true })),
         sendResponse,
       );
     case 'GET_QUICK_UNFOLLOW':

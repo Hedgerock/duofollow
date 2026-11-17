@@ -5,6 +5,12 @@
   "accessAction": {
     "message": "Manage DuoFollow access"
   },
+  "languageLabel": {
+    "message": "Language"
+  },
+  "languageSaveError": {
+    "message": "Could not save the language setting."
+  },
   "accessTitle": {
     "message": "Duolingo access"
   },

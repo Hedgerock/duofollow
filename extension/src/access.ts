@@ -4,7 +4,14 @@ import {
   DUOLINGO_PERMISSIONS,
   hasDuolingoAccess,
 } from '@duofollow/extension/src/duolingoAccess';
-import { matchLocale, privacyPath } from '@duofollow/extension/src/locales';
+import {
+  EXTENSION_LANGUAGE_KEY,
+  extensionLocale,
+  extensionMessage,
+  localizeExtensionPage,
+  readExtensionLocale,
+} from '@duofollow/extension/src/extensionLocalization';
+import { privacyPath } from '@duofollow/extension/src/locales';
 import {
   isQuickUnfollowEnabled,
   QUICK_UNFOLLOW_CONSENT_KEY,
@@ -17,14 +24,46 @@ const status = document.querySelector<HTMLElement>('#access-status')!;
 const privacyLink = document.querySelector<HTMLAnchorElement>('#privacy-link')!;
 const quickUnfollow = document.querySelector<HTMLInputElement>('#quick-unfollow-consent')!;
 const quickUnfollowStatus = document.querySelector<HTMLParagraphElement>('#quick-unfollow-status')!;
-const locale = matchLocale(chrome.i18n.getUILanguage()) ?? 'en';
-const message = (key: string) => chrome.i18n.getMessage(key);
+const language = document.querySelector<HTMLSelectElement>('#extension-language')!;
+const languageError = document.querySelector<HTMLElement>('#extension-language-error')!;
+let locale = extensionLocale();
+let accessStatusKey = 'accessChecking';
+let quickUnfollowStatusKey: string | undefined;
+const message = (key: string) => extensionMessage(locale, key);
 
-document.documentElement.lang = locale;
-document.title = `${message('accessTitle')} — DuoFollow`;
-privacyLink.href = `https://hedgerock.github.io/duofollow/${privacyPath(locale)}`;
-document.querySelectorAll<HTMLElement>('[data-message]').forEach((element) => {
-  element.textContent = message(element.dataset.message!);
+function setLocale(next: ReturnType<typeof extensionLocale>) {
+  locale = next;
+  localizeExtensionPage(locale, 'accessTitle');
+  privacyLink.href = `https://hedgerock.github.io/duofollow/${privacyPath(locale)}`;
+  language.value = locale;
+  showAccessStatus(accessStatusKey);
+  showQuickUnfollowStatus(quickUnfollowStatusKey);
+}
+
+function showAccessStatus(key: string) {
+  accessStatusKey = key;
+  status.textContent = message(key);
+}
+
+language.addEventListener('change', async () => {
+  language.disabled = true;
+  languageError.hidden = true;
+  const next = extensionLocale(language.value);
+  try {
+    await chrome.storage.local.set({ [EXTENSION_LANGUAGE_KEY]: next });
+    setLocale(next);
+  } catch {
+    language.value = locale;
+    languageError.hidden = false;
+  } finally {
+    language.disabled = false;
+  }
+});
+
+setLocale(locale);
+void readExtensionLocale().then((saved) => {
+  setLocale(saved);
+  language.disabled = false;
 });
 
 let busy = false;
@@ -34,7 +73,7 @@ async function renderAccess(feedback?: string) {
   const current = ++revision;
   const connected = await hasDuolingoAccess();
   if (revision !== current) return;
-  status.textContent = message(feedback ?? (connected ? 'accessGranted' : 'accessDisconnected'));
+  showAccessStatus(feedback ?? (connected ? 'accessGranted' : 'accessDisconnected'));
   grant.hidden = connected;
   revoke.hidden = !connected;
 }
@@ -45,7 +84,7 @@ async function changeAccess(update: () => Promise<string>) {
   try {
     await renderAccess(await update());
   } catch {
-    status.textContent = message('accessChangeError');
+    showAccessStatus('accessChangeError');
   } finally {
     busy = false;
     grant.disabled = revoke.disabled = false;
@@ -73,13 +112,14 @@ revoke.addEventListener('click', () => {
 function refreshAccess() {
   if (busy) return;
   void renderAccess().catch(() => {
-    status.textContent = message('accessCheckError');
+    showAccessStatus('accessCheckError');
   });
 }
 
 let quickUnfollowRevision = 0;
 
 function showQuickUnfollowStatus(key?: string) {
+  quickUnfollowStatusKey = key;
   quickUnfollowStatus.hidden = key === undefined;
   quickUnfollowStatus.textContent = key ? message(key) : '';
 }
@@ -121,6 +161,8 @@ quickUnfollow.addEventListener('change', async () => {
 chrome.permissions.onRemoved.addListener(refreshAccess);
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
+  if (EXTENSION_LANGUAGE_KEY in changes)
+    setLocale(extensionLocale(changes[EXTENSION_LANGUAGE_KEY].newValue));
   if (ACCESS_CONSENT_KEY in changes) refreshAccess();
   if (QUICK_UNFOLLOW_CONSENT_KEY in changes) void refreshQuickUnfollow();
 });

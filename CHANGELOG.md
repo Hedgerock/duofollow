@@ -4,6 +4,8 @@
 
 ### Added
 
+- The extension settings and confirmation window support a saved choice of English, Russian, or Ukrainian.
+
 - Quick unfollow lets the website dialog confirm a single unfollow. The standard flow asks for additional confirmation in the extension.
 
 - Comparison results show how many follows and followers were checked.

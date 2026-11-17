@@ -116,6 +116,9 @@ let sessionStorage: Record<string, unknown>;
 const getSettings = vi.fn<() => Promise<Record<string, unknown>>>();
 const containsPermissions = vi.fn<() => Promise<boolean>>();
 const openOptionsPage = vi.fn<() => Promise<void>>();
+const createTab = vi.fn<(options: chrome.tabs.CreateProperties) => Promise<void>>();
+const getContexts =
+  vi.fn<(filter: chrome.runtime.ContextFilter) => Promise<chrome.runtime.ExtensionContext[]>>();
 const getManifest = vi.fn();
 let permissionsRemoved: (permissions: chrome.permissions.Permissions) => void;
 let storageChanged: (changes: Record<string, chrome.storage.StorageChange>, area: string) => void;
@@ -129,6 +132,8 @@ beforeEach(async () => {
   getSettings.mockReset().mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1 });
   containsPermissions.mockReset().mockResolvedValue(true);
   openOptionsPage.mockReset().mockResolvedValue(undefined);
+  createTab.mockReset().mockResolvedValue(undefined);
+  getContexts.mockReset().mockResolvedValue([]);
   createWindow.mockClear();
   getManifest.mockReset().mockReturnValue({
     externally_connectable: { matches: ['https://hedgerock.github.io/*', 'http://localhost/*'] },
@@ -168,8 +173,10 @@ beforeEach(async () => {
         },
       },
     },
+    tabs: { create: createTab },
     runtime: {
       id: extensionId,
+      getContexts,
       getURL: (path: string) => `chrome-extension://${extensionId}/${path}`,
       onMessage: {
         addListener(callback: Listener) {
@@ -251,8 +258,11 @@ describe('extension worker', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('allows the access route to open settings and keeps data commands on the workspace', async () => {
-    const sender = { url: 'http://localhost:5173/duofollow/access/' };
+  it('opens settings next to the access tab and keeps data commands on the workspace', async () => {
+    const sender = {
+      url: 'http://localhost:5173/duofollow/access/',
+      tab: { id: 3, index: 4, windowId: 7 } as chrome.tabs.Tab,
+    };
     const reply = vi.fn();
     for (const type of ['GET_DUOLINGO_ACCESS', 'GET_FOLLOWING_SUMMARY', 'UNFOLLOW']) {
       expect(listener({ type }, sender, reply)).toBeUndefined();
@@ -272,7 +282,13 @@ describe('extension worker', () => {
       ),
     ).toBeUndefined();
     expect(reply).not.toHaveBeenCalled();
-    expect(openOptionsPage).toHaveBeenCalledOnce();
+    expect(openOptionsPage).not.toHaveBeenCalled();
+    expect(createTab).toHaveBeenCalledExactlyOnceWith({
+      url: `chrome-extension://${extensionId}/access.html`,
+      windowId: 7,
+      index: 5,
+      openerTabId: 3,
+    });
     expect(getCookie).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });

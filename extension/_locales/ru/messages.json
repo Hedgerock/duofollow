@@ -5,6 +5,12 @@
   "accessAction": {
     "message": "Настройки доступа DuoFollow"
   },
+  "languageLabel": {
+    "message": "Язык"
+  },
+  "languageSaveError": {
+    "message": "Не удалось сохранить язык."
+  },
   "accessTitle": {
     "message": "Доступ к Duolingo"
   },

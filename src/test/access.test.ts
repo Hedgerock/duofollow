@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import english from '@duofollow/extension/_locales/en/messages.json';
 import russian from '@duofollow/extension/_locales/ru/messages.json';
-import ukrainian from '@duofollow/extension/_locales/uk/messages.json';
 import {
   ACCESS_CONSENT_KEY,
   ACCESS_CONSENT_VERSION,
   DUOLINGO_PERMISSIONS,
 } from '@duofollow/extension/src/duolingoAccess';
+import { EXTENSION_LANGUAGE_KEY } from '@duofollow/extension/src/extensionLocalization';
 import {
   QUICK_UNFOLLOW_CONSENT_KEY,
   QUICK_UNFOLLOW_CONSENT_VERSION,
@@ -23,13 +24,18 @@ let quickUnfollow: ReturnType<typeof control> & { checked: boolean };
 let quickUnfollowStatus: ReturnType<typeof control>;
 let privacy: { href: string };
 let uiLanguage: string;
+let language: ReturnType<typeof control> & { value: string };
+let languageError: ReturnType<typeof control>;
+let storedLanguage: unknown;
 let storedConsent: number | undefined;
 let storedQuickUnfollow: number | undefined;
 let permitted: boolean;
 const requestPermissions = vi.fn<() => Promise<boolean>>();
-const storeConsent = vi.fn(async (data: Record<string, number>) => {
-  if (ACCESS_CONSENT_KEY in data) storedConsent = data[ACCESS_CONSENT_KEY];
-  if (QUICK_UNFOLLOW_CONSENT_KEY in data) storedQuickUnfollow = data[QUICK_UNFOLLOW_CONSENT_KEY];
+const storeConsent = vi.fn(async (data: Record<string, number | string>) => {
+  if (EXTENSION_LANGUAGE_KEY in data) storedLanguage = data[EXTENSION_LANGUAGE_KEY];
+  if (typeof data[ACCESS_CONSENT_KEY] === 'number') storedConsent = data[ACCESS_CONSENT_KEY];
+  if (typeof data[QUICK_UNFOLLOW_CONSENT_KEY] === 'number')
+    storedQuickUnfollow = data[QUICK_UNFOLLOW_CONSENT_KEY];
 });
 const clearConsent = vi.fn(async (key: string) => {
   if (key === ACCESS_CONSENT_KEY) storedConsent = undefined;
@@ -54,6 +60,9 @@ beforeEach(() => {
   quickUnfollowStatus = control();
   privacy = { href: '' };
   uiLanguage = 'ru';
+  storedLanguage = undefined;
+  language = Object.assign(control(), { value: '', disabled: true });
+  languageError = control();
   vi.stubGlobal('document', {
     querySelector: (id: string) =>
       ({
@@ -63,6 +72,8 @@ beforeEach(() => {
         '#quick-unfollow-consent': quickUnfollow,
         '#quick-unfollow-status': quickUnfollowStatus,
         '#privacy-link': privacy,
+        '#extension-language': language,
+        '#extension-language-error': languageError,
       })[id],
     querySelectorAll: () => [],
     documentElement: { lang: '' },
@@ -70,8 +81,6 @@ beforeEach(() => {
   vi.stubGlobal('chrome', {
     i18n: {
       getUILanguage: () => uiLanguage,
-      getMessage: (key: keyof typeof russian) =>
-        (uiLanguage === 'uk' ? ukrainian : russian)[key].message,
     },
     permissions: {
       contains: async () => permitted,
@@ -84,6 +93,7 @@ beforeEach(() => {
         get: async () => ({
           [ACCESS_CONSENT_KEY]: storedConsent,
           [QUICK_UNFOLLOW_CONSENT_KEY]: storedQuickUnfollow,
+          [EXTENSION_LANGUAGE_KEY]: storedLanguage,
         }),
         set: storeConsent,
         remove: clearConsent,
@@ -101,6 +111,24 @@ describe('extension access settings', () => {
     await import('@duofollow/extension/src/access');
     await vi.waitFor(() => expect(grant.hidden).toBe(false));
     expect(document.documentElement.lang).toBe('uk');
+    expect(status.textContent).toBe('Доступ відключено.');
+    expect(privacy.href).toBe('https://hedgerock.github.io/duofollow/privacy/uk/');
+    expect(requestPermissions).not.toHaveBeenCalled();
+  });
+
+  it('uses a saved locale and updates the page and its policy link after selection', async () => {
+    storedLanguage = 'en';
+    await import('@duofollow/extension/src/access');
+    await vi.waitFor(() => expect(language.disabled).toBe(false));
+    expect(status.textContent).toBe(english.accessDisconnected.message);
+    expect(document.documentElement.lang).toBe('en');
+    expect(privacy.href).toBe('https://hedgerock.github.io/duofollow/privacy/');
+
+    language.value = 'uk';
+    language.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => expect(language.disabled).toBe(false));
+    expect(document.documentElement.lang).toBe('uk');
+    expect(storedLanguage).toBe('uk');
     expect(status.textContent).toBe('Доступ відключено.');
     expect(privacy.href).toBe('https://hedgerock.github.io/duofollow/privacy/uk/');
     expect(requestPermissions).not.toHaveBeenCalled();

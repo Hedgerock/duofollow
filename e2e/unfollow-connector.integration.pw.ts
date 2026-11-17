@@ -66,7 +66,12 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
   try {
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
     const extensionId = new URL(worker.url()).hostname;
-    await worker.evaluate(() => chrome.storage.local.set({ duolingoAccessConsent: 1 }));
+    await worker.evaluate(() =>
+      chrome.storage.local.set({
+        duolingoAccessConsent: 1,
+        'duofollow.extensionLocale': 'en',
+      }),
+    );
     await context.addCookies([
       {
         name: 'jwt_token',
@@ -74,19 +79,57 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
         url: 'https://www.duolingo.com',
       },
     ]);
-    await context.route('http://localhost:5173/duofollow/', (route) =>
+    await context.route('http://localhost:5173/duofollow/**', (route) =>
       route.fulfill({
         body: '<!doctype html><title>DuoFollow test page</title>',
         contentType: 'text/html',
       }),
     );
     const page = await context.newPage();
-    await page.goto('http://localhost:5173/duofollow/');
+    await page.goto('http://localhost:5173/duofollow/access/');
+    const laterTab = await context.newPage();
+    await page.bringToFront();
     const send = <T>(message: object) =>
       page.evaluate(({ id, payload }) => chrome.runtime.sendMessage(id, payload), {
         id: extensionId,
         payload: message,
       }) as Promise<T>;
+    const [adjacent, opened] = await Promise.all([
+      context.waitForEvent('page'),
+      send({ type: 'OPEN_DUOLINGO_SETTINGS' }),
+    ]);
+    expect(opened).toEqual({ success: true });
+    await expect(adjacent.locator('h1')).toHaveText('Duolingo access');
+    const settingsTab = await adjacent.evaluate(() => chrome.tabs.getCurrent());
+    if (settingsTab?.id === undefined || settingsTab.openerTabId === undefined) {
+      throw new Error('Settings tab or opener is missing');
+    }
+    const sourceTab = await worker.evaluate((id) => chrome.tabs.get(id), settingsTab.openerTabId);
+    expect(settingsTab).toMatchObject({
+      windowId: sourceTab.windowId,
+      index: sourceTab.index + 1,
+      active: true,
+    });
+    const tabs = await worker.evaluate(
+      (windowId) => chrome.tabs.query({ windowId }),
+      sourceTab.windowId,
+    );
+    expect(tabs.at(-1)?.id).not.toBe(settingsTab.id);
+
+    await worker.evaluate((id) => chrome.tabs.move(id, { index: 0 }), settingsTab.id);
+    await page.bringToFront();
+    const tabCount = context.pages().length;
+    await expect(send({ type: 'OPEN_DUOLINGO_SETTINGS' })).resolves.toEqual({ success: true });
+    expect(context.pages()).toHaveLength(tabCount);
+    expect(await adjacent.evaluate(() => chrome.tabs.getCurrent())).toMatchObject({
+      id: settingsTab.id,
+      windowId: sourceTab.windowId,
+      index: sourceTab.index + 1,
+      active: true,
+    });
+    await adjacent.close();
+    await laterTab.close();
+    await page.goto('http://localhost:5173/duofollow/');
     const writes = () => worker.evaluate(() => Reflect.get(globalThis, 'unfollowWrites'));
 
     async function requestConfirmation() {
@@ -102,15 +145,10 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
       await expect(popup).toHaveURL(
         `chrome-extension://${extensionId}/unfollow-confirmation.html#${receipt.requestId}`,
       );
-      const labels = await popup.evaluate(() => ({
-        title: chrome.i18n.getMessage('unfollowTitle'),
-        cancel: chrome.i18n.getMessage('unfollowCancel'),
-        confirm: chrome.i18n.getMessage('unfollowConfirm'),
-      }));
-      await expect(popup.getByRole('heading', { name: labels.title })).toBeVisible();
+      await expect(popup.getByRole('heading')).toBeVisible();
       await expect(popup.getByText('@Learner', { exact: true })).toBeVisible();
       await expect(popup.getByText('@Target · ID 202', { exact: true })).toBeVisible();
-      return { popup, receipt, labels };
+      return { popup, receipt };
     }
 
     const preference = () => send({ type: 'GET_QUICK_UNFOLLOW' });
@@ -122,12 +160,24 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
     const canceled = await requestConfirmation();
     const hint = canceled.popup.locator('#quick-unfollow-hint');
     await expect(hint).toBeVisible();
+    await expect(canceled.popup.getByRole('heading')).toHaveText('Confirm unfollow');
     const settingsPage = context.waitForEvent('page');
     await hint.getByRole('link').click();
     const settings = await settingsPage;
     await expect(settings).toHaveURL(
       `chrome-extension://${extensionId}/access.html#quick-unfollow`,
     );
+    const language = settings.getByRole('combobox');
+    await expect(language).toHaveValue('en');
+    await expect(settings.locator('h1')).toHaveText('Duolingo access');
+    await language.selectOption('uk');
+    await expect(settings.locator('h1')).toHaveText('Доступ до Duolingo');
+    await expect(settings.locator('#privacy-link')).toHaveAttribute(
+      'href',
+      'https://hedgerock.github.io/duofollow/privacy/uk/',
+    );
+    await expect(canceled.popup.getByRole('heading')).toHaveText('Підтвердження відписки');
+
     const consent = settings.getByRole('checkbox');
     await expect(consent).toBeEnabled();
     await expect(consent).not.toBeChecked();
@@ -137,11 +187,12 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
       .poll(preference)
       .toEqual({ success: true, enabled: true, confirmation: 'website' });
     await settings.reload();
+    await expect(language).toHaveValue('uk');
     await expect(consent).toBeChecked();
     await expect(hint).toBeHidden();
     expect(await writes()).toBe(0);
 
-    await canceled.popup.getByRole('button', { name: canceled.labels.cancel, exact: true }).click();
+    await canceled.popup.getByRole('button', { name: 'Скасувати', exact: true }).click();
     await expect
       .poll(() =>
         send({
@@ -155,9 +206,7 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
     const approved = await requestConfirmation();
     await expect(approved.popup.locator('#quick-unfollow-hint')).toBeHidden();
     expect(await writes()).toBe(0);
-    await approved.popup
-      .getByRole('button', { name: approved.labels.confirm, exact: true })
-      .click();
+    await approved.popup.getByRole('button', { name: 'Відписатися', exact: true }).click();
     await expect
       .poll(() =>
         send({

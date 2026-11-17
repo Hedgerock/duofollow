@@ -12,7 +12,16 @@
       <header>
         <img src="icons/icon-48.png" width="40" height="40" alt="" />
         <h1 data-message="accessTitle"></h1>
+        <label class="extension-language">
+          <span data-message="languageLabel"></span>
+          <select id="extension-language" disabled>
+            <option value="en" lang="en">English</option>
+            <option value="ru" lang="ru">Русский</option>
+            <option value="uk" lang="uk">Українська</option>
+          </select>
+        </label>
       </header>
+      <p id="extension-language-error" role="status" data-message="languageSaveError" hidden></p>
       <p data-message="accessSession"></p>
       <p data-message="accessData"></p>
       <p data-message="accessRecurring"></p>
