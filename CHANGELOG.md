@@ -29,6 +29,8 @@
 
 ### Fixed
 
+- Returning to comparison from a directly opened privacy page restores the Connector connection.
+
 - A malformed comparison reply shows an error and preserves the previous results.
 
 - Connector messages distinguish expired sessions, rate limits, timeouts, and unexpected replies. An unconfirmed unfollow prompts a fresh comparison.

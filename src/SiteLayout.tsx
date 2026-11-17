@@ -1,7 +1,8 @@
-import { type ReactNode, useEffect, useLayoutEffect, useRef } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router';
 
 import { locales, matchLocale, privacyPath } from '@duofollow/extension/src/locales';
+import { ComparisonLink } from '@duofollow/src/ComparisonLink';
 import { useWorkspace } from '@duofollow/src/following/useWorkspace';
 import { ThemeToggle } from '@duofollow/src/ThemeToggle';
 import { type SitePreferences, useSitePreferences } from '@duofollow/src/useSite';
@@ -50,12 +51,12 @@ export function SiteHeader({
 }) {
   return (
     <header className="topbar">
-      <Link className="brand site-home-link" to="/">
+      <ComparisonLink className="brand site-home-link">
         <img className="brand-icon" src={`${import.meta.env.BASE_URL}duofollow.svg`} alt="" />
         <span>
           DuoFollow <small>{site.messages.subtitle}</small>
         </span>
-      </Link>
+      </ComparisonLink>
       {profile}
       <div className="topbar-controls">
         {children}
@@ -117,6 +118,9 @@ export function SiteLayout() {
   const accessMatch = useMatch('/access');
   const settingsMatch = useMatch('/settings');
   const workspaceVisible = Boolean(useMatch('/'));
+  const { pathname } = useLocation();
+  // Chromium may keep reporting the entry URL to extensions after client-side navigation.
+  const [openedOnComparison] = useState(() => workspaceVisible || pathname === '/index.html');
   const routeLocale = privacyMatch
     ? (matchLocale(privacyMatch.params.language) ?? 'en')
     : undefined;
@@ -149,7 +153,7 @@ export function SiteLayout() {
       data-font-family={site.appearance.fontFamily}
       data-color-vision={site.appearance.colorVision}
     >
-      <Outlet context={{ site, workspace }} />
+      <Outlet context={{ site, workspace, openedOnComparison }} />
       <footer>
         <span>{site.messages.independent}</span>
         <Link to={`/${privacyPath(site.locale)}`}>{site.messages.privacy}</Link>

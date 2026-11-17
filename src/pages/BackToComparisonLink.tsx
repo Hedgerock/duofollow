@@ -1,8 +1,8 @@
-import { Link } from 'react-router';
+import { ComparisonLink } from '@duofollow/src/ComparisonLink';
 
 export function BackToComparisonLink({ label }: { label: string }) {
   return (
-    <Link className="secondary-button information-button" to="/">
+    <ComparisonLink className="secondary-button information-button">
       <svg
         viewBox="0 0 16 16"
         width="16"
@@ -17,6 +17,6 @@ export function BackToComparisonLink({ label }: { label: string }) {
         <path d="M9 3 4 8l5 5M4 8h9" />
       </svg>
       {label}
-    </Link>
+    </ComparisonLink>
   );
 }

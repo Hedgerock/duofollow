@@ -5,6 +5,42 @@ test.use({
   contextOptions: { reducedMotion: 'no-preference' },
 });
 
+for (const link of ['back to comparison', 'logo'] as const) {
+  test(`connects after opening the privacy policy directly and returning via the ${link}`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const documentPath = location.pathname;
+      const chrome = Reflect.get(window, 'chrome') ?? {};
+      // Chromium can report the document's entry URL after same-document navigation.
+      Object.defineProperty(chrome, 'runtime', {
+        configurable: true,
+        value: {
+          sendMessage(_id: string, _message: unknown, reply: (status: unknown) => void) {
+            queueMicrotask(() =>
+              reply(documentPath === '/duofollow/' ? { session: 'ready' } : undefined),
+            );
+          },
+        },
+      });
+      if (!Reflect.get(window, 'chrome')) Reflect.set(window, 'chrome', chrome);
+    });
+
+    await page.goto('/duofollow/privacy/ru/');
+    const site = page.locator('.page');
+    await expect(site.getByRole('heading', { name: 'Политика конфиденциальности' })).toBeVisible();
+    const home =
+      link === 'logo'
+        ? site.locator('.site-home-link')
+        : site.getByRole('link', { name: 'К сравнению' });
+    await home.click();
+
+    await expect(page).toHaveURL(/\/duofollow\/$/);
+    await expect(page.locator('#duolingo-username')).toBeEnabled();
+    await expect(page.locator('.connection-dialog')).toBeHidden();
+  });
+}
+
 for (const method of ['Close', 'Escape'] as const) {
   test(`keeps the Connector warning in a column during exit via ${method}`, async ({ page }) => {
     await page.goto('/duofollow/');

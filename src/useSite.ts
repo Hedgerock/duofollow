@@ -12,7 +12,11 @@ export function useSitePreferences(routeLocale?: Locale) {
 }
 
 export type SitePreferences = ReturnType<typeof useSitePreferences>;
-export type SiteOutletContext = { site: SitePreferences; workspace: WorkspaceState };
+export type SiteOutletContext = {
+  site: SitePreferences;
+  workspace: WorkspaceState;
+  openedOnComparison: boolean;
+};
 
 export function useSite() {
   return useOutletContext<SiteOutletContext>().site;
