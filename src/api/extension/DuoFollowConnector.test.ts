@@ -215,6 +215,25 @@ describe('DuoFollowConnector', () => {
     );
   });
 
+  it('enables quick unfollow only on a supported, affirmative settings reply', async () => {
+    const sendMessage = stubRuntime({ success: true, enabled: true });
+    await expect(client.getQuickUnfollowPreference()).resolves.toBe(true);
+    expect(sendMessage).toHaveBeenCalledWith(
+      'test-extension',
+      { type: 'GET_QUICK_UNFOLLOW' },
+      expect.any(Function),
+    );
+    for (const response of [
+      { success: true, enabled: false },
+      { success: true, enabled: 'true' },
+      { success: false, error: 'Unsupported message' },
+      undefined,
+    ]) {
+      stubRuntime(response);
+      await expect(client.getQuickUnfollowPreference()).resolves.toBe(false);
+    }
+  });
+
   it('sends one target ID and requires the reply to confirm that same target', async () => {
     const result = { success: true, targetUserId: 202 };
     const install = (status: unknown) => {

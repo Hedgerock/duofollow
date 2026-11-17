@@ -5,11 +5,18 @@ import {
   hasDuolingoAccess,
 } from '@duofollow/extension/src/duolingoAccess';
 import { matchLocale, privacyPath } from '@duofollow/extension/src/locales';
+import {
+  isQuickUnfollowEnabled,
+  QUICK_UNFOLLOW_CONSENT_KEY,
+  QUICK_UNFOLLOW_CONSENT_VERSION,
+} from '@duofollow/extension/src/quickUnfollow';
 
 const grant = document.querySelector<HTMLButtonElement>('#grant-access')!;
 const revoke = document.querySelector<HTMLButtonElement>('#revoke-access')!;
 const status = document.querySelector<HTMLElement>('#access-status')!;
 const privacyLink = document.querySelector<HTMLAnchorElement>('#privacy-link')!;
+const quickUnfollow = document.querySelector<HTMLInputElement>('#quick-unfollow-consent')!;
+const quickUnfollowStatus = document.querySelector<HTMLParagraphElement>('#quick-unfollow-status')!;
 const locale = matchLocale(chrome.i18n.getUILanguage()) ?? 'en';
 const message = (key: string) => chrome.i18n.getMessage(key);
 
@@ -70,6 +77,52 @@ function refreshAccess() {
   });
 }
 
+let quickUnfollowRevision = 0;
+
+function showQuickUnfollowStatus(key?: string) {
+  quickUnfollowStatus.hidden = key === undefined;
+  quickUnfollowStatus.textContent = key ? message(key) : '';
+}
+
+async function refreshQuickUnfollow(feedback?: string) {
+  const current = ++quickUnfollowRevision;
+  try {
+    const enabled = await isQuickUnfollowEnabled();
+    if (current !== quickUnfollowRevision) return;
+    quickUnfollow.checked = enabled;
+    quickUnfollow.disabled = false;
+    showQuickUnfollowStatus(feedback);
+  } catch {
+    if (current !== quickUnfollowRevision) return;
+    quickUnfollow.disabled = true;
+    showQuickUnfollowStatus('quickUnfollowReadError');
+  }
+}
+
+quickUnfollow.addEventListener('change', async () => {
+  quickUnfollowRevision++;
+  quickUnfollow.disabled = true;
+  showQuickUnfollowStatus();
+  let feedback: string | undefined;
+  try {
+    if (quickUnfollow.checked) {
+      await chrome.storage.local.set({
+        [QUICK_UNFOLLOW_CONSENT_KEY]: QUICK_UNFOLLOW_CONSENT_VERSION,
+      });
+    } else {
+      await chrome.storage.local.remove(QUICK_UNFOLLOW_CONSENT_KEY);
+    }
+  } catch {
+    feedback = 'quickUnfollowWriteError';
+  }
+  await refreshQuickUnfollow(feedback);
+});
+
 chrome.permissions.onRemoved.addListener(refreshAccess);
-chrome.storage.onChanged.addListener(refreshAccess);
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  if (ACCESS_CONSENT_KEY in changes) refreshAccess();
+  if (QUICK_UNFOLLOW_CONSENT_KEY in changes) void refreshQuickUnfollow();
+});
 refreshAccess();
+void refreshQuickUnfollow();

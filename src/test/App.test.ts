@@ -27,17 +27,20 @@ import type {
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 import type { AccessChange } from '@duofollow/src/api/extension/DuoFollowConnector';
 
-const { getConnectionStatus, getFollowingSummary, unfollow } = vi.hoisted(() => ({
-  getConnectionStatus: vi.fn<() => Promise<ConnectorStatus>>(),
-  getFollowingSummary: vi.fn<(username: string) => Promise<FollowingComparisonResult>>(),
-  unfollow: vi.fn<(username: string, targetUserId: number) => Promise<UnfollowResult>>(),
-}));
+const { getConnectionStatus, getFollowingSummary, getQuickUnfollowPreference, unfollow } =
+  vi.hoisted(() => ({
+    getConnectionStatus: vi.fn<() => Promise<ConnectorStatus>>(),
+    getFollowingSummary: vi.fn<(username: string) => Promise<FollowingComparisonResult>>(),
+    getQuickUnfollowPreference: vi.fn<() => Promise<boolean>>(),
+    unfollow: vi.fn<(username: string, targetUserId: number) => Promise<UnfollowResult>>(),
+  }));
 let onAccessChanged: (change: AccessChange) => void;
 
 vi.mock('@duofollow/src/api/extension/DuoFollowConnector', () => ({
   DuoFollowConnector: class {
     getConnectionStatus = getConnectionStatus;
     getFollowingSummary = getFollowingSummary;
+    getQuickUnfollowPreference = getQuickUnfollowPreference;
     unfollow = unfollow;
     openDuolingoSettings = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
     watchAccessChanges(callback: (change: AccessChange) => void) {
@@ -186,6 +189,7 @@ afterEach(() => {
   vi.useRealTimers();
   getConnectionStatus.mockReset();
   getFollowingSummary.mockReset();
+  getQuickUnfollowPreference.mockReset().mockResolvedValue(false);
   unfollow.mockReset();
   vi.unstubAllGlobals();
 });
@@ -527,6 +531,53 @@ describe('comparison screen', () => {
     expect(app.workspace().props.inert).toBe(true);
   });
 
+  it('skips the site dialog only while quick unfollow is enabled', async () => {
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    getQuickUnfollowPreference.mockResolvedValueOnce(true);
+    unfollow.mockResolvedValueOnce({
+      success: false,
+      errorCode: 'UNFOLLOW_CANCELLED',
+      error: 'Cancelled',
+    });
+    const app = mountApp('Saved');
+    await app.connect();
+    await flush();
+    const list = app.list();
+    const [profile] = list.props.users as unknown[];
+
+    runEvent(list, 'onUnfollow', profile);
+    runEvent(list, 'onUnfollow', profile);
+    await flush();
+    expect(unfollow).toHaveBeenCalledOnce();
+    expect(app.dialog().props.confirmation).toMatchObject({ open: false });
+    expect(app.list().props.users).toHaveLength(1);
+
+    runEvent(app.list(), 'onUnfollow', profile);
+    await flush();
+    expect(app.dialog().props.confirmation).toMatchObject({ open: true });
+    expect(unfollow).toHaveBeenCalledOnce();
+  });
+
+  it('ignores a quick unfollow setting reply received after access is revoked', async () => {
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    let resolveSetting!: (enabled: boolean) => void;
+    getQuickUnfollowPreference.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSetting = resolve;
+      }),
+    );
+    const app = mountApp('Saved');
+    await app.connect();
+    await flush();
+    const list = app.list();
+    runEvent(list, 'onUnfollow', (list.props.users as unknown[])[0]);
+    onAccessChanged('revoked');
+    app.render();
+    resolveSetting(true);
+    await flush();
+    expect(unfollow).not.toHaveBeenCalled();
+  });
+
   it('closes an open unfollow confirmation when connection is lost', async () => {
     getConnectionStatus.mockResolvedValueOnce('ready').mockResolvedValueOnce('signed-out');
     getFollowingSummary.mockResolvedValueOnce(success('Saved'));
@@ -535,6 +586,7 @@ describe('comparison screen', () => {
     await flush();
     const list = app.list();
     runEvent(list, 'onUnfollow', (list.props.users as unknown[])[0]);
+    await flush();
     const confirmation = app.dialog();
     expect(confirmation.props.confirmation).toMatchObject({ open: true });
 
@@ -911,6 +963,7 @@ describe('comparison screen', () => {
     expect(app.dialog().props.confirmation).toBeNull();
     const nextList = app.list();
     runEvent(nextList, 'onUnfollow', (nextList.props.users as unknown[])[0]);
+    await flush();
     expect(app.dialog().props.confirmation).toMatchObject({ account: 'Next', open: true });
   });
 
@@ -944,6 +997,7 @@ describe('comparison screen', () => {
     const list = app.list();
     const users = list.props.users as (typeof other)[];
     runEvent(list, 'onUnfollow', users[0]);
+    await flush();
     expect(app.list().props.onRemovalComplete).toBe(list.props.onRemovalComplete);
     expect(app.dialog().props.confirmation).toMatchObject({
       account: 'Saved',
@@ -973,6 +1027,7 @@ describe('comparison screen', () => {
       }),
     );
     runEvent(list, 'onUnfollow', users[0]);
+    await flush();
     const dialog = app.dialog();
     runEvent(dialog, 'onConfirm');
     runEvent(dialog, 'onConfirm');
@@ -1030,6 +1085,7 @@ describe('comparison screen', () => {
       await flush();
       const users = app.list().props.users as unknown[];
       runEvent(app.list(), 'onUnfollow', users[0]);
+      await flush();
       runEvent(app.dialog(), 'onConfirm');
       await flush();
       expect(app.list().props).toMatchObject({ users, unfollowingId: null, removingId: null });
@@ -1051,6 +1107,7 @@ describe('comparison screen', () => {
     const users = app.list().props.users as unknown[];
     for (const reason of ['HTTP 403', 'Connector response timed out']) {
       runEvent(app.list(), 'onUnfollow', users[0]);
+      await flush();
       runEvent(app.dialog(), 'onConfirm');
       await flush();
       expect(app.list().props).toMatchObject({ users, unfollowingId: null, removingId: null });

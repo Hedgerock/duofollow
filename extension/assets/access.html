@@ -27,6 +27,20 @@
       <p id="access-status" role="status" data-message="accessChecking"></p>
       <button id="grant-access" type="button" data-message="accessGrant" hidden></button>
       <button id="revoke-access" type="button" data-message="accessRevoke" hidden></button>
+      <section id="quick-unfollow" aria-labelledby="quick-unfollow-title">
+        <h2 id="quick-unfollow-title" data-message="quickUnfollowTitle"></h2>
+        <p id="quick-unfollow-terms" data-message="quickUnfollowTerms"></p>
+        <label class="access-checkbox">
+          <input
+            id="quick-unfollow-consent"
+            type="checkbox"
+            aria-describedby="quick-unfollow-terms"
+            disabled
+          />
+          <span data-message="quickUnfollowEnable"></span>
+        </label>
+        <p id="quick-unfollow-status" role="status" hidden></p>
+      </section>
     </main>
   </body>
 </html>

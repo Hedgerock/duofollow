@@ -88,6 +88,39 @@ button:disabled {
   background: var(--primary-hover);
 }
 
+#quick-unfollow {
+  margin-block-start: 24px;
+  padding-block-start: 18px;
+  border-block-start: 1px solid var(--border);
+}
+
+#quick-unfollow-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text);
+}
+
+.access-checkbox {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  padding-block: 8px;
+  cursor: pointer;
+}
+
+.access-checkbox input {
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+  margin: 3px 0 0;
+  accent-color: var(--primary);
+}
+
+.access-checkbox input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 @media (max-width: 710px) {
   main {
     margin: 22px 14px;

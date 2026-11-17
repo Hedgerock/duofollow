@@ -47,6 +47,27 @@
   "accessCheckError": {
     "message": "Could not check permissions."
   },
+  "quickUnfollowTitle": {
+    "message": "Quick unfollow"
+  },
+  "quickUnfollowEnable": {
+    "message": "Turn on quick unfollow"
+  },
+  "quickUnfollowTerms": {
+    "message": "When this setting is on, selecting unfollow on the website opens the extension window directly. Selecting Unfollow in that window starts removing the selected follow. This setting is optional and can be turned off at any time."
+  },
+  "quickUnfollowHint": {
+    "message": "Want to confirm an unfollow just once? Turn on Quick unfollow in the extension settings."
+  },
+  "quickUnfollowSettings": {
+    "message": "Open settings"
+  },
+  "quickUnfollowReadError": {
+    "message": "Could not load the quick unfollow setting."
+  },
+  "quickUnfollowWriteError": {
+    "message": "Could not save the quick unfollow setting."
+  },
   "unfollowTitle": {
     "message": "Confirm unfollow"
   },

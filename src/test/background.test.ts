@@ -870,7 +870,28 @@ describe('extension worker', () => {
     expect(writeCalls()).toHaveLength(1);
   });
 
+  it('keeps quick unfollow opt-in and limits the preference to the main document', async () => {
+    const message = { type: 'GET_QUICK_UNFOLLOW' };
+    const request = () => new Promise((resolve) => listener(message, documentSender, resolve));
+    await expect(request()).resolves.toEqual({ success: true, enabled: false });
+    getSettings.mockResolvedValueOnce({ quickUnfollowConsent: true });
+    await expect(request()).resolves.toEqual({ success: true, enabled: false });
+    getSettings.mockResolvedValueOnce({ quickUnfollowConsent: 1 });
+    await expect(request()).resolves.toEqual({ success: true, enabled: true });
+    const reply = vi.fn();
+    listener(message, { ...documentSender, frameId: 1 }, reply);
+    listener(
+      message,
+      { ...documentSender, url: 'https://hedgerock.github.io/another-project/' },
+      reply,
+    );
+    expect(reply).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(getCookie).not.toHaveBeenCalled();
+  });
+
   it('accepts the receipt only from the initiating document and approval only in the popup', async () => {
+    getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 1 });
     prepare();
     const requestId = await openConfirmation();
     const reply = vi.fn();

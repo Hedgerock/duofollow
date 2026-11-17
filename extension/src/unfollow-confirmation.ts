@@ -1,5 +1,9 @@
 import { isConnectorSuccess } from '@duofollow/extension/src/dto/ConnectorResult';
 import { matchLocale } from '@duofollow/extension/src/locales';
+import {
+  isQuickUnfollowEnabled,
+  QUICK_UNFOLLOW_CONSENT_KEY,
+} from '@duofollow/extension/src/quickUnfollow';
 
 import type { UnfollowPreview } from '@duofollow/extension/src/dto/UnfollowConfirmation';
 
@@ -11,6 +15,7 @@ const target = document.querySelector<HTMLElement>('#target')!;
 const cancel = document.querySelector<HTMLButtonElement>('#cancel')!;
 const confirm = document.querySelector<HTMLButtonElement>('#confirm')!;
 const close = document.querySelector<HTMLButtonElement>('#close')!;
+const quickUnfollowHint = document.querySelector<HTMLElement>('#quick-unfollow-hint')!;
 
 document.documentElement.lang = matchLocale(chrome.i18n.getUILanguage()) ?? 'en';
 document.title = `${chrome.i18n.getMessage('unfollowTitle')} — DuoFollow Connector`;
@@ -26,11 +31,17 @@ async function send<T>(type: 'READ_UNFOLLOW_PREVIEW' | 'CANCEL_UNFOLLOW' | 'CONF
   return (await chrome.runtime.sendMessage({ type, requestId })) as T | undefined;
 }
 
+async function refreshQuickUnfollowHint() {
+  const enabled = await isQuickUnfollowEnabled().catch(() => false);
+  quickUnfollowHint.hidden = enabled || confirm.hidden || confirm.disabled;
+}
+
 function finish(message: string) {
   showStatus(message);
   close.hidden = false;
   cancel.hidden = true;
   confirm.hidden = true;
+  quickUnfollowHint.hidden = true;
   close.focus();
 }
 
@@ -46,11 +57,13 @@ async function loadPreview() {
   cancel.hidden = false;
   confirm.hidden = false;
   cancel.focus();
+  void refreshQuickUnfollowHint();
 }
 
 function disableActions() {
   cancel.disabled = true;
   confirm.disabled = true;
+  quickUnfollowHint.hidden = true;
 }
 
 cancel.addEventListener('click', async () => {
@@ -71,4 +84,7 @@ confirm.addEventListener('click', async () => {
 });
 
 close.addEventListener('click', () => window.close());
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && QUICK_UNFOLLOW_CONSENT_KEY in changes) void refreshQuickUnfollowHint();
+});
 void loadPreview().catch(() => finish('unfollowUnavailable'));

@@ -4,6 +4,8 @@
 
 ### Added
 
+- Quick unfollow optionally opens the extension confirmation window directly. The setting is off by default and can be turned off again in the extension settings.
+
 - Comparison results show how many follows and followers were checked.
 - Switch between all received, mutual, and non-mutual follows. The all-received view highlights mutual follows and labels unconfirmed profiles when the followers list is incomplete.
 - Follows can be sorted by name in either direction or shown in the order received.

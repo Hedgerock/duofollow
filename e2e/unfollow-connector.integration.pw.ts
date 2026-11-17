@@ -108,7 +108,28 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
       return { popup, receipt, labels };
     }
 
+    const preference = () => send({ type: 'GET_QUICK_UNFOLLOW' });
+    await expect(preference()).resolves.toEqual({ success: true, enabled: false });
     const canceled = await requestConfirmation();
+    const hint = canceled.popup.locator('#quick-unfollow-hint');
+    await expect(hint).toBeVisible();
+    const settingsPage = context.waitForEvent('page');
+    await hint.getByRole('link').click();
+    const settings = await settingsPage;
+    await expect(settings).toHaveURL(
+      `chrome-extension://${extensionId}/access.html#quick-unfollow`,
+    );
+    const consent = settings.getByRole('checkbox');
+    await expect(consent).toBeEnabled();
+    await expect(consent).not.toBeChecked();
+    await expect(settings.locator('#quick-unfollow-terms')).toBeVisible();
+    await consent.check();
+    await expect.poll(preference).toEqual({ success: true, enabled: true });
+    await settings.reload();
+    await expect(consent).toBeChecked();
+    await expect(hint).toBeHidden();
+    expect(await writes()).toBe(0);
+
     await canceled.popup.getByRole('button', { name: canceled.labels.cancel, exact: true }).click();
     await expect
       .poll(() =>
@@ -121,6 +142,7 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
     expect(await writes()).toBe(0);
 
     const approved = await requestConfirmation();
+    await expect(approved.popup.locator('#quick-unfollow-hint')).toBeHidden();
     expect(await writes()).toBe(0);
     await approved.popup
       .getByRole('button', { name: approved.labels.confirm, exact: true })
@@ -134,6 +156,11 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
       )
       .toEqual({ success: true, targetUserId: 202 });
     expect(await writes()).toBe(1);
+    await consent.uncheck();
+    await expect.poll(preference).toEqual({ success: true, enabled: false });
+    await settings.reload();
+    await expect(consent).toBeEnabled();
+    await expect(consent).not.toBeChecked();
   } finally {
     await context.close();
   }

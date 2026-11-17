@@ -129,7 +129,7 @@ export function createUnfollowRequests(withAccess: WithAccess) {
         type: 'popup',
         focused: true,
         width: 440,
-        height: 420,
+        height: 480,
       });
       if (popup?.id === undefined) throw new Error('Не удалось открыть окно Connector.');
       action.windowId = popup.id;

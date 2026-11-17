@@ -12,6 +12,7 @@ import {
   hasDuolingoAccess,
 } from '@duofollow/extension/src/duolingoAccess';
 import { checkDuolingoSession } from '@duofollow/extension/src/duolingoSession';
+import { isQuickUnfollowEnabled } from '@duofollow/extension/src/quickUnfollow';
 import { createUnfollowRequests } from '@duofollow/extension/src/unfollowRequests';
 
 import type { ConnectorAccessResult } from '@duofollow/extension/src/dto/ConnectorSession';
@@ -183,6 +184,11 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
     case 'OPEN_DUOLINGO_SETTINGS':
       return replyWith(
         chrome.runtime.openOptionsPage().then(() => ({ success: true })),
+        sendResponse,
+      );
+    case 'GET_QUICK_UNFOLLOW':
+      return replyWith(
+        isQuickUnfollowEnabled().then((enabled) => ({ success: true, enabled })),
         sendResponse,
       );
     case 'REQUEST_UNFOLLOW':

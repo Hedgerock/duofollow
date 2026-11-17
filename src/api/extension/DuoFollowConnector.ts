@@ -140,6 +140,13 @@ export class DuoFollowConnector {
     return result;
   }
 
+  async getQuickUnfollowPreference(): Promise<boolean> {
+    const result = await this.send<unknown>({ type: 'GET_QUICK_UNFOLLOW' }, 1_500).catch(
+      () => null,
+    );
+    return isConnectorSuccess(result) && 'enabled' in result && result.enabled === true;
+  }
+
   async unfollow(username: string, targetUserId: number): Promise<UnfollowResult> {
     const request = await this.send<UnfollowRequestResult>(
       { type: 'REQUEST_UNFOLLOW', username, targetUserId },
@@ -188,7 +195,7 @@ export class DuoFollowConnector {
 
   private async send<Result>(
     message:
-      | { type: 'GET_DUOLINGO_ACCESS' | 'OPEN_DUOLINGO_SETTINGS' }
+      | { type: 'GET_DUOLINGO_ACCESS' | 'OPEN_DUOLINGO_SETTINGS' | 'GET_QUICK_UNFOLLOW' }
       | { type: 'GET_FOLLOWING_SUMMARY'; username: string }
       | { type: 'REQUEST_UNFOLLOW'; username: string; targetUserId: number }
       | { type: 'GET_UNFOLLOW_STATUS'; requestId: string },
