@@ -46,5 +46,32 @@
   },
   "accessCheckError": {
     "message": "Не удалось проверить разрешения."
+  },
+  "unfollowTitle": {
+    "message": "Подтверждение отписки"
+  },
+  "unfollowAccount": {
+    "message": "Активный аккаунт"
+  },
+  "unfollowTarget": {
+    "message": "Профиль для отписки"
+  },
+  "unfollowCancel": {
+    "message": "Отмена"
+  },
+  "unfollowConfirm": {
+    "message": "Отписаться"
+  },
+  "unfollowChecking": {
+    "message": "Проверка подписки…"
+  },
+  "unfollowUnavailable": {
+    "message": "Запрос недоступен. Результат можно проверить в DuoFollow."
+  },
+  "unfollowFinished": {
+    "message": "Операция завершена. Результат показан в DuoFollow."
+  },
+  "unfollowClose": {
+    "message": "Закрыть"
   }
 }

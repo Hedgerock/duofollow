@@ -2,7 +2,8 @@ import {
   ConnectorError,
   describeConnectorError,
 } from '@duofollow/extension/src/dto/ConnectorError';
-import { getFollowingSummary, unfollow } from '@duofollow/extension/src/duolingo';
+import { unfollowConfirmationPage } from '@duofollow/extension/src/dto/UnfollowConfirmation';
+import { getFollowingSummary } from '@duofollow/extension/src/duolingo';
 import {
   ACCESS_CONSENT_KEY,
   ACCESS_CONSENT_VERSION,
@@ -11,6 +12,7 @@ import {
   hasDuolingoAccess,
 } from '@duofollow/extension/src/duolingoAccess';
 import { checkDuolingoSession } from '@duofollow/extension/src/duolingoSession';
+import { createUnfollowRequests } from '@duofollow/extension/src/unfollowRequests';
 
 import type { ConnectorAccessResult } from '@duofollow/extension/src/dto/ConnectorSession';
 
@@ -28,6 +30,8 @@ const settingsPaths = new Set([
 ]);
 const accessListeners = new Set<chrome.runtime.Port>();
 let accessController = new AbortController();
+const unfollowRequests = createUnfollowRequests(withAccess);
+chrome.windows.onRemoved.addListener(unfollowRequests.windowClosed);
 
 function getSenderPath(sender?: chrome.runtime.MessageSender): string | undefined {
   if (!sender?.url || (sender.frameId ?? 0) !== 0) return;
@@ -52,6 +56,7 @@ function notifyAccessChange(access: 'granted' | 'revoked') {
 function cancelAccess() {
   accessController.abort(new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED));
   accessController = new AbortController();
+  unfollowRequests.revoke();
   notifyAccessChange('revoked');
 }
 
@@ -134,6 +139,31 @@ function replyWith(
   return true;
 }
 
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
+  if (
+    sender.id !== chrome.runtime.id ||
+    (sender.frameId ?? 0) !== 0 ||
+    sender.url?.split('#')[0] !== chrome.runtime.getURL(unfollowConfirmationPage) ||
+    typeof message !== 'object' ||
+    message === null ||
+    !('type' in message) ||
+    !('requestId' in message) ||
+    typeof message.requestId !== 'string'
+  )
+    return;
+
+  switch (message.type) {
+    case 'READ_UNFOLLOW_PREVIEW':
+      sendResponse(unfollowRequests.preview(message.requestId));
+      return;
+    case 'CANCEL_UNFOLLOW':
+      sendResponse(unfollowRequests.cancel(message.requestId));
+      return;
+    case 'CONFIRM_UNFOLLOW':
+      return replyWith(unfollowRequests.confirm(message.requestId), sendResponse);
+  }
+});
+
 chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResponse) => {
   const path = getSenderPath(sender);
   if (!path) return;
@@ -155,17 +185,20 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
         chrome.runtime.openOptionsPage().then(() => ({ success: true })),
         sendResponse,
       );
-    case 'UNFOLLOW':
+    case 'REQUEST_UNFOLLOW':
+      if (!sender.documentId) break;
       return replyWith(
-        withAccess((signal) =>
-          unfollow(
-            'username' in message ? message.username : undefined,
-            'targetUserId' in message ? message.targetUserId : undefined,
-            signal,
-          ),
+        unfollowRequests.request(
+          sender.documentId,
+          'username' in message ? message.username : undefined,
+          'targetUserId' in message ? message.targetUserId : undefined,
         ),
         sendResponse,
       );
+    case 'GET_UNFOLLOW_STATUS':
+      if (!sender.documentId || !('requestId' in message) || typeof message.requestId !== 'string')
+        break;
+      return replyWith(unfollowRequests.status(message.requestId, sender.documentId), sendResponse);
     case 'GET_FOLLOWING_SUMMARY':
       return replyWith(
         withAccess((signal) =>
@@ -176,7 +209,6 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
     case 'PING':
       sendResponse({ success: true, message: 'DuoFollow Connector is running' });
       return;
-    default:
-      sendResponse({ success: false, error: 'Unsupported message' });
   }
+  sendResponse({ success: false, error: 'Unsupported message' });
 });

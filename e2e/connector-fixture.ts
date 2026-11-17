@@ -113,6 +113,7 @@ export async function openComparison(
       localStorage.setItem('duofollow.language', 'en');
       localStorage.setItem('duofollow.theme', theme);
       const commands: string[] = [];
+      let unfollowTarget: number | undefined;
       Object.defineProperty(window, '__duofollowTestCommands', { value: commands });
       const chrome = Reflect.get(window, 'chrome') ?? {};
       Object.defineProperty(chrome, 'runtime', {
@@ -141,8 +142,12 @@ export async function openComparison(
                   if (refreshSummary) response = refreshSummary;
                   return;
                 }
-                case 'UNFOLLOW':
-                  reply({ success: true, targetUserId: message.targetUserId });
+                case 'REQUEST_UNFOLLOW':
+                  unfollowTarget = message.targetUserId;
+                  reply({ success: true, requestId: 'fixture-unfollow' });
+                  return;
+                case 'GET_UNFOLLOW_STATUS':
+                  reply({ success: true, targetUserId: unfollowTarget });
                   return;
                 default:
                   reply({ success: false });

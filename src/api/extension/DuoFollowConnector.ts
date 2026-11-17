@@ -3,6 +3,7 @@ import {
   isConnectorFailure,
   isConnectorSuccess,
 } from '@duofollow/extension/src/dto/ConnectorResult';
+import { unfollowConfirmationMs } from '@duofollow/extension/src/dto/UnfollowConfirmation';
 import { isFollowingComparison } from '@duofollow/src/api/extension/isFollowingComparison';
 
 import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
@@ -10,6 +11,10 @@ import type {
   FollowingComparisonResult,
   UnfollowResult,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type {
+  UnfollowRequestResult,
+  UnfollowStatusResult,
+} from '@duofollow/extension/src/dto/UnfollowConfirmation';
 
 interface ConnectorResponse {
   success: boolean;
@@ -136,28 +141,60 @@ export class DuoFollowConnector {
   }
 
   async unfollow(username: string, targetUserId: number): Promise<UnfollowResult> {
-    const result = await this.send<UnfollowResult>(
-      { type: 'UNFOLLOW', username, targetUserId },
-      45_000,
+    const request = await this.send<UnfollowRequestResult>(
+      { type: 'REQUEST_UNFOLLOW', username, targetUserId },
+      28_000,
     );
-    if (isConnectorFailure(result)) return result;
+    if (isConnectorFailure(request)) {
+      if (request.error === 'Unsupported message') {
+        throw new ConnectorError('CONNECTOR_OUTDATED', request.error);
+      }
+      return request;
+    }
+    if (!isConnectorSuccess(request) || typeof request.requestId !== 'string' || !request.requestId)
+      throw new ConnectorError('INVALID_RESPONSE', 'Расширение вернуло неожиданный ответ.');
 
-    if (!isConnectorSuccess(result) || result.targetUserId !== targetUserId) {
-      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Расширение вернуло неожиданный ответ.');
+    const deadline = Date.now() + unfollowConfirmationMs + 55_000;
+    let failedChecks = 0;
+    while (Date.now() < deadline) {
+      let result: UnfollowStatusResult | undefined;
+      try {
+        result = await this.send<UnfollowStatusResult>(
+          { type: 'GET_UNFOLLOW_STATUS', requestId: request.requestId },
+          Math.min(15_000, deadline - Date.now()),
+        );
+        failedChecks = 0;
+      } catch {
+        // Status can be queried again if the worker was interrupted.
+        if (++failedChecks >= 3) break;
+      }
+      if (isConnectorFailure(result)) return result;
+      if (
+        isConnectorSuccess(result) &&
+        !('pending' in result) &&
+        result.targetUserId === targetUserId
+      )
+        return result;
+      if (
+        result !== undefined &&
+        (!isConnectorSuccess(result) || !('pending' in result) || result.pending !== true)
+      )
+        break;
+      await new Promise<void>((resolve) => setTimeout(resolve, 1_000));
     }
 
-    return result;
+    throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Исход отписки неизвестен.');
   }
 
   private async send<Result>(
     message:
       | { type: 'GET_DUOLINGO_ACCESS' | 'OPEN_DUOLINGO_SETTINGS' }
       | { type: 'GET_FOLLOWING_SUMMARY'; username: string }
-      | { type: 'UNFOLLOW'; username: string; targetUserId: number },
+      | { type: 'REQUEST_UNFOLLOW'; username: string; targetUserId: number }
+      | { type: 'GET_UNFOLLOW_STATUS'; requestId: string },
     timeoutMs: number,
   ): Promise<Result> {
     const runtime = globalThis.chrome?.runtime;
-    const unfollow = message.type === 'UNFOLLOW';
 
     if (!runtime?.sendMessage) {
       throw new ConnectorError(
@@ -178,11 +215,7 @@ export class DuoFollowConnector {
           const error = runtime.lastError;
 
           if (error || !result) {
-            const code = unfollow
-              ? 'UNFOLLOW_UNCONFIRMED'
-              : error
-                ? 'CONNECTOR_UNAVAILABLE'
-                : 'INVALID_RESPONSE';
+            const code = error ? 'CONNECTOR_UNAVAILABLE' : 'INVALID_RESPONSE';
             reject(new ConnectorError(code, error?.message ?? 'Empty connector response'));
             return;
           }
@@ -193,13 +226,7 @@ export class DuoFollowConnector {
 
       const deadline = new Promise<never>((_, reject) => {
         timeout = setTimeout(
-          () =>
-            reject(
-              new ConnectorError(
-                unfollow ? 'UNFOLLOW_UNCONFIRMED' : 'TIMEOUT',
-                'Connector response timed out',
-              ),
-            ),
+          () => reject(new ConnectorError('TIMEOUT', 'Connector response timed out')),
           timeoutMs,
         );
       });

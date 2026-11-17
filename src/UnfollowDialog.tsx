@@ -66,7 +66,7 @@ export function UnfollowDialog({
           {messages.cancel}
         </button>
         <button type="button" className="unfollow-dialog-confirm" onClick={onConfirm}>
-          {messages.unfollow}
+          {messages.unfollowContinue}
         </button>
       </div>
     </dialog>

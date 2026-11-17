@@ -30,7 +30,7 @@ function build(output, { development = false } = {}) {
   });
   buildSync({
     absWorkingDir: extensionRoot,
-    entryPoints: ['src/background.ts', 'src/access.ts'],
+    entryPoints: ['src/background.ts', 'src/access.ts', 'src/unfollow-confirmation.ts'],
     outdir: output,
     bundle: true,
     format: 'esm',

@@ -29,14 +29,36 @@ function readSessionUserId(token: string | undefined): string | null {
   }
 }
 
-export async function getDuolingoSessionUserId(signal: AbortSignal): Promise<string | null> {
+async function readSessionCookie(signal: AbortSignal): Promise<string | undefined> {
   signal.throwIfAborted();
   const cookie = await chrome.cookies.get({
     url: duolingoEndpoints.accountLookup.url().origin,
     name: 'jwt_token',
   });
   signal.throwIfAborted();
-  return readSessionUserId(cookie?.value);
+  return cookie?.value;
+}
+
+export async function getDuolingoSessionUserId(signal: AbortSignal): Promise<string | null> {
+  return readSessionUserId(await readSessionCookie(signal));
+}
+
+export async function identifyUnfollowSession(
+  requestId: string,
+  signal: AbortSignal,
+): Promise<{ userId: string; fingerprint: string } | null> {
+  const token = await readSessionCookie(signal);
+  const userId = readSessionUserId(token);
+  if (!userId) return null;
+
+  // The request ID makes the digest specific to this attempted operation.
+  const bytes = new TextEncoder().encode(`${requestId}:${token}`);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  signal.throwIfAborted();
+  const fingerprint = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('');
+  return { userId, fingerprint };
 }
 
 const READY_TTL_MS = 60_000;

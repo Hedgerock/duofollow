@@ -229,11 +229,13 @@ test('updates the all-received list only after confirmed unfollow', async ({ pag
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).not.toBeVisible();
   await expect(row).toBeVisible();
-  expect(await connectorCommands(page)).not.toContain('UNFOLLOW');
+  expect(await connectorCommands(page)).not.toContain('REQUEST_UNFOLLOW');
 
   await action.click();
-  await dialog.getByRole('button', { name: 'Unfollow', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Continue in Connector', exact: true }).click();
   await expect(row).toHaveCount(0);
   await expect(panel.locator('[data-following-id]')).toHaveCount(2);
-  expect((await connectorCommands(page)).filter((type) => type === 'UNFOLLOW')).toHaveLength(1);
+  expect(
+    (await connectorCommands(page)).filter((type) => type === 'REQUEST_UNFOLLOW'),
+  ).toHaveLength(1);
 });

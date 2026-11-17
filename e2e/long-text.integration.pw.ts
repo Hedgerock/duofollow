@@ -147,5 +147,5 @@ test('keeps cancellation reachable with long profile details in the unfollow dia
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(unfollow).toBeFocused();
-  expect(await connectorCommands(page)).not.toContain('UNFOLLOW');
+  expect(await connectorCommands(page)).not.toContain('REQUEST_UNFOLLOW');
 });

@@ -46,5 +46,32 @@
   },
   "accessCheckError": {
     "message": "Could not check permissions."
+  },
+  "unfollowTitle": {
+    "message": "Confirm unfollow"
+  },
+  "unfollowAccount": {
+    "message": "Signed-in account"
+  },
+  "unfollowTarget": {
+    "message": "Profile to unfollow"
+  },
+  "unfollowCancel": {
+    "message": "Cancel"
+  },
+  "unfollowConfirm": {
+    "message": "Unfollow"
+  },
+  "unfollowChecking": {
+    "message": "Checking subscription…"
+  },
+  "unfollowUnavailable": {
+    "message": "This request is no longer available. Return to DuoFollow to check the result."
+  },
+  "unfollowFinished": {
+    "message": "Finished. The result is shown in DuoFollow."
+  },
+  "unfollowClose": {
+    "message": "Close"
   }
 }

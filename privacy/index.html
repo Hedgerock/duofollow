@@ -39,9 +39,10 @@
               To compare follows, the Connector sends the username entered on DuoFollow to Duolingo.
               It uses account IDs, usernames, display names, avatar URLs and follow relationships
               from the responses. The Connector compares the lists in the browser and sends the
-              results and relevant profile details to the DuoFollow page. After confirmation of an
-              unfollow, the Connector sends the account ID and selected profile ID to Duolingo to
-              remove that follow.
+              results and relevant profile details to the DuoFollow page. After confirmation in the
+              Connector window, the extension sends the account ID and selected profile ID to
+              Duolingo to remove that follow. If the response is lost, the Connector can read the
+              follows again to check the result.
             </p>
           </section>
           <section>
@@ -68,6 +69,13 @@
               comparison in the browser. On a subsequent visit with access available, DuoFollow can
               repeat that comparison. Results are held in the page’s memory. The browser may cache
               avatar images.
+            </p>
+            <p>
+              Chrome session storage holds the latest confirmed unfollow attempt so the Connector
+              can check the result after its background worker restarts. It holds the account and
+              target profile IDs and a one-way, request-specific digest for matching the Duolingo
+              session. Once the outcome has been processed, the stored result replaces that data.
+              Session storage is cleared when the browser restarts.
             </p>
             <p>
               “Disconnect” in the DuoFollow Connector settings revokes the extension’s Duolingo

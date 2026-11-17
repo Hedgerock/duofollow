@@ -78,6 +78,7 @@ const ru = {
   unfollowProfile: (name: string) => `Отписаться от ${name}`,
   unfollowingProfile: (name: string) => `Отписываемся от ${name}`,
   unfollow: 'Отписаться',
+  unfollowContinue: 'Продолжить в Connector',
   unfollowing: 'Отписываемся…',
   unfollowTitle: 'Отписаться от пользователя?',
   unfollowDescription: ['Подписка с аккаунта ', ' будет удалена.'],
@@ -155,6 +156,11 @@ const ru = {
       'Получен неожиданный ответ. Повтори запрос. Если ошибка повторится, обнови DuoFollow Connector.',
     CONNECTOR_UNAVAILABLE: 'Связь с Connector потеряна. Проверь, что расширение включено.',
     ACCOUNT_MISMATCH: 'Укажи имя аккаунта, в который ты вошёл в Duolingo.',
+    CONNECTOR_OUTDATED: 'Обнови DuoFollow Connector для подтверждения отписки.',
+    NOT_FOLLOWING: 'Подписка на этот профиль отсутствует.',
+    NOT_FOUND_IN_PARTIAL_RESULT: 'Duolingo вернул часть подписок. Статус этого профиля неизвестен.',
+    STILL_FOLLOWING: 'При проверке подписка по-прежнему была видна в списке.',
+    UNFOLLOW_CANCELLED: 'Подтверждение отписки отменено или истекло.',
     UNFOLLOW_UNCONFIRMED: 'Не удалось узнать, была ли подписка удалена.',
   } satisfies Record<ConnectorErrorCode, string>,
   notifications: {
@@ -243,6 +249,7 @@ const en = {
   unfollowProfile: (name: string) => `Unfollow ${name}`,
   unfollowingProfile: (name: string) => `Unfollowing ${name}`,
   unfollow: 'Unfollow',
+  unfollowContinue: 'Continue in Connector',
   unfollowing: 'Unfollowing…',
   unfollowTitle: 'Unfollow this user?',
   unfollowDescription: ['', ' will stop following this user.'],
@@ -321,6 +328,12 @@ const en = {
     CONNECTOR_UNAVAILABLE:
       'The connection to Connector was lost. Check that the extension is enabled.',
     ACCOUNT_MISMATCH: 'Enter the username of the account signed in to Duolingo.',
+    CONNECTOR_OUTDATED: 'Update DuoFollow Connector to confirm unfollows.',
+    NOT_FOLLOWING: 'You are not following this profile.',
+    NOT_FOUND_IN_PARTIAL_RESULT:
+      'Duolingo returned a partial list. The status of this profile is unknown.',
+    STILL_FOLLOWING: 'The follow was still present when checked.',
+    UNFOLLOW_CANCELLED: 'Unfollow confirmation was cancelled or expired.',
     UNFOLLOW_UNCONFIRMED: 'DuoFollow could not tell whether the follow was removed.',
   } satisfies Record<ConnectorErrorCode, string>,
   notifications: {
@@ -409,6 +422,7 @@ const uk = {
   unfollowProfile: (name: string) => `Відписатися від ${name}`,
   unfollowingProfile: (name: string) => `Відписуємося від ${name}`,
   unfollow: 'Відписатися',
+  unfollowContinue: 'Продовжити в Connector',
   unfollowing: 'Відписуємося…',
   unfollowTitle: 'Відписатися від цього користувача?',
   unfollowDescription: ['Підписку з акаунта ', ' буде видалено.'],
@@ -486,6 +500,12 @@ const uk = {
       'Отримано неочікувану відповідь. Спробуй ще раз. Якщо помилка повториться, онови DuoFollow Connector.',
     CONNECTOR_UNAVAILABLE: 'Зв’язок із Connector втрачено. Перевір, чи розширення ввімкнене.',
     ACCOUNT_MISMATCH: 'Вкажи ім’я акаунта, у який ти ввійшов у Duolingo.',
+    CONNECTOR_OUTDATED: 'Оновіть DuoFollow Connector для підтвердження відписки.',
+    NOT_FOLLOWING: 'Підписка на цей профіль відсутня.',
+    NOT_FOUND_IN_PARTIAL_RESULT:
+      'Duolingo повернув частину підписок. Статус цього профілю невідомий.',
+    STILL_FOLLOWING: 'Під час перевірки підписка ще була в списку.',
+    UNFOLLOW_CANCELLED: 'Підтвердження відписки скасовано або прострочено.',
     UNFOLLOW_UNCONFIRMED: 'Не вдалося з’ясувати, чи видалено підписку.',
   } satisfies Record<ConnectorErrorCode, string>,
   notifications: {

@@ -5,7 +5,10 @@ import {
   assertDuolingoResponse,
   readDuolingoJson,
 } from '@duofollow/extension/src/duolingoResponse';
-import { getDuolingoSessionUserId } from '@duofollow/extension/src/duolingoSession';
+import {
+  getDuolingoSessionUserId,
+  identifyUnfollowSession,
+} from '@duofollow/extension/src/duolingoSession';
 
 import type {
   ComparedFollowingUser,
@@ -16,8 +19,7 @@ import type {
   UnfollowResult,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 
-const pendingUnfollows = new Set<string>();
-const UNCONFIRMED_UNFOLLOW = 'Ответ Duolingo не удалось проверить.';
+export const UNCONFIRMED_UNFOLLOW = 'Ответ Duolingo не удалось проверить.';
 const ACCOUNT_MISMATCH = 'Укажи имя аккаунта, в который ты вошёл в Duolingo.';
 
 type RelationshipList = 'following' | 'followers';
@@ -256,11 +258,35 @@ export async function getFollowingSummary(
   };
 }
 
-export async function unfollow(
+export interface UnfollowTarget {
+  requestId: string;
+  userId: string;
+  targetUserId: number;
+  fingerprint: string;
+}
+
+async function readUnfollowRelationship(
+  { userId, targetUserId }: UnfollowTarget,
+  signal: AbortSignal,
+) {
+  const following = await getRelationshipPage('following', userId, signal);
+  const target = following.users.find((user) => user.userId === targetUserId);
+  if (target) return { state: 'following' as const, target };
+  const uniqueUsers = new Set(following.users.map((user) => user.userId)).size;
+  return {
+    state:
+      getRelationshipCoverage(following, uniqueUsers) === 'complete'
+        ? ('absent' as const)
+        : ('unknown' as const),
+  };
+}
+
+export async function prepareUnfollow(
+  requestId: string,
   username: unknown,
   targetUserId: unknown,
   signal: AbortSignal,
-): Promise<Extract<UnfollowResult, { success: true }>> {
+) {
   if (
     typeof targetUserId !== 'number' ||
     !Number.isSafeInteger(targetUserId) ||
@@ -269,56 +295,109 @@ export async function unfollow(
     throw new Error('У подписки некорректный ID.');
   }
 
-  const { userId } = await resolveDuolingoAccount(username, signal);
-  if (String(targetUserId) === userId) {
+  const account = await resolveDuolingoAccount(username, signal);
+  if (String(targetUserId) === account.userId) {
     throw new Error('Нельзя отписаться от своего профиля.');
   }
 
-  const key = `${userId}/${targetUserId}`;
-  if (pendingUnfollows.has(key)) {
-    throw new Error('Этот запрос на отписку уже выполняется.');
-  }
+  const session = await identifyUnfollowSession(requestId, signal);
+  if (session?.userId !== account.userId)
+    throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
+  const target = { requestId, ...session, targetUserId };
+  const profile = await requireFollowedProfile(target, signal);
+  const label =
+    typeof profile.username === 'string' && profile.username.trim()
+      ? `@${profile.username}`
+      : typeof profile.displayName === 'string' && profile.displayName.trim()
+        ? profile.displayName
+        : String(targetUserId);
+  return {
+    target,
+    preview: { username: account.username, targetUserId, targetLabel: label },
+  };
+}
 
-  pendingUnfollows.add(key);
+async function assertUnfollowSession(target: UnfollowTarget, signal: AbortSignal) {
+  const session = await identifyUnfollowSession(target.requestId, signal);
+  if (session?.userId !== target.userId || session.fingerprint !== target.fingerprint)
+    throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
+}
+
+async function requireFollowedProfile(target: UnfollowTarget, signal: AbortSignal) {
+  const relationship = await readUnfollowRelationship(target, signal);
+  await assertUnfollowSession(target, signal);
+  if (relationship.state === 'following') return relationship.target;
+  if (relationship.state === 'absent')
+    throw new ConnectorError('NOT_FOLLOWING', 'Подписка на этот профиль отсутствует.');
+  throw new ConnectorError(
+    'NOT_FOUND_IN_PARTIAL_RESULT',
+    'Duolingo вернул часть подписок. Статус этого профиля неизвестен.',
+  );
+}
+
+export async function verifyUnfollowOutcome(
+  target: UnfollowTarget,
+  signal: AbortSignal,
+): Promise<UnfollowResult> {
   try {
-    const following = await getRelationshipPage('following', userId, signal);
-    if (!following.users.some((user) => user.userId === targetUserId)) {
-      throw new Error('Подписки нет среди полученных записей Duolingo.');
+    await assertUnfollowSession(target, signal);
+    const relationship = await readUnfollowRelationship(target, signal);
+    await assertUnfollowSession(target, signal);
+    if (relationship.state === 'absent')
+      return { success: true, targetUserId: target.targetUserId };
+    if (relationship.state === 'following') {
+      return {
+        success: false,
+        errorCode: 'STILL_FOLLOWING',
+        error: 'При проверке подписка по-прежнему была видна в списке.',
+      };
     }
-
-    if ((await requireSessionUserId(signal)) !== userId)
-      throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
-    signal.throwIfAborted();
-
-    const endpoint = duolingoEndpoints.unfollow;
-    const response = await fetch(endpoint.url(userId, targetUserId).href, {
-      method: endpoint.method,
-      credentials: 'include',
-      redirect: 'error',
-      signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
-    }).catch(() => {
-      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', UNCONFIRMED_UNFOLLOW);
-    });
-
-    if (!response.ok) {
-      const hint =
-        response.status === 401 || response.status === 403
-          ? ' Войди в указанный аккаунт Duolingo в этом профиле браузера.'
-          : '';
-      const message = `Duolingo вернул HTTP ${response.status}.${hint}`;
-      if (response.status >= 500) throw new ConnectorError('UNFOLLOW_UNCONFIRMED', message);
-      await assertDuolingoResponse(response, message);
-    }
-
-    const data: { successful?: unknown } | null = await response.json().catch(() => {
-      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', UNCONFIRMED_UNFOLLOW);
-    });
-    if (data?.successful !== true) {
-      throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Duolingo не подтвердил отписку.');
-    }
-
-    return { success: true, targetUserId };
-  } finally {
-    pendingUnfollows.delete(key);
+  } catch {
+    // An unavailable or changed session leaves the outcome unknown.
   }
+  return { success: false, errorCode: 'UNFOLLOW_UNCONFIRMED', error: UNCONFIRMED_UNFOLLOW };
+}
+
+export async function performUnfollow(
+  target: UnfollowTarget,
+  signal: AbortSignal,
+  authorizeWrite: () => Promise<void>,
+  onWriteStarted: () => void,
+): Promise<Extract<UnfollowResult, { success: true }>> {
+  const { userId, targetUserId } = target;
+  await assertUnfollowSession(target, signal);
+  await requireFollowedProfile(target, signal);
+  await authorizeWrite();
+  await assertUnfollowSession(target, signal);
+  signal.throwIfAborted();
+
+  const endpoint = duolingoEndpoints.unfollow;
+  onWriteStarted();
+  const response = await fetch(endpoint.url(userId, targetUserId).href, {
+    method: endpoint.method,
+    credentials: 'include',
+    redirect: 'error',
+    signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
+  }).catch(() => {
+    throw new ConnectorError('UNFOLLOW_UNCONFIRMED', UNCONFIRMED_UNFOLLOW);
+  });
+
+  if (!response.ok) {
+    const hint =
+      response.status === 401 || response.status === 403
+        ? ' Войди в указанный аккаунт Duolingo в этом профиле браузера.'
+        : '';
+    const message = `Duolingo вернул HTTP ${response.status}.${hint}`;
+    if (response.status >= 500) throw new ConnectorError('UNFOLLOW_UNCONFIRMED', message);
+    await assertDuolingoResponse(response, message);
+  }
+
+  const data: { successful?: unknown } | null = await response.json().catch(() => {
+    throw new ConnectorError('UNFOLLOW_UNCONFIRMED', UNCONFIRMED_UNFOLLOW);
+  });
+  if (data?.successful !== true) {
+    throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Duolingo не подтвердил отписку.');
+  }
+
+  return { success: true, targetUserId };
 }

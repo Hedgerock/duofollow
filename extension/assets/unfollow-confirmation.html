@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DuoFollow Connector</title>
+    <link rel="stylesheet" href="access.css" />
+    <style>
+      dl {
+        margin: 1.25rem 0;
+      }
+      dt {
+        font-size: 0.875rem;
+      }
+      dd {
+        margin: 0.25rem 0 1rem;
+        overflow-wrap: anywhere;
+        unicode-bidi: isolate;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+      }
+      .actions [hidden] {
+        display: none;
+      }
+      #confirm {
+        background: light-dark(#a63649, #753e51);
+        color: #fff;
+      }
+      #confirm:hover:not(:disabled) {
+        background: light-dark(#8c293c, #915167);
+      }
+    </style>
+    <script type="module" src="unfollow-confirmation.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="icons/icon-48.png" width="40" height="40" alt="" />
+        <h1 data-message="unfollowTitle"></h1>
+      </header>
+      <dl id="preview" hidden>
+        <dt data-message="unfollowAccount"></dt>
+        <dd id="account" dir="auto"></dd>
+        <dt data-message="unfollowTarget"></dt>
+        <dd id="target" dir="auto"></dd>
+      </dl>
+      <p id="status" role="status"></p>
+      <div class="actions">
+        <button id="cancel" type="button" data-message="unfollowCancel" hidden></button>
+        <button id="confirm" type="button" data-message="unfollowConfirm" hidden></button>
+        <button id="close" type="button" data-message="unfollowClose" hidden></button>
+      </div>
+    </main>
+  </body>
+</html>

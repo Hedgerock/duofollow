@@ -126,7 +126,9 @@ export function useUnfollow({
       if (activity.current !== pending) return;
       closeAction(pending);
       const { error: details, errorCode: code } = getConnectorErrorDetails(error);
-      const needsComparison = !code || code === 'UNFOLLOW_UNCONFIRMED';
+      if (code === 'UNFOLLOW_CANCELLED') return;
+      const needsComparison =
+        !code || code === 'UNFOLLOW_UNCONFIRMED' || code === 'STILL_FOLLOWING';
       const copy = translations[currentLocale.current].notifications;
       notify({
         group,

@@ -7,10 +7,14 @@ import type {
   FollowingComparisonResult,
   UnfollowResult,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type {
+  UnfollowRequestResult,
+  UnfollowStatusResult,
+} from '@duofollow/extension/src/dto/UnfollowConfirmation';
 
 type Listener = (
   message: unknown,
-  sender: { url?: string; frameId?: number },
+  sender: chrome.runtime.MessageSender,
   reply: (result: unknown) => void,
 ) => boolean | void;
 
@@ -22,8 +26,8 @@ const account = {
 };
 const targetUnfollowUrl = duolingoEndpoints.unfollow.url(String(account.id), 202).href;
 const resolveAccount = () => Response.json({ users: [account] });
-const following = (users: unknown[], totalUsers = users.length) =>
-  Response.json({ following: { cursor: 'v1:500', totalUsers, users } });
+const following = (users: unknown[], totalUsers = users.length, cursor: string | null = 'v1:500') =>
+  Response.json({ following: { cursor, totalUsers, users } });
 const followers = (users: unknown[], totalUsers = users.length, cursor: string | null = null) =>
   Response.json({ followers: { cursor, totalUsers, users } });
 const compare = (username: unknown): Promise<FollowingComparisonResult> =>
@@ -36,17 +40,56 @@ const compare = (username: unknown): Promise<FollowingComparisonResult> =>
     expect(keepOpen).toBe(true);
   });
 
-const unfollow = (targetUserId: unknown = 202): Promise<UnfollowResult> =>
+const extensionId = 'test-extension';
+const confirmationUrl = `chrome-extension://${extensionId}/unfollow-confirmation.html`;
+const documentSender = { url: approvedOrigin, frameId: 0, documentId: 'site-document' };
+const extensionSender = { id: extensionId, url: confirmationUrl, frameId: 0 };
+
+function requestUnfollow(targetUserId: unknown = 202): Promise<UnfollowRequestResult> {
+  return new Promise((resolve) => {
+    expect(
+      listener(
+        { type: 'REQUEST_UNFOLLOW', username: account.username, targetUserId },
+        documentSender,
+        (result) => resolve(result as UnfollowRequestResult),
+      ),
+    ).toBe(true);
+  });
+}
+
+async function openConfirmation() {
+  const result = await requestUnfollow();
+  if (!result.success) throw new Error(result.error);
+  return result.requestId;
+}
+
+const confirm = (requestId: string): Promise<UnfollowResult> =>
   new Promise((resolve) => {
-    const keepOpen = listener(
-      { type: 'UNFOLLOW', username: account.username, targetUserId },
-      { url: approvedOrigin, frameId: 0 },
-      (reply) => resolve(reply as UnfollowResult),
-    );
-    expect(keepOpen).toBe(true);
+    expect(
+      internalListener({ type: 'CONFIRM_UNFOLLOW', requestId }, extensionSender, (result) =>
+        resolve(result as UnfollowResult),
+      ),
+    ).toBe(true);
   });
 
+const unfollow = async () => {
+  const request = await requestUnfollow();
+  return request.success ? confirm(request.requestId) : request;
+};
+
+const status = (requestId: string, sender = documentSender): Promise<UnfollowStatusResult> =>
+  new Promise((resolve) =>
+    listener({ type: 'GET_UNFOLLOW_STATUS', requestId }, sender, (result) =>
+      resolve(result as UnfollowStatusResult),
+    ),
+  );
+
+const writeCalls = () => fetchMock.mock.calls.filter(([, options]) => options?.method === 'DELETE');
+
 let listener: Listener;
+let internalListener: Listener;
+let windowClosed: (id: number) => void;
+const createWindow = vi.fn(async (_options: chrome.windows.CreateData) => ({ id: 42 }));
 const fetchMock = vi.fn<typeof fetch>();
 const getCookie =
   vi.fn<(details: { url: string; name: string }) => Promise<{ value: string } | null>>();
@@ -70,6 +113,7 @@ beforeEach(async () => {
   getSettings.mockReset().mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1 });
   containsPermissions.mockReset().mockResolvedValue(true);
   openOptionsPage.mockReset().mockResolvedValue(undefined);
+  createWindow.mockClear();
   getManifest.mockReset().mockReturnValue({
     externally_connectable: { matches: ['https://hedgerock.github.io/*', 'http://localhost/*'] },
   });
@@ -89,6 +133,9 @@ beforeEach(async () => {
       session: {
         get: async (key: string) => ({ [key]: sessionStorage[key] }),
         set: async (values: Record<string, unknown>) => Object.assign(sessionStorage, values),
+        remove: async (key: string) => {
+          delete sessionStorage[key];
+        },
       },
       local: { get: getSettings, remove: vi.fn(async () => {}) },
       onChanged: {
@@ -97,7 +144,22 @@ beforeEach(async () => {
         },
       },
     },
+    windows: {
+      create: createWindow,
+      onRemoved: {
+        addListener(callback: typeof windowClosed) {
+          windowClosed = callback;
+        },
+      },
+    },
     runtime: {
+      id: extensionId,
+      getURL: (path: string) => `chrome-extension://${extensionId}/${path}`,
+      onMessage: {
+        addListener(callback: Listener) {
+          internalListener = callback;
+        },
+      },
       getManifest,
       openOptionsPage,
       onConnectExternal: {
@@ -769,135 +831,254 @@ describe('extension worker', () => {
     });
   });
 
-  it('deletes one existing subscription with the active session and checks the response', async () => {
-    fetchMock
-      .mockResolvedValueOnce(resolveAccount())
-      .mockResolvedValueOnce(following([{ userId: 202 }, { userId: 303 }]))
-      .mockResolvedValueOnce(Response.json({ successful: true }));
+  const target = { userId: 202, username: 'Target' };
+  const prepare = () =>
+    fetchMock.mockResolvedValueOnce(resolveAccount()).mockResolvedValueOnce(following([target]));
 
-    await expect(unfollow()).resolves.toEqual({ success: true, targetUserId: 202 });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+  it('only deletes after the extension window confirms the bound account and target', async () => {
+    prepare()
+      .mockResolvedValueOnce(following([target]))
+      .mockResolvedValueOnce(Response.json({ successful: true }));
+    const requestId = await openConfirmation();
+    expect(createWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: `${confirmationUrl}#${requestId}`,
+      }),
+    );
+    const preview = vi.fn();
+    internalListener({ type: 'READ_UNFOLLOW_PREVIEW', requestId }, extensionSender, preview);
+    expect(preview).toHaveBeenCalledWith({
+      success: true,
+      preview: { username: 'Learner', targetUserId: 202, targetLabel: '@Target' },
+    });
+    await expect(status(requestId)).resolves.toEqual({ success: true, pending: true });
+    expect(writeCalls()).toHaveLength(0);
+
+    await expect(confirm(requestId)).resolves.toEqual({ success: true, targetUserId: 202 });
+    expect(writeCalls()).toHaveLength(1);
     expect(fetchMock).toHaveBeenLastCalledWith(
       targetUnfollowUrl,
       expect.objectContaining({
-        method: duolingoEndpoints.unfollow.method,
+        method: 'DELETE',
         credentials: 'include',
         redirect: 'error',
         signal: expect.any(AbortSignal),
       }),
     );
+    await expect(status(requestId)).resolves.toEqual({ success: true, targetUserId: 202 });
+    await expect(confirm(requestId)).resolves.toMatchObject({ errorCode: 'UNFOLLOW_CANCELLED' });
+    expect(writeCalls()).toHaveLength(1);
   });
 
-  it('rejects comparisons and deletions for a different account before reading its lists', async () => {
-    getCookie.mockResolvedValue(sessionCookie(999));
-    fetchMock.mockImplementation(async () => resolveAccount());
-    await expect(compare(account.username)).resolves.toMatchObject({ success: false });
-    await expect(unfollow()).resolves.toMatchObject({ success: false });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(
-      fetchMock.mock.calls.every(
-        ([url]) => new URL(String(url)).pathname === duolingoEndpoints.accountLookup.url().pathname,
-      ),
-    ).toBe(true);
-  });
-
-  it('does not delete a subscription if the session changes during the initial lookup', async () => {
-    getCookie
-      .mockResolvedValueOnce(sessionCookie(account.id))
-      .mockResolvedValueOnce(sessionCookie(999));
-    fetchMock
-      .mockResolvedValueOnce(resolveAccount())
-      .mockResolvedValueOnce(following([{ userId: 202 }]));
-    await expect(unfollow()).resolves.toMatchObject({ success: false });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls.some(([url]) => String(url) === targetUnfollowUrl)).toBe(false);
-  });
-
-  it('requires the DuoFollow page, a valid target and an existing subscription', async () => {
-    const message = { type: 'UNFOLLOW', username: account.username, targetUserId: 202 };
+  it('accepts the receipt only from the initiating document and approval only in the popup', async () => {
+    prepare();
+    const requestId = await openConfirmation();
     const reply = vi.fn();
-    listener(message, { url: 'https://example.com/duofollow/' }, reply);
-    expect(reply).not.toHaveBeenCalled();
+    const approval = { type: 'CONFIRM_UNFOLLOW', requestId };
+    listener(approval, documentSender, reply);
+    expect(reply).toHaveBeenLastCalledWith({ success: false, error: 'Unsupported message' });
+    listener(
+      { type: 'UNFOLLOW', username: account.username, targetUserId: 202 },
+      documentSender,
+      reply,
+    );
+    expect(reply).toHaveBeenLastCalledWith({ success: false, error: 'Unsupported message' });
+    reply.mockClear();
     for (const sender of [
-      { url: 'https://hedgerock.github.io/another-project/' },
-      { url: approvedOrigin, frameId: 1 },
+      { ...extensionSender, id: 'other-extension' },
+      { ...extensionSender, url: 'chrome-extension://test-extension/access.html' },
+      { ...extensionSender, frameId: 1 },
     ]) {
+      internalListener(approval, sender, reply);
+    }
+    expect(reply).not.toHaveBeenCalled();
+    await expect(
+      status(requestId, { ...documentSender, documentId: 'other' }),
+    ).resolves.toMatchObject({ errorCode: 'UNFOLLOW_UNCONFIRMED' });
+    expect(writeCalls()).toHaveLength(0);
+  });
+
+  it.each(['cancel', 'window closes', 'expiry', 'worker restarts'])(
+    'prevents a delete after %s while the confirmation is pending',
+    async (event) => {
+      prepare();
+      const requestId = await openConfirmation();
+      if (event === 'cancel')
+        internalListener({ type: 'CANCEL_UNFOLLOW', requestId }, extensionSender, vi.fn());
+      if (event === 'window closes') windowClosed(42);
+      if (event === 'expiry') vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 91_000);
+      if (event === 'worker restarts') {
+        vi.resetModules();
+        await import('@duofollow/extension/src/background');
+      }
+      await expect(confirm(requestId)).resolves.toMatchObject({ errorCode: 'UNFOLLOW_CANCELLED' });
+      expect(writeCalls()).toHaveLength(0);
+      vi.restoreAllMocks();
+    },
+  );
+
+  it.each([
+    'different account',
+    'new session for the same account',
+    'revoked consent',
+    'revoked host permission',
+  ])('blocks deletion after %s', async (event) => {
+    prepare().mockResolvedValueOnce(following([target]));
+    const requestId = await openConfirmation();
+    if (event === 'different account') getCookie.mockResolvedValue(sessionCookie(999));
+    if (event === 'new session for the same account')
+      getCookie.mockResolvedValue({ value: sessionCookie(account.id).value + '-changed' });
+    if (event === 'revoked consent')
+      storageChanged({ [ACCESS_CONSENT_KEY]: { oldValue: 1 } }, 'local');
+    if (event === 'revoked host permission') containsPermissions.mockResolvedValue(false);
+    await expect(confirm(requestId)).resolves.toMatchObject({ success: false });
+    expect(writeCalls()).toHaveLength(0);
+  });
+
+  it('revalidates access again after reading following and before dispatch', async () => {
+    prepare();
+    const requestId = await openConfirmation();
+    fetchMock.mockImplementationOnce(async () => {
+      containsPermissions.mockResolvedValue(false);
+      return following([target]);
+    });
+    await expect(confirm(requestId)).resolves.toMatchObject({ errorCode: 'ACCESS_REQUIRED' });
+    expect(writeCalls()).toHaveLength(0);
+  });
+
+  it('rejects invalid external contexts, invalid targets and other accounts', async () => {
+    const message = { type: 'REQUEST_UNFOLLOW', username: account.username, targetUserId: 202 };
+    const reply = vi.fn();
+    for (const sender of [
+      { ...documentSender, url: 'https://example.com/duofollow/' },
+      { ...documentSender, url: 'https://hedgerock.github.io/another-project/' },
+      { ...documentSender, frameId: 1 },
+    ])
       listener(message, sender, reply);
-      expect(reply).not.toHaveBeenCalled();
-    }
-    for (const id of [null, '202', 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
-      await expect(unfollow(id)).resolves.toMatchObject({ success: false });
-    }
+    expect(reply).not.toHaveBeenCalled();
+    for (const id of [null, '202', 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])
+      await expect(requestUnfollow(id)).resolves.toMatchObject({ success: false });
     expect(fetchMock).not.toHaveBeenCalled();
 
     fetchMock.mockResolvedValueOnce(resolveAccount());
-    await expect(unfollow(account.id)).resolves.toMatchObject({ success: false });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-
-    fetchMock.mockResolvedValueOnce(resolveAccount()).mockResolvedValueOnce(following([]));
-    await expect(unfollow()).resolves.toMatchObject({ success: false });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(fetchMock.mock.calls.some(([url]) => String(url) === targetUnfollowUrl)).toBe(false);
+    await expect(requestUnfollow(account.id)).resolves.toMatchObject({ success: false });
+    getCookie.mockResolvedValue(sessionCookie(999));
+    fetchMock.mockResolvedValueOnce(resolveAccount());
+    await expect(requestUnfollow()).resolves.toMatchObject({ errorCode: 'ACCOUNT_MISMATCH' });
+    expect(createWindow).not.toHaveBeenCalled();
+    expect(writeCalls()).toHaveLength(0);
   });
 
-  it.each([401, 403, 429])('reports HTTP %i during deletion without retrying', async (status) => {
-    fetchMock
-      .mockResolvedValueOnce(resolveAccount())
-      .mockResolvedValueOnce(following([{ userId: 202 }]))
-      .mockResolvedValueOnce(new Response(null, { status }));
-    await expect(unfollow()).resolves.toMatchObject({
-      success: false,
-      error: expect.stringContaining(`HTTP ${status}`),
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-  });
+  it.each([
+    { cursor: null, total: 0, code: 'NOT_FOLLOWING' },
+    { cursor: null, total: 1, code: 'NOT_FOUND_IN_PARTIAL_RESULT' },
+    { cursor: 'v1:500', total: 1, code: 'NOT_FOUND_IN_PARTIAL_RESULT' },
+  ])(
+    'reports $code before opening the popup and before writing',
+    async ({ cursor, total, code }) => {
+      fetchMock
+        .mockResolvedValueOnce(resolveAccount())
+        .mockResolvedValueOnce(following([], total, cursor));
+      await expect(requestUnfollow()).resolves.toMatchObject({ errorCode: code });
+      expect(createWindow).not.toHaveBeenCalled();
+
+      prepare().mockResolvedValueOnce(following([], total, cursor));
+      await expect(unfollow()).resolves.toMatchObject({ errorCode: code });
+      expect(writeCalls()).toHaveLength(0);
+    },
+  );
+
+  it.each([401, 403, 429])(
+    'keeps definitive HTTP %i separate from an unknown outcome',
+    async (code) => {
+      prepare()
+        .mockResolvedValueOnce(following([target]))
+        .mockResolvedValueOnce(new Response(null, { status: code }));
+      await expect(unfollow()).resolves.toMatchObject({
+        success: false,
+        error: expect.stringContaining(`HTTP ${code}`),
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(writeCalls()).toHaveLength(1);
+    },
+  );
 
   it.each([
     ['explicit refusal', () => Promise.resolve(Response.json({ successful: false }))],
     ['non-boolean success', () => Promise.resolve(Response.json({ successful: 'true' }))],
     ['invalid JSON', () => Promise.resolve(new Response('{'))],
-    ['a network failure', () => Promise.reject(new Error('Connection closed'))],
-    ['a timeout', () => Promise.reject(new DOMException('Timed out', 'TimeoutError'))],
+    ['network failure', () => Promise.reject(new Error('Connection closed'))],
+    ['timeout', () => Promise.reject(new DOMException('Timed out', 'TimeoutError'))],
     ['HTTP 503', () => Promise.resolve(new Response(null, { status: 503 }))],
-  ])('keeps deletion unconfirmed after %s', async (_name, outcome) => {
-    fetchMock
-      .mockResolvedValueOnce(resolveAccount())
-      .mockResolvedValueOnce(following([{ userId: 202 }]))
-      .mockImplementationOnce(outcome);
-    await expect(unfollow()).resolves.toMatchObject({
-      success: false,
-      errorCode: 'UNFOLLOW_UNCONFIRMED',
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+  ])(
+    'only reads after %s and retains an unknown outcome on a partial list',
+    async (_name, respond) => {
+      prepare()
+        .mockResolvedValueOnce(following([target]))
+        .mockImplementationOnce(respond)
+        .mockResolvedValueOnce(following([], 9));
+      await expect(unfollow()).resolves.toMatchObject({ errorCode: 'UNFOLLOW_UNCONFIRMED' });
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+      expect(writeCalls()).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    { list: () => following([], 0, null), result: { success: true, targetUserId: 202 } },
+    { list: () => following([target]), result: { success: false, errorCode: 'STILL_FOLLOWING' } },
+  ])('returns the observed state after an uncertain write', async ({ list, result }) => {
+    prepare()
+      .mockResolvedValueOnce(following([target]))
+      .mockRejectedValueOnce(new Error('Connection closed'))
+      .mockResolvedValueOnce(list());
+    await expect(unfollow()).resolves.toMatchObject(result);
+    expect(writeCalls()).toHaveLength(1);
   });
 
-  it('deduplicates a pending deletion across tabs', async () => {
-    let complete!: (response: Response) => void;
-    let started!: () => void;
-    const deleting = new Promise<void>((resolve) => {
-      started = resolve;
+  it('does not recheck an uncertain write in a different session', async () => {
+    prepare()
+      .mockResolvedValueOnce(following([target]))
+      .mockImplementationOnce(async () => {
+        getCookie.mockResolvedValue(sessionCookie(999));
+        throw new Error('Connection closed');
+      });
+    await expect(unfollow()).resolves.toMatchObject({ errorCode: 'UNFOLLOW_UNCONFIRMED' });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(writeCalls()).toHaveLength(1);
+  });
+
+  it('claims a confirmation once and recovers the same receipt after worker restart', async () => {
+    let requestStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      requestStarted = resolve;
     });
-    fetchMock
-      .mockResolvedValueOnce(resolveAccount())
-      .mockResolvedValueOnce(following([{ userId: 202 }]))
-      .mockImplementationOnce(
-        () =>
-          new Promise<Response>((resolve) => {
-            complete = resolve;
-            started();
-          }),
-      )
-      .mockResolvedValueOnce(resolveAccount());
-    const pending = unfollow();
-    await deleting;
-    await expect(unfollow()).resolves.toMatchObject({
+    let finishDelete!: (response: Response) => void;
+    prepare()
+      .mockResolvedValueOnce(following([target]))
+      .mockImplementationOnce(() => {
+        requestStarted();
+        return new Promise((resolve) => {
+          finishDelete = resolve;
+        });
+      });
+
+    const requestId = await openConfirmation();
+    const pending = confirm(requestId);
+    await started;
+    await expect(confirm(requestId)).resolves.toMatchObject({ errorCode: 'UNFOLLOW_CANCELLED' });
+    await expect(requestUnfollow()).resolves.toMatchObject({
       success: false,
       error: expect.stringContaining('уже выполняется'),
     });
-    complete(Response.json({ successful: true }));
-    await expect(pending).resolves.toMatchObject({ success: true });
-    expect(fetchMock.mock.calls.filter(([url]) => String(url) === targetUnfollowUrl)).toHaveLength(
-      1,
-    );
+
+    vi.resetModules();
+    await import('@duofollow/extension/src/background');
+    fetchMock.mockResolvedValueOnce(following([], 0, null));
+    await expect(status(requestId)).resolves.toEqual({ success: true, targetUserId: 202 });
+    await expect(status(requestId)).resolves.toEqual({ success: true, targetUserId: 202 });
+    expect(writeCalls()).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    finishDelete(Response.json({ successful: true }));
+    await pending;
   });
 });

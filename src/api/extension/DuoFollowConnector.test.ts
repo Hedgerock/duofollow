@@ -98,7 +98,7 @@ describe('DuoFollowConnector', () => {
       errorCode: 'INVALID_RESPONSE',
     });
     await expect(client.unfollow('Learner', 202)).rejects.toMatchObject({
-      errorCode: 'UNFOLLOW_UNCONFIRMED',
+      errorCode: 'INVALID_RESPONSE',
     });
   });
 
@@ -217,15 +217,33 @@ describe('DuoFollowConnector', () => {
 
   it('sends one target ID and requires the reply to confirm that same target', async () => {
     const result = { success: true, targetUserId: 202 };
-    const sendMessage = stubRuntime(result);
+    const install = (status: unknown) => {
+      const sendMessage = vi.fn(
+        (_id: string, message: { type: string }, reply: (response: unknown) => void) => {
+          reply(
+            message.type === 'REQUEST_UNFOLLOW' ? { success: true, requestId: 'receipt' } : status,
+          );
+        },
+      );
+      vi.stubGlobal('chrome', { runtime: { sendMessage } });
+      return sendMessage;
+    };
+    const sendMessage = install(result);
     await expect(client.unfollow('Learner', 202)).resolves.toEqual(result);
-    expect(sendMessage).toHaveBeenCalledWith(
+    expect(sendMessage).toHaveBeenNthCalledWith(
+      1,
       'test-extension',
-      { type: 'UNFOLLOW', username: 'Learner', targetUserId: 202 },
+      { type: 'REQUEST_UNFOLLOW', username: 'Learner', targetUserId: 202 },
+      expect.any(Function),
+    );
+    expect(sendMessage).toHaveBeenNthCalledWith(
+      2,
+      'test-extension',
+      { type: 'GET_UNFOLLOW_STATUS', requestId: 'receipt' },
       expect.any(Function),
     );
     for (const unexpected of [{ success: true }, { success: true, targetUserId: 303 }]) {
-      stubRuntime(unexpected);
+      install(unexpected);
       await expect(client.unfollow('Learner', 202)).rejects.toMatchObject({
         errorCode: 'UNFOLLOW_UNCONFIRMED',
       });
@@ -262,15 +280,35 @@ describe('DuoFollowConnector', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('treats a lost unfollow reply as an unknown outcome without resending', async () => {
-    vi.useFakeTimers();
-    const sendMessage = vi.fn();
-    vi.stubGlobal('chrome', { runtime: { sendMessage } });
-    const assertion = expect(client.unfollow('Learner', 202)).rejects.toMatchObject({
-      errorCode: 'UNFOLLOW_UNCONFIRMED',
+  it('refuses the legacy destructive protocol', async () => {
+    const sendMessage = stubRuntime({ success: false, error: 'Unsupported message' });
+    await expect(client.unfollow('Learner', 202)).rejects.toMatchObject({
+      errorCode: 'CONNECTOR_OUTDATED',
     });
-    await vi.advanceTimersByTimeAsync(45_000);
-    await assertion;
     expect(sendMessage).toHaveBeenCalledOnce();
+  });
+
+  it('retries the status after a lost reply without submitting the action again', async () => {
+    vi.useFakeTimers();
+    let checks = 0;
+    const sendMessage = vi.fn(
+      (_id: string, { type }: { type: string }, reply: (value: unknown) => void) => {
+        if (type === 'REQUEST_UNFOLLOW') reply({ success: true, requestId: 'receipt' });
+        else if (++checks === 2) reply({ success: true, targetUserId: 202 });
+      },
+    );
+    vi.stubGlobal('chrome', { runtime: { sendMessage } });
+    const assertion = expect(client.unfollow('Learner', 202)).resolves.toEqual({
+      success: true,
+      targetUserId: 202,
+    });
+    await vi.advanceTimersByTimeAsync(16_000);
+    await assertion;
+    expect(sendMessage.mock.calls.map(([, message]) => message.type)).toEqual([
+      'REQUEST_UNFOLLOW',
+      'GET_UNFOLLOW_STATUS',
+      'GET_UNFOLLOW_STATUS',
+    ]);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

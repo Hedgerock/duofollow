@@ -46,5 +46,32 @@
   },
   "accessCheckError": {
     "message": "Не вдалося перевірити дозволи."
+  },
+  "unfollowTitle": {
+    "message": "Підтвердження відписки"
+  },
+  "unfollowAccount": {
+    "message": "Активний акаунт"
+  },
+  "unfollowTarget": {
+    "message": "Профіль для відписки"
+  },
+  "unfollowCancel": {
+    "message": "Скасувати"
+  },
+  "unfollowConfirm": {
+    "message": "Відписатися"
+  },
+  "unfollowChecking": {
+    "message": "Перевірка підписки…"
+  },
+  "unfollowUnavailable": {
+    "message": "Запит недоступний. Результат можна перевірити в DuoFollow."
+  },
+  "unfollowFinished": {
+    "message": "Операцію завершено. Результат показано в DuoFollow."
+  },
+  "unfollowClose": {
+    "message": "Закрити"
   }
 }

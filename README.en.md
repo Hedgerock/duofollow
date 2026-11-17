@@ -12,7 +12,7 @@ Desktop Chrome and the **DuoFollow Connector** extension are required. Build and
 2. The **Manage Duolingo access** page explains which data DuoFollow uses. **Open settings** opens the Connector settings, where **Grant access** enables access.
 3. The comparison form on the DuoFollow home page takes the username of the signed-in account. **Compare my follows** starts the comparison.
 4. The view controls switch between lists, and search finds profiles by name or `@username`. The sort control sits next to search. The arrow on each row opens the corresponding Duolingo profile.
-5. The person icon with a minus opens a confirmation dialog for unfollowing a non-mutual profile.
+5. The person icon with a minus starts an unfollow for a non-mutual profile. The DuoFollow Connector window asks for final confirmation.
 
 The result cards show how many follows and followers DuoFollow checked. **Partial** opens an explanation of why only part of a list was checked. The counter to the right of the list heading shows how many profiles are in the selected view. During search it shows matches out of that view’s total.
 

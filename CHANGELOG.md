@@ -15,6 +15,8 @@
 
 ### Changed
 
+- Unfollows require final confirmation in the Connector window. After a lost response, the Connector checks the follow again using a read-only request and keeps the profile in the list when the outcome remains unknown.
+
 - The **Partial** label opens and closes its explanation without resizing neighboring cards.
 
 - Browser tabs share Duolingo session checks and pause them after HTTP 429.
@@ -33,7 +35,7 @@
 
 - A malformed comparison reply shows an error and preserves the previous results.
 
-- Connector messages distinguish expired sessions, rate limits, timeouts, and unexpected replies. An unconfirmed unfollow prompts a fresh comparison.
+- Connector messages distinguish expired sessions, rate limits, timeouts, and unexpected replies.
 
 - Profile names and usernames use separate text directions. Search matches canonically equivalent Unicode names.
 - Long usernames, translated list headings, and Connector buttons fit at 125% text size.
