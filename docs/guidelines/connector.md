@@ -16,8 +16,8 @@ DuoFollow и открытая сессия Duolingo работают в одно
 
 ## Проверка подключения
 
-На странице управления доступом нажми «Открыть настройки». Страница расширения также открывается из меню Chrome. Она объясняет обработку данных
-и запрашивает разрешения `cookies` и `https://www.duolingo.com/*` после нажатия «Разрешить доступ».
+Кнопка «Открыть настройки» на странице управления доступом открывает настройки Connector. Настройки также доступны из меню Chrome.
+На странице описана обработка данных. Кнопка «Разрешить доступ» запрашивает разрешения `cookies` и `https://www.duolingo.com/*`.
 Connector сохраняет версию согласия в `chrome.storage.local`. Перед чтением cookie или обращением к Duolingo он
 проверяет сохранённое согласие и разрешения Chrome.
 
@@ -94,7 +94,7 @@ Connector учитывает `Retry-After` в секундах или в вид�
 Connector и интерфейс принимают HTTPS-аватары только с origin из
 [`duolingoAvatarOrigins.json`](../../extension/src/duolingoAvatarOrigins.json). Из этого списка Vite формирует `img-src` для всех
 HTML-страниц. Для локальных ресурсов разрешён собственный origin сайта. При отклонённой ссылке интерфейс показывает инициалы.
-Перед добавлением нового origin проверь, что Duolingo действительно возвращает его для аватаров, и обнови тесты.
+В список входят только origin, которые Duolingo возвращает для аватаров. Добавление origin сопровождается обновлением тестов.
 
 ## Маршруты Duolingo API
 
@@ -112,12 +112,12 @@ HTML-страниц. Для локальных ресурсов разрешён
 
 ### Обновление маршрута
 
-1. Обнови путь или версию нужной записи в `duolingoEndpoints.ts`.
-2. Выполни `npm --prefix extension run build` и перезагрузи DuoFollow Connector в `chrome://extensions`.
-3. Повтори действие на сайте и сверь адрес, статус и ответ запроса во вкладке Network инспектора service worker.
+1. Путь или версия маршрута задаются в соответствующей записи `duolingoEndpoints.ts`.
+2. Команда `npm --prefix extension run build` собирает расширение. Затем DuoFollow Connector перезагружается в `chrome://extensions`.
+3. Повтор действия на сайте позволяет сверить адрес, статус и ответ запроса во вкладке Network инспектора service worker.
 
-Если меняются параметры запроса или поля ответа, проверь [обработчики](../../extension/src/duolingo.ts)
+При изменении параметров запроса или полей ответа проверяются [обработчики](../../extension/src/duolingo.ts)
 и [типы ответов](../../extension/src/dto/DuolingoFollowingDto.ts).
-При смене домена проверь `optional_host_permissions` в `extension/manifest.json` и `DUOLINGO_PERMISSIONS` в `duolingoAccess.ts`.
+Смена домена требует сверки `optional_host_permissions` в `extension/manifest.json` и `DUOLINGO_PERMISSIONS` в `duolingoAccess.ts`.
 
 [К руководству разработчика](development-guidelines.md)
