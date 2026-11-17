@@ -92,7 +92,10 @@ export class DuoFollowConnector {
     if (!isConnectorSuccess(result)) throw new Error('Настройки Connector недоступны.');
   }
 
-  watchAccessChanges(onChange: (change: AccessChange) => void): (() => void) | undefined {
+  watchAccessChanges(
+    onChange: (change: AccessChange) => void,
+    onQuickUnfollowChange?: (enabled: boolean) => void,
+  ): (() => void) | undefined {
     const runtime = globalThis.chrome?.runtime;
     if (!runtime?.connect || !this.extensionId) return;
 
@@ -100,13 +103,12 @@ export class DuoFollowConnector {
       const port = runtime.connect(this.extensionId, { name: 'duofollow-access' });
       let connected = true;
       port.onMessage.addListener((message: unknown) => {
-        if (
-          message &&
-          typeof message === 'object' &&
-          'access' in message &&
-          (message.access === 'granted' || message.access === 'revoked')
-        ) {
+        if (!connected || !message || typeof message !== 'object') return;
+        if ('access' in message && (message.access === 'granted' || message.access === 'revoked')) {
           onChange(message.access);
+        }
+        if ('quickUnfollow' in message && typeof message.quickUnfollow === 'boolean') {
+          onQuickUnfollowChange?.(message.quickUnfollow);
         }
       });
       port.onDisconnect.addListener(() => {
@@ -144,12 +146,18 @@ export class DuoFollowConnector {
     const result = await this.send<unknown>({ type: 'GET_QUICK_UNFOLLOW' }, 1_500).catch(
       () => null,
     );
-    return isConnectorSuccess(result) && 'enabled' in result && result.enabled === true;
+    return (
+      isConnectorSuccess(result) &&
+      'enabled' in result &&
+      result.enabled === true &&
+      'confirmation' in result &&
+      result.confirmation === 'website'
+    );
   }
 
-  async unfollow(username: string, targetUserId: number): Promise<UnfollowResult> {
+  async unfollow(username: string, targetUserId: number, quick = false): Promise<UnfollowResult> {
     const request = await this.send<UnfollowRequestResult>(
-      { type: 'REQUEST_UNFOLLOW', username, targetUserId },
+      { type: quick ? 'REQUEST_QUICK_UNFOLLOW' : 'REQUEST_UNFOLLOW', username, targetUserId },
       28_000,
     );
     if (isConnectorFailure(request)) {
@@ -160,6 +168,16 @@ export class DuoFollowConnector {
     }
     if (!isConnectorSuccess(request) || typeof request.requestId !== 'string' || !request.requestId)
       throw new ConnectorError('INVALID_RESPONSE', 'Расширение вернуло неожиданный ответ.');
+
+    if (quick) {
+      // Recover through the same receipt if the worker loses the confirmation reply.
+      const result = await this.send<UnfollowResult>(
+        { type: 'CONFIRM_QUICK_UNFOLLOW', requestId: request.requestId },
+        15_000,
+      ).catch(() => undefined);
+      if (isConnectorFailure(result)) return result;
+      if (isConnectorSuccess(result) && result.targetUserId === targetUserId) return result;
+    }
 
     const deadline = Date.now() + unfollowConfirmationMs + 55_000;
     let failedChecks = 0;
@@ -197,8 +215,12 @@ export class DuoFollowConnector {
     message:
       | { type: 'GET_DUOLINGO_ACCESS' | 'OPEN_DUOLINGO_SETTINGS' | 'GET_QUICK_UNFOLLOW' }
       | { type: 'GET_FOLLOWING_SUMMARY'; username: string }
-      | { type: 'REQUEST_UNFOLLOW'; username: string; targetUserId: number }
-      | { type: 'GET_UNFOLLOW_STATUS'; requestId: string },
+      | {
+          type: 'REQUEST_UNFOLLOW' | 'REQUEST_QUICK_UNFOLLOW';
+          username: string;
+          targetUserId: number;
+        }
+      | { type: 'GET_UNFOLLOW_STATUS' | 'CONFIRM_QUICK_UNFOLLOW'; requestId: string },
     timeoutMs: number,
   ): Promise<Result> {
     const runtime = globalThis.chrome?.runtime;

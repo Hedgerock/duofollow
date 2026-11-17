@@ -219,6 +219,50 @@ test('marks incomplete follower data at 320 px without offering unfollow', async
     .toBe(320);
 });
 
+test('confirms quick unfollow in the site dialog and keeps the card after cancel', async ({
+  page,
+}) => {
+  const panel = await openComparison(page, { quickUnfollow: true });
+  const target = panel.locator('[data-following-id="4"]');
+  const action = target.getByRole('button', { name: /^Unfollow / });
+  const dialog = page.getByRole('dialog', { name: 'Unfollow this user?' });
+  await action.click();
+  await expect(dialog).toBeVisible();
+  expect(await connectorCommands(page)).not.toContain('REQUEST_QUICK_UNFOLLOW');
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(target).toBeVisible();
+  expect(await connectorCommands(page)).not.toContain('REQUEST_QUICK_UNFOLLOW');
+
+  await action.click();
+  await dialog.getByRole('button', { name: 'Unfollow', exact: true }).click();
+  await expect(target).toHaveCount(0);
+  expect((await connectorCommands(page)).filter((type) => type.includes('QUICK_UNFOLLOW'))).toEqual(
+    [
+      'GET_QUICK_UNFOLLOW',
+      'GET_QUICK_UNFOLLOW',
+      'REQUEST_QUICK_UNFOLLOW',
+      'CONFIRM_QUICK_UNFOLLOW',
+    ],
+  );
+});
+
+test('refreshes the open unfollow dialog when quick unfollow is turned off', async ({ page }) => {
+  const panel = await openComparison(page, { quickUnfollow: true });
+  const target = panel.locator('[data-following-id="4"]');
+  await target.getByRole('button', { name: /^Unfollow / }).click();
+  const dialog = page.getByRole('dialog', { name: 'Unfollow this user?' });
+  await expect(dialog.getByRole('button', { name: 'Unfollow', exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('duofollow-test:quick-unfollow', { detail: false }));
+  });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText('Anna Rivers', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Continue in Connector', exact: true }).click();
+  const commands = await connectorCommands(page);
+  expect(commands).toContain('REQUEST_UNFOLLOW');
+  expect(commands).not.toContain('REQUEST_QUICK_UNFOLLOW');
+});
+
 test('updates the all-received list only after confirmed unfollow', async ({ page }) => {
   const panel = await openComparison(page);
   const row = panel.locator('[data-following-id="3"]');

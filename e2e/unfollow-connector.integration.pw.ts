@@ -10,6 +10,10 @@ const mockNetwork = `
     const url = new URL(input);
     if (url.origin !== 'https://www.duolingo.com') throw new Error('Unexpected API origin');
     const path = url.pathname;
+    if (options.method === 'DELETE' && path.endsWith('/101/follow/303')) {
+      globalThis.unfollowWrites++;
+      return Response.json({ successful: true });
+    }
     if (options.method === 'DELETE' && path.endsWith('/101/follow/202')) {
       globalThis.unfollowWrites++;
       throw new Error('Lost DELETE response after applying the change');
@@ -18,7 +22,8 @@ const mockNetwork = `
       return Response.json({ users: [{ id: 101, username: 'Learner' }] });
     }
     if (options.method === 'GET' && path.endsWith('/101/following')) {
-      const users = globalThis.unfollowWrites ? [] : [{ userId: 202, username: 'Target' }];
+      const users = [{ userId: 202, username: 'Target' }, { userId: 303, username: 'QuickTarget' }]
+        .slice(globalThis.unfollowWrites);
       return Response.json({ following: { cursor: null, totalUsers: users.length, users } });
     }
     throw new Error('Unexpected API request');
@@ -109,7 +114,11 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
     }
 
     const preference = () => send({ type: 'GET_QUICK_UNFOLLOW' });
-    await expect(preference()).resolves.toEqual({ success: true, enabled: false });
+    await expect(preference()).resolves.toEqual({
+      success: true,
+      enabled: false,
+      confirmation: 'website',
+    });
     const canceled = await requestConfirmation();
     const hint = canceled.popup.locator('#quick-unfollow-hint');
     await expect(hint).toBeVisible();
@@ -124,7 +133,9 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
     await expect(consent).not.toBeChecked();
     await expect(settings.locator('#quick-unfollow-terms')).toBeVisible();
     await consent.check();
-    await expect.poll(preference).toEqual({ success: true, enabled: true });
+    await expect
+      .poll(preference)
+      .toEqual({ success: true, enabled: true, confirmation: 'website' });
     await settings.reload();
     await expect(consent).toBeChecked();
     await expect(hint).toBeHidden();
@@ -156,8 +167,28 @@ test('uses a real Connector window to authorize an unfollow and verifies a lost 
       )
       .toEqual({ success: true, targetUserId: 202 });
     expect(await writes()).toBe(1);
+
+    const pagesBeforeQuick = context.pages().length;
+    const quick = await send<{ success: boolean; requestId: string }>({
+      type: 'REQUEST_QUICK_UNFOLLOW',
+      username: 'Learner',
+      targetUserId: 303,
+    });
+    expect(quick.success).toBe(true);
+    expect(await writes()).toBe(1);
+    await expect(
+      send({
+        type: 'CONFIRM_QUICK_UNFOLLOW',
+        requestId: quick.requestId,
+      }),
+    ).resolves.toEqual({ success: true, targetUserId: 303 });
+    expect(await writes()).toBe(2);
+    expect(context.pages()).toHaveLength(pagesBeforeQuick);
+
     await consent.uncheck();
-    await expect.poll(preference).toEqual({ success: true, enabled: false });
+    await expect
+      .poll(preference)
+      .toEqual({ success: true, enabled: false, confirmation: 'website' });
     await settings.reload();
     await expect(consent).toBeEnabled();
     await expect(consent).not.toBeChecked();

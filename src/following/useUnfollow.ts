@@ -19,6 +19,7 @@ type UnfollowAction = {
   kind: 'unfollow';
   account: string;
   user: NonMutualFollowingUser;
+  quick: boolean;
   phase: 'checking-preference' | 'confirming' | 'requesting' | 'removing' | 'closed';
 };
 
@@ -26,6 +27,7 @@ interface UnfollowOptions {
   activity: FollowingActivity;
   account: string | undefined;
   connector: Pick<DuoFollowConnector, 'getQuickUnfollowPreference' | 'unfollow'>;
+  quickUnfollowUpdate: { enabled: boolean } | null;
   enabled: boolean;
   notify: (input: NotificationInput) => void;
   removeSubscription: (account: string, userId: number) => void;
@@ -36,6 +38,7 @@ export function useUnfollow({
   activity,
   account,
   connector,
+  quickUnfollowUpdate,
   enabled,
   notify,
   removeSubscription,
@@ -43,6 +46,7 @@ export function useUnfollow({
 }: UnfollowOptions) {
   const [action, setAction] = useState<UnfollowAction | null>(null);
   const currentLocale = useRef(locale);
+  const lastQuickUnfollowUpdate = useRef(quickUnfollowUpdate);
 
   useLayoutEffect(() => {
     currentLocale.current = locale;
@@ -78,6 +82,22 @@ export function useUnfollow({
       closeAction(action);
   }, [action, activity, closeAction, enabled]);
 
+  useLayoutEffect(() => {
+    if (lastQuickUnfollowUpdate.current === quickUnfollowUpdate) return;
+    lastQuickUnfollowUpdate.current = quickUnfollowUpdate;
+    if (!enabled || !quickUnfollowUpdate || !action || activity.current !== action) return;
+    const quick = quickUnfollowUpdate.enabled;
+    if (
+      action.phase !== 'checking-preference' &&
+      (action.phase !== 'confirming' || action.quick === quick)
+    )
+      return;
+
+    const updated: UnfollowAction = { ...action, quick, phase: 'confirming' };
+    activity.current = updated;
+    setAction(updated);
+  }, [action, activity, enabled, quickUnfollowUpdate]);
+
   function cancelUnfollow() {
     if (action?.phase === 'confirming' && activity.current === action) closeAction(action);
   }
@@ -91,7 +111,7 @@ export function useUnfollow({
       const { user } = pending;
       const group = `unfollow:${user.userId}`;
       try {
-        const result = await connector.unfollow(pending.account, user.userId);
+        const result = await connector.unfollow(pending.account, user.userId, pending.quick);
         if (activity.current !== pending) return;
         if (isConnectorFailure(result)) {
           if (isConnectorErrorCode(result.errorCode)) {
@@ -146,6 +166,7 @@ export function useUnfollow({
         kind: 'unfollow',
         account,
         user,
+        quick: false,
         phase: 'checking-preference',
       };
       activity.current = checking;
@@ -153,13 +174,11 @@ export function useUnfollow({
 
       const quick = await connector.getQuickUnfollowPreference();
       if (activity.current !== checking) return;
-      if (quick) return requestUnfollow(checking);
-
-      const confirming: UnfollowAction = { ...checking, phase: 'confirming' };
+      const confirming: UnfollowAction = { ...checking, quick, phase: 'confirming' };
       activity.current = confirming;
       setAction(confirming);
     },
-    [account, activity, connector, enabled, requestUnfollow],
+    [account, activity, connector, enabled],
   );
 
   function confirmUnfollow() {
@@ -179,6 +198,7 @@ export function useUnfollow({
     confirmation: action && {
       account: action.account,
       user: action.user,
+      quick: action.quick,
       open: enabled && action.phase === 'confirming',
     },
     unfollowingId:

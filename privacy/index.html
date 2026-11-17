@@ -39,10 +39,10 @@
               To compare follows, the Connector sends the username entered on DuoFollow to Duolingo.
               It uses account IDs, usernames, display names, avatar URLs and follow relationships
               from the responses. The Connector compares the lists in the browser and sends the
-              results and relevant profile details to the DuoFollow page. After confirmation in the
-              Connector window, the extension sends the account ID and selected profile ID to
-              Duolingo to remove that follow. If the response is lost, the Connector can read the
-              follows again to check the result.
+              results and relevant profile details to the DuoFollow page. After the unfollow is
+              confirmed, the extension sends the account ID and selected profile ID to Duolingo to
+              remove that follow. If the response is lost, the Connector can read the follows again
+              to check the result.
             </p>
           </section>
           <section>
@@ -89,13 +89,13 @@
             <h2>Quick unfollow terms</h2>
             <p>
               Quick unfollow is optional and off by default. When enabled in the extension settings,
-              selecting unfollow on the website opens the extension window directly. Selecting
-              Unfollow in that window confirms removal of the selected follow.
+              selecting Unfollow in the DuoFollow website dialog confirms removal of the selected
+              follow without opening an extension window.
             </p>
             <p>
               The extension stores the setting locally. The DuoFollow site reads its on or off
-              status to decide which window to show first. Turning the setting off in the extension
-              settings restores the preliminary confirmation on the site.
+              status to select the confirmation flow. Turning the setting off in the extension
+              settings restores additional confirmation in the extension.
             </p>
           </section>
           <section>

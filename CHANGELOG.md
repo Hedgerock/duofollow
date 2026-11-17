@@ -4,7 +4,7 @@
 
 ### Added
 
-- Quick unfollow optionally opens the extension confirmation window directly. The setting is off by default and can be turned off again in the extension settings.
+- Quick unfollow lets the website dialog confirm a single unfollow. The standard flow asks for additional confirmation in the extension.
 
 - Comparison results show how many follows and followers were checked.
 - Switch between all received, mutual, and non-mutual follows. The all-received view highlights mutual follows and labels unconfirmed profiles when the followers list is incomplete.

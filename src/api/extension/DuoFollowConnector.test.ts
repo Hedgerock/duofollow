@@ -216,7 +216,7 @@ describe('DuoFollowConnector', () => {
   });
 
   it('enables quick unfollow only on a supported, affirmative settings reply', async () => {
-    const sendMessage = stubRuntime({ success: true, enabled: true });
+    const sendMessage = stubRuntime({ success: true, enabled: true, confirmation: 'website' });
     await expect(client.getQuickUnfollowPreference()).resolves.toBe(true);
     expect(sendMessage).toHaveBeenCalledWith(
       'test-extension',
@@ -224,7 +224,8 @@ describe('DuoFollowConnector', () => {
       expect.any(Function),
     );
     for (const response of [
-      { success: true, enabled: false },
+      { success: true, enabled: true },
+      { success: true, enabled: false, confirmation: 'website' },
       { success: true, enabled: 'true' },
       { success: false, error: 'Unsupported message' },
       undefined,
@@ -232,6 +233,32 @@ describe('DuoFollowConnector', () => {
       stubRuntime(response);
       await expect(client.getQuickUnfollowPreference()).resolves.toBe(false);
     }
+  });
+
+  it('reuses the quick receipt for read-only recovery if the confirmation reply is lost', async () => {
+    const replyResult = { success: true, targetUserId: 202 };
+    const runtime = {
+      lastError: undefined as { message: string } | undefined,
+      sendMessage: vi.fn(
+        (_id: string, message: { type: string }, reply: (response?: unknown) => void) => {
+          if (message.type === 'REQUEST_QUICK_UNFOLLOW')
+            reply({ success: true, requestId: 'receipt' });
+          if (message.type === 'CONFIRM_QUICK_UNFOLLOW') {
+            runtime.lastError = { message: 'Worker stopped' };
+            reply();
+            runtime.lastError = undefined;
+          }
+          if (message.type === 'GET_UNFOLLOW_STATUS') reply(replyResult);
+        },
+      ),
+    };
+    vi.stubGlobal('chrome', { runtime });
+    await expect(client.unfollow('Learner', 202, true)).resolves.toEqual(replyResult);
+    expect(runtime.sendMessage.mock.calls.map(([, message]) => message)).toEqual([
+      { type: 'REQUEST_QUICK_UNFOLLOW', username: 'Learner', targetUserId: 202 },
+      { type: 'CONFIRM_QUICK_UNFOLLOW', requestId: 'receipt' },
+      { type: 'GET_UNFOLLOW_STATUS', requestId: 'receipt' },
+    ]);
   });
 
   it('sends one target ID and requires the reply to confirm that same target', async () => {

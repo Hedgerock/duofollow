@@ -54,7 +54,7 @@
     "message": "Turn on quick unfollow"
   },
   "quickUnfollowTerms": {
-    "message": "When this setting is on, selecting unfollow on the website opens the extension window directly. Selecting Unfollow in that window starts removing the selected follow. This setting is optional and can be turned off at any time."
+    "message": "When this setting is on, selecting Unfollow in the DuoFollow dialog confirms removal of that follow without opening an extension window. Turning the setting off restores the extra confirmation in the extension."
   },
   "quickUnfollowHint": {
     "message": "Want to confirm an unfollow just once? Turn on Quick unfollow in the extension settings."

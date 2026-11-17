@@ -13,6 +13,7 @@ import {
   verifyUnfollowOutcome,
 } from '@duofollow/extension/src/duolingo';
 import { ACCESS_REQUIRED, hasDuolingoAccess } from '@duofollow/extension/src/duolingoAccess';
+import { isQuickUnfollowEnabled } from '@duofollow/extension/src/quickUnfollow';
 
 import type { ConnectorFailure } from '@duofollow/extension/src/dto/ConnectorError';
 import type { UnfollowResult } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
@@ -43,6 +44,7 @@ interface Confirmation {
   prepared?: { target: UnfollowTarget; preview: UnfollowPreview };
   windowId?: number;
   claimed: boolean;
+  quickSignal?: AbortSignal;
   revoked?: true;
   result?: UnfollowResult;
 }
@@ -57,6 +59,16 @@ type Attempt = AttemptReceipt & ({ target: UnfollowTarget } | { result: Unfollow
 
 type WithAccess = <T>(run: (signal: AbortSignal) => Promise<T>) => Promise<T>;
 
+function quickUnfollowDisabled() {
+  return new ConnectorError('QUICK_UNFOLLOW_DISABLED', 'Быстрая отписка выключена.');
+}
+
+async function requireQuickUnfollow(signal: AbortSignal) {
+  signal.throwIfAborted();
+  if (!(await isQuickUnfollowEnabled())) throw quickUnfollowDisabled();
+  signal.throwIfAborted();
+}
+
 function failure(error: unknown): ConnectorFailure {
   return { success: false, ...describeConnectorError(error) };
 }
@@ -64,6 +76,7 @@ function failure(error: unknown): ConnectorFailure {
 /** Keeps confirmation in worker memory and uses the journal only to read a lost outcome. */
 export function createUnfollowRequests(withAccess: WithAccess) {
   let accessRevision = 0;
+  let quickController = new AbortController();
   let confirmation: Confirmation | undefined;
   let recovery:
     { requestId: string; documentId: string; result: Promise<UnfollowResult> } | undefined;
@@ -96,10 +109,19 @@ export function createUnfollowRequests(withAccess: WithAccess) {
     });
   }
 
+  function revokeQuickUnfollow() {
+    quickController.abort(quickUnfollowDisabled());
+    quickController = new AbortController();
+    if (confirmation?.quickSignal && pending(confirmation.requestId)) {
+      confirmation.result = failure(quickUnfollowDisabled());
+    }
+  }
+
   async function request(
     documentId: string,
     username: unknown,
     targetUserId: unknown,
+    quick: boolean,
   ): Promise<UnfollowRequestResult> {
     if (
       recovery ||
@@ -115,14 +137,21 @@ export function createUnfollowRequests(withAccess: WithAccess) {
       documentId,
       expiresAt: Date.now() + unfollowConfirmationMs,
       claimed: false,
+      quickSignal: quick ? quickController.signal : undefined,
     };
     confirmation = action;
     try {
-      action.prepared = await withAccess((signal) =>
-        prepareUnfollow(action.requestId, username, targetUserId, signal),
-      );
-      if (!pending(action.requestId)) return confirmationUnavailable;
+      action.prepared = await withAccess(async (accessSignal) => {
+        const signal = action.quickSignal
+          ? AbortSignal.any([accessSignal, action.quickSignal])
+          : accessSignal;
+        if (action.quickSignal) await requireQuickUnfollow(signal);
+        return prepareUnfollow(action.requestId, username, targetUserId, signal);
+      });
+      if (!pending(action.requestId))
+        return action.result?.success === false ? action.result : confirmationUnavailable;
       action.expiresAt = Date.now() + unfollowConfirmationMs;
+      if (action.quickSignal) return { success: true, requestId: action.requestId };
       const url = chrome.runtime.getURL(unfollowConfirmationPage) + '#' + action.requestId;
       const popup = await chrome.windows.create({
         url,
@@ -141,25 +170,44 @@ export function createUnfollowRequests(withAccess: WithAccess) {
   }
 
   function preview(requestId: string) {
-    const data = pending(requestId)?.prepared?.preview;
+    const action = pending(requestId);
+    const data = action?.quickSignal ? undefined : action?.prepared?.preview;
     return data ? { success: true, preview: data } : confirmationUnavailable;
   }
 
   function cancel(requestId: string) {
     const action = pending(requestId);
-    if (action) action.result = confirmationUnavailable;
+    if (action && !action.quickSignal) action.result = confirmationUnavailable;
     return { success: true };
   }
 
   async function confirm(requestId: string): Promise<UnfollowResult> {
     const action = pending(requestId);
-    if (!action?.prepared) return confirmationUnavailable;
+    return action?.prepared && !action.quickSignal
+      ? execute(action, action.prepared.target)
+      : confirmationUnavailable;
+  }
 
+  async function confirmQuick(requestId: string, documentId: string): Promise<UnfollowResult> {
+    const action = pending(requestId);
+    if (action?.documentId === documentId && action.quickSignal && action.prepared) {
+      return execute(action, action.prepared.target);
+    }
+    if (
+      confirmation?.requestId === requestId &&
+      confirmation.documentId === documentId &&
+      confirmation.quickSignal?.aborted
+    ) {
+      return failure(quickUnfollowDisabled());
+    }
+    return confirmationUnavailable;
+  }
+
+  async function execute(action: Confirmation, target: UnfollowTarget): Promise<UnfollowResult> {
     // Claim synchronously. No second message can authorize the same write.
     action.claimed = true;
-    const { target } = action.prepared;
     const receipt: AttemptReceipt = {
-      requestId,
+      requestId: action.requestId,
       documentId: action.documentId,
       expiresAt: action.expiresAt + statusGraceMs,
     };
@@ -167,8 +215,12 @@ export function createUnfollowRequests(withAccess: WithAccess) {
     let writeStarted = false;
     let result: UnfollowResult;
     try {
-      result = await withAccess((signal) =>
-        performUnfollow(
+      result = await withAccess(async (accessSignal) => {
+        const signal = action.quickSignal
+          ? AbortSignal.any([accessSignal, action.quickSignal])
+          : accessSignal;
+        if (action.quickSignal) await requireQuickUnfollow(signal);
+        return performUnfollow(
           target,
           signal,
           async () => {
@@ -177,13 +229,14 @@ export function createUnfollowRequests(withAccess: WithAccess) {
             if (!(await hasDuolingoAccess())) {
               throw new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED);
             }
+            if (action.quickSignal) await requireQuickUnfollow(signal);
             signal.throwIfAborted();
           },
           () => {
             writeStarted = true;
           },
-        ),
-      );
+        );
+      });
     } catch (error) {
       const details = failure(error);
       result =
@@ -259,5 +312,15 @@ export function createUnfollowRequests(withAccess: WithAccess) {
     return result;
   }
 
-  return { request, preview, cancel, confirm, status, revoke, windowClosed };
+  return {
+    request,
+    preview,
+    cancel,
+    confirm,
+    confirmQuick,
+    status,
+    revoke,
+    revokeQuickUnfollow,
+    windowClosed,
+  };
 }

@@ -32,9 +32,11 @@ const { getConnectionStatus, getFollowingSummary, getQuickUnfollowPreference, un
     getConnectionStatus: vi.fn<() => Promise<ConnectorStatus>>(),
     getFollowingSummary: vi.fn<(username: string) => Promise<FollowingComparisonResult>>(),
     getQuickUnfollowPreference: vi.fn<() => Promise<boolean>>(),
-    unfollow: vi.fn<(username: string, targetUserId: number) => Promise<UnfollowResult>>(),
+    unfollow:
+      vi.fn<(username: string, targetUserId: number, quick?: boolean) => Promise<UnfollowResult>>(),
   }));
 let onAccessChanged: (change: AccessChange) => void;
+let onQuickUnfollowChanged: (enabled: boolean) => void;
 
 vi.mock('@duofollow/src/api/extension/DuoFollowConnector', () => ({
   DuoFollowConnector: class {
@@ -43,8 +45,12 @@ vi.mock('@duofollow/src/api/extension/DuoFollowConnector', () => ({
     getQuickUnfollowPreference = getQuickUnfollowPreference;
     unfollow = unfollow;
     openDuolingoSettings = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
-    watchAccessChanges(callback: (change: AccessChange) => void) {
+    watchAccessChanges(
+      callback: (change: AccessChange) => void,
+      quickUnfollow: (enabled: boolean) => void,
+    ) {
       onAccessChanged = callback;
+      onQuickUnfollowChanged = quickUnfollow;
       return () => {};
     }
   },
@@ -531,7 +537,7 @@ describe('comparison screen', () => {
     expect(app.workspace().props.inert).toBe(true);
   });
 
-  it('skips the site dialog only while quick unfollow is enabled', async () => {
+  it('keeps the site dialog and sends a quick request only after confirmation', async () => {
     getFollowingSummary.mockResolvedValueOnce(success('Saved'));
     getQuickUnfollowPreference.mockResolvedValueOnce(true);
     unfollow.mockResolvedValueOnce({
@@ -548,14 +554,90 @@ describe('comparison screen', () => {
     runEvent(list, 'onUnfollow', profile);
     runEvent(list, 'onUnfollow', profile);
     await flush();
-    expect(unfollow).toHaveBeenCalledOnce();
-    expect(app.dialog().props.confirmation).toMatchObject({ open: false });
+    expect(unfollow).not.toHaveBeenCalled();
+    expect(app.dialog().props.confirmation).toMatchObject({ open: true, quick: true });
+    runEvent(app.dialog(), 'onCancel');
+    expect(unfollow).not.toHaveBeenCalled();
+
+    getQuickUnfollowPreference.mockResolvedValueOnce(true);
+    runEvent(app.list(), 'onUnfollow', profile);
+    await flush();
+    const confirmation = app.dialog();
+    expect(confirmation.props.confirmation).toMatchObject({ open: true, quick: true });
+    runEvent(confirmation, 'onConfirm');
+    runEvent(confirmation, 'onConfirm');
+    await flush();
+    expect(unfollow).toHaveBeenCalledExactlyOnceWith('Saved', 1, true);
     expect(app.list().props.users).toHaveLength(1);
 
     runEvent(app.list(), 'onUnfollow', profile);
     await flush();
-    expect(app.dialog().props.confirmation).toMatchObject({ open: true });
+    expect(app.dialog().props.confirmation).toMatchObject({ open: true, quick: false });
     expect(unfollow).toHaveBeenCalledOnce();
+  });
+
+  it('updates the open dialog on quick unfollow changes and uses the latest mode', async () => {
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    getQuickUnfollowPreference.mockResolvedValueOnce(true);
+    unfollow.mockResolvedValueOnce({
+      success: false,
+      errorCode: 'UNFOLLOW_CANCELLED',
+      error: 'Cancelled',
+    });
+    const app = mountApp('Saved');
+    await app.connect();
+    await flush();
+    const list = app.list();
+    const [profile] = list.props.users as unknown[];
+    runEvent(list, 'onUnfollow', profile);
+    await flush();
+    expect(app.dialog().props.confirmation).toMatchObject({
+      open: true,
+      quick: true,
+      user: profile,
+    });
+
+    onQuickUnfollowChanged(false);
+    app.render();
+    expect(app.dialog().props.confirmation).toMatchObject({
+      open: true,
+      quick: false,
+      user: profile,
+    });
+    onQuickUnfollowChanged(true);
+    app.render();
+    expect(app.dialog().props.confirmation).toMatchObject({
+      open: true,
+      quick: true,
+      user: profile,
+    });
+    onQuickUnfollowChanged(false);
+    app.render();
+    runEvent(app.dialog(), 'onConfirm');
+    await flush();
+    expect(unfollow).toHaveBeenCalledExactlyOnceWith('Saved', 1, false);
+  });
+
+  it('ignores a stale quick preference reply after receiving a newer port update', async () => {
+    getFollowingSummary.mockResolvedValueOnce(success('Saved'));
+    let finishRead!: (enabled: boolean) => void;
+    getQuickUnfollowPreference.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishRead = resolve;
+      }),
+    );
+    const app = mountApp('Saved');
+    await app.connect();
+    await flush();
+    const list = app.list();
+    runEvent(list, 'onUnfollow', (list.props.users as unknown[])[0]);
+
+    onQuickUnfollowChanged(false);
+    app.render();
+    finishRead(true);
+    await flush();
+    expect(app.dialog().props.confirmation).toMatchObject({ open: true, quick: false });
+    expect(unfollow).not.toHaveBeenCalled();
   });
 
   it('ignores a quick unfollow setting reply received after access is revoked', async () => {
@@ -1033,7 +1115,7 @@ describe('comparison screen', () => {
     runEvent(dialog, 'onConfirm');
     runEvent(list, 'onUnfollow', other);
     app.submit();
-    expect(unfollow).toHaveBeenCalledExactlyOnceWith('Saved', 1);
+    expect(unfollow).toHaveBeenCalledExactlyOnceWith('Saved', 1, false);
     expect(getFollowingSummary).toHaveBeenCalledTimes(1);
     expect(app.list().props).toMatchObject({ users, unfollowingId: 1, removingId: null });
 

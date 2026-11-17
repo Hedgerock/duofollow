@@ -9,6 +9,7 @@ export interface UnfollowConfirmation {
   account: string;
   user: NonMutualFollowingUser;
   open: boolean;
+  quick: boolean;
 }
 
 interface UnfollowDialogProps {
@@ -66,7 +67,7 @@ export function UnfollowDialog({
           {messages.cancel}
         </button>
         <button type="button" className="unfollow-dialog-confirm" onClick={onConfirm}>
-          {messages.unfollowContinue}
+          {confirmation?.quick ? messages.unfollow : messages.unfollowContinue}
         </button>
       </div>
     </dialog>

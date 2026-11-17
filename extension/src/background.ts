@@ -12,7 +12,11 @@ import {
   hasDuolingoAccess,
 } from '@duofollow/extension/src/duolingoAccess';
 import { checkDuolingoSession } from '@duofollow/extension/src/duolingoSession';
-import { isQuickUnfollowEnabled } from '@duofollow/extension/src/quickUnfollow';
+import {
+  isQuickUnfollowEnabled,
+  QUICK_UNFOLLOW_CONSENT_KEY,
+  QUICK_UNFOLLOW_CONSENT_VERSION,
+} from '@duofollow/extension/src/quickUnfollow';
 import { createUnfollowRequests } from '@duofollow/extension/src/unfollowRequests';
 
 import type { ConnectorAccessResult } from '@duofollow/extension/src/dto/ConnectorSession';
@@ -44,21 +48,27 @@ function getSenderPath(sender?: chrome.runtime.MessageSender): string | undefine
   }
 }
 
-function notifyAccessChange(access: 'granted' | 'revoked') {
-  for (const port of accessListeners) {
-    try {
-      port.postMessage({ access });
-    } catch {
-      accessListeners.delete(port);
-    }
+type AccessEvent = { access: 'granted' | 'revoked' } | { quickUnfollow: boolean };
+
+function sendAccessEvent(port: chrome.runtime.Port, event: AccessEvent) {
+  try {
+    port.postMessage(event);
+  } catch {
+    accessListeners.delete(port);
   }
 }
+
+function broadcastAccessEvent(event: AccessEvent) {
+  for (const port of accessListeners) sendAccessEvent(port, event);
+}
+
+let quickUnfollowRevision = 0;
 
 function cancelAccess() {
   accessController.abort(new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED));
   accessController = new AbortController();
   unfollowRequests.revoke();
-  notifyAccessChange('revoked');
+  broadcastAccessEvent({ access: 'revoked' });
 }
 
 chrome.permissions.onRemoved.addListener(({ origins, permissions }) => {
@@ -75,10 +85,20 @@ chrome.permissions.onRemoved.addListener(({ origins, permissions }) => {
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local') return;
+  const quick = changes[QUICK_UNFOLLOW_CONSENT_KEY];
+  const quickWasEnabled = quick?.oldValue === QUICK_UNFOLLOW_CONSENT_VERSION;
+  const quickEnabled = quick?.newValue === QUICK_UNFOLLOW_CONSENT_VERSION;
+  if (quickWasEnabled !== quickEnabled) {
+    quickUnfollowRevision++;
+    if (!quickEnabled) unfollowRequests.revokeQuickUnfollow();
+    broadcastAccessEvent({ quickUnfollow: quickEnabled });
+  }
+
   const consent = changes[ACCESS_CONSENT_KEY];
-  if (area !== 'local' || !consent || consent.oldValue === consent.newValue) return;
+  if (!consent || consent.oldValue === consent.newValue) return;
   if (consent.newValue === ACCESS_CONSENT_VERSION) {
-    notifyAccessChange('granted');
+    broadcastAccessEvent({ access: 'granted' });
   } else {
     cancelAccess();
   }
@@ -91,6 +111,14 @@ chrome.runtime.onConnectExternal.addListener((port) => {
   }
   accessListeners.add(port);
   port.onDisconnect.addListener(() => accessListeners.delete(port));
+  const revision = quickUnfollowRevision;
+  void isQuickUnfollowEnabled()
+    .catch(() => false)
+    .then((quickUnfollow) => {
+      if (accessListeners.has(port) && revision === quickUnfollowRevision) {
+        sendAccessEvent(port, { quickUnfollow });
+      }
+    });
 });
 
 chrome.action.onClicked.addListener(() => {
@@ -188,17 +216,30 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
       );
     case 'GET_QUICK_UNFOLLOW':
       return replyWith(
-        isQuickUnfollowEnabled().then((enabled) => ({ success: true, enabled })),
+        isQuickUnfollowEnabled().then((enabled) => ({
+          success: true,
+          enabled,
+          confirmation: 'website',
+        })),
         sendResponse,
       );
     case 'REQUEST_UNFOLLOW':
+    case 'REQUEST_QUICK_UNFOLLOW':
       if (!sender.documentId) break;
       return replyWith(
         unfollowRequests.request(
           sender.documentId,
           'username' in message ? message.username : undefined,
           'targetUserId' in message ? message.targetUserId : undefined,
+          message.type === 'REQUEST_QUICK_UNFOLLOW',
         ),
+        sendResponse,
+      );
+    case 'CONFIRM_QUICK_UNFOLLOW':
+      if (!sender.documentId || !('requestId' in message) || typeof message.requestId !== 'string')
+        break;
+      return replyWith(
+        unfollowRequests.confirmQuick(message.requestId, sender.documentId),
         sendResponse,
       );
     case 'GET_UNFOLLOW_STATUS':

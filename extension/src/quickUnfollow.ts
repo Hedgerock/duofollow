@@ -1,5 +1,5 @@
 export const QUICK_UNFOLLOW_CONSENT_KEY = 'quickUnfollowConsent';
-export const QUICK_UNFOLLOW_CONSENT_VERSION = 1;
+export const QUICK_UNFOLLOW_CONSENT_VERSION = 2;
 
 /** Reads whether the browser profile has accepted the current quick-unfollow behavior. */
 export async function isQuickUnfollowEnabled(): Promise<boolean> {

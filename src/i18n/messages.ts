@@ -161,6 +161,7 @@ const ru = {
     NOT_FOUND_IN_PARTIAL_RESULT: 'Duolingo вернул часть подписок. Статус этого профиля неизвестен.',
     STILL_FOLLOWING: 'При проверке подписка по-прежнему была видна в списке.',
     UNFOLLOW_CANCELLED: 'Подтверждение отписки отменено или истекло.',
+    QUICK_UNFOLLOW_DISABLED: 'Быстрая отписка выключена. Открой диалог отписки заново.',
     UNFOLLOW_UNCONFIRMED: 'Не удалось узнать, была ли подписка удалена.',
   } satisfies Record<ConnectorErrorCode, string>,
   notifications: {
@@ -334,6 +335,7 @@ const en = {
       'Duolingo returned a partial list. The status of this profile is unknown.',
     STILL_FOLLOWING: 'The follow was still present when checked.',
     UNFOLLOW_CANCELLED: 'Unfollow confirmation was cancelled or expired.',
+    QUICK_UNFOLLOW_DISABLED: 'Quick unfollow is off. Open the unfollow dialog again.',
     UNFOLLOW_UNCONFIRMED: 'DuoFollow could not tell whether the follow was removed.',
   } satisfies Record<ConnectorErrorCode, string>,
   notifications: {
@@ -506,6 +508,7 @@ const uk = {
       'Duolingo повернув частину підписок. Статус цього профілю невідомий.',
     STILL_FOLLOWING: 'Під час перевірки підписка ще була в списку.',
     UNFOLLOW_CANCELLED: 'Підтвердження відписки скасовано або прострочено.',
+    QUICK_UNFOLLOW_DISABLED: 'Швидку відписку вимкнено. Відкрийте діалог відписки знову.',
     UNFOLLOW_UNCONFIRMED: 'Не вдалося з’ясувати, чи видалено підписку.',
   } satisfies Record<ConnectorErrorCode, string>,
   notifications: {

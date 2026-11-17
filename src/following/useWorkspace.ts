@@ -16,7 +16,10 @@ const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSIO
  * Revoking access clears the stored account and results.
  */
 export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
-  const { status, revision, refreshConnection } = useConnectorStatus(connector, workspaceVisible);
+  const { status, revision, refreshConnection, quickUnfollowUpdate } = useConnectorStatus(
+    connector,
+    workspaceVisible,
+  );
   const [dismissedRevision, setDismissedRevision] = useState<number | null>(null);
   const isReady = status === 'ready';
   const issue = status === 'checking' || status === 'ready' ? null : status;
@@ -57,6 +60,7 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     activity,
     account: comparison?.accountUsername,
     connector,
+    quickUnfollowUpdate,
     enabled: workspaceVisible && isReady,
     notify,
     removeSubscription,

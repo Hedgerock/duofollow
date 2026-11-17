@@ -45,11 +45,18 @@ const confirmationUrl = `chrome-extension://${extensionId}/unfollow-confirmation
 const documentSender = { url: approvedOrigin, frameId: 0, documentId: 'site-document' };
 const extensionSender = { id: extensionId, url: confirmationUrl, frameId: 0 };
 
-function requestUnfollow(targetUserId: unknown = 202): Promise<UnfollowRequestResult> {
+function requestUnfollow(
+  targetUserId: unknown = 202,
+  quick = false,
+): Promise<UnfollowRequestResult> {
   return new Promise((resolve) => {
     expect(
       listener(
-        { type: 'REQUEST_UNFOLLOW', username: account.username, targetUserId },
+        {
+          type: quick ? 'REQUEST_QUICK_UNFOLLOW' : 'REQUEST_UNFOLLOW',
+          username: account.username,
+          targetUserId,
+        },
         documentSender,
         (result) => resolve(result as UnfollowRequestResult),
       ),
@@ -57,8 +64,8 @@ function requestUnfollow(targetUserId: unknown = 202): Promise<UnfollowRequestRe
   });
 }
 
-async function openConfirmation() {
-  const result = await requestUnfollow();
+async function openConfirmation(quick = false) {
+  const result = await requestUnfollow(202, quick);
   if (!result.success) throw new Error(result.error);
   return result.requestId;
 }
@@ -67,6 +74,15 @@ const confirm = (requestId: string): Promise<UnfollowResult> =>
   new Promise((resolve) => {
     expect(
       internalListener({ type: 'CONFIRM_UNFOLLOW', requestId }, extensionSender, (result) =>
+        resolve(result as UnfollowResult),
+      ),
+    ).toBe(true);
+  });
+
+const confirmQuick = (requestId: string, sender = documentSender): Promise<UnfollowResult> =>
+  new Promise((resolve) => {
+    expect(
+      listener({ type: 'CONFIRM_QUICK_UNFOLLOW', requestId }, sender, (result) =>
         resolve(result as UnfollowResult),
       ),
     ).toBe(true);
@@ -287,6 +303,31 @@ describe('extension worker', () => {
     storageChanged({ [ACCESS_CONSENT_KEY]: { oldValue: 1, newValue: 1 } }, 'local');
     expect(port.postMessage).toHaveBeenCalledExactlyOnceWith({ access: 'granted' });
     expect(getCookie).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('pushes quick unfollow changes and discards an outdated initial snapshot', async () => {
+    const port = {
+      name: 'duofollow-access',
+      sender: { url: approvedOrigin },
+      onDisconnect: { addListener: vi.fn() },
+      disconnect: vi.fn(),
+      postMessage: vi.fn(),
+    };
+    let finishRead!: (settings: Record<string, unknown>) => void;
+    getSettings.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishRead = resolve;
+      }),
+    );
+    connectListener(port as unknown as chrome.runtime.Port);
+
+    storageChanged({ quickUnfollowConsent: { oldValue: 2 } }, 'local');
+    finishRead({ quickUnfollowConsent: 2 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(port.postMessage.mock.calls).toEqual([[{ quickUnfollow: false }]]);
+    storageChanged({ quickUnfollowConsent: { newValue: 2 } }, 'local');
+    expect(port.postMessage).toHaveBeenLastCalledWith({ quickUnfollow: true });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -873,11 +914,29 @@ describe('extension worker', () => {
   it('keeps quick unfollow opt-in and limits the preference to the main document', async () => {
     const message = { type: 'GET_QUICK_UNFOLLOW' };
     const request = () => new Promise((resolve) => listener(message, documentSender, resolve));
-    await expect(request()).resolves.toEqual({ success: true, enabled: false });
+    await expect(request()).resolves.toEqual({
+      success: true,
+      enabled: false,
+      confirmation: 'website',
+    });
     getSettings.mockResolvedValueOnce({ quickUnfollowConsent: true });
-    await expect(request()).resolves.toEqual({ success: true, enabled: false });
+    await expect(request()).resolves.toEqual({
+      success: true,
+      enabled: false,
+      confirmation: 'website',
+    });
     getSettings.mockResolvedValueOnce({ quickUnfollowConsent: 1 });
-    await expect(request()).resolves.toEqual({ success: true, enabled: true });
+    await expect(request()).resolves.toEqual({
+      success: true,
+      enabled: false,
+      confirmation: 'website',
+    });
+    getSettings.mockResolvedValueOnce({ quickUnfollowConsent: 2 });
+    await expect(request()).resolves.toEqual({
+      success: true,
+      enabled: true,
+      confirmation: 'website',
+    });
     const reply = vi.fn();
     listener(message, { ...documentSender, frameId: 1 }, reply);
     listener(
@@ -890,11 +949,69 @@ describe('extension worker', () => {
     expect(getCookie).not.toHaveBeenCalled();
   });
 
-  it('accepts the receipt only from the initiating document and approval only in the popup', async () => {
+  it('blocks old quick consent before reading a profile or creating a window', async () => {
     getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 1 });
+    await expect(requestUnfollow(202, true)).resolves.toMatchObject({
+      errorCode: 'QUICK_UNFOLLOW_DISABLED',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(createWindow).not.toHaveBeenCalled();
+  });
+
+  it('accepts one opt-in approval from the original document without a popup', async () => {
+    getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 2 });
+    prepare()
+      .mockResolvedValueOnce(following([target]))
+      .mockResolvedValueOnce(Response.json({ successful: true }));
+    const requestId = await openConfirmation(true);
+    expect(createWindow).not.toHaveBeenCalled();
+    expect(writeCalls()).toHaveLength(0);
+    await expect(
+      confirmQuick(requestId, { ...documentSender, documentId: 'another' }),
+    ).resolves.toMatchObject({ errorCode: 'UNFOLLOW_CANCELLED' });
+    await expect(confirm(requestId)).resolves.toMatchObject({ errorCode: 'UNFOLLOW_CANCELLED' });
+    expect(writeCalls()).toHaveLength(0);
+    await expect(confirmQuick(requestId)).resolves.toEqual({ success: true, targetUserId: 202 });
+    await expect(confirmQuick(requestId)).resolves.toMatchObject({
+      errorCode: 'UNFOLLOW_CANCELLED',
+    });
+    expect(writeCalls()).toHaveLength(1);
+    expect(createWindow).not.toHaveBeenCalled();
+  });
+
+  it('invalidates a pending opt-in receipt after the option is switched off', async () => {
+    getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 2 });
+    prepare();
+    const requestId = await openConfirmation(true);
+    storageChanged({ quickUnfollowConsent: { oldValue: 2 } }, 'local');
+    await expect(confirmQuick(requestId)).resolves.toMatchObject({
+      errorCode: 'QUICK_UNFOLLOW_DISABLED',
+    });
+    expect(writeCalls()).toHaveLength(0);
+  });
+
+  it('rechecks quick consent immediately before the write', async () => {
+    getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 2 });
+    prepare();
+    const requestId = await openConfirmation(true);
+    fetchMock.mockImplementationOnce(async () => {
+      getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1 });
+      return following([target]);
+    });
+    await expect(confirmQuick(requestId)).resolves.toMatchObject({
+      errorCode: 'QUICK_UNFOLLOW_DISABLED',
+    });
+    expect(writeCalls()).toHaveLength(0);
+  });
+
+  it('accepts the receipt only from the initiating document and approval only in the popup', async () => {
+    getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 2 });
     prepare();
     const requestId = await openConfirmation();
     const reply = vi.fn();
+    await expect(confirmQuick(requestId)).resolves.toMatchObject({
+      errorCode: 'UNFOLLOW_CANCELLED',
+    });
     const approval = { type: 'CONFIRM_UNFOLLOW', requestId };
     listener(approval, documentSender, reply);
     expect(reply).toHaveBeenLastCalledWith({ success: false, error: 'Unsupported message' });

@@ -15,6 +15,7 @@ export function useConnectorStatus(
     status: 'checking',
     revision: 0,
   });
+  const [quickUnfollowUpdate, setQuickUnfollowUpdate] = useState<{ enabled: boolean } | null>(null);
   const lastStatus = useRef<Status>('checking');
   const mounted = useRef(false);
   const visible = useRef(workspaceVisible);
@@ -78,23 +79,29 @@ export function useConnectorStatus(
     if (!mounted.current || !visible.current) return;
 
     // Keep the subscription during internal navigation. Only the workspace sends checks.
-    stopWatching.current ??= connector.watchAccessChanges((change) => {
-      if (!mounted.current) return;
-      if (change === 'disconnected') {
-        stopWatching.current = undefined;
-        needsCheck.current = true;
-        if (lastStatus.current === 'ready') {
-          // Ignore any response from a check that started before the port closed.
-          pending.current = null;
-          if (document.visibilityState !== 'hidden') refreshStatus();
+    stopWatching.current ??= connector.watchAccessChanges(
+      (change) => {
+        if (!mounted.current) return;
+        if (change === 'disconnected') {
+          stopWatching.current = undefined;
+          setQuickUnfollowUpdate({ enabled: false });
+          needsCheck.current = true;
+          if (lastStatus.current === 'ready') {
+            // Ignore any response from a check that started before the port closed.
+            pending.current = null;
+            if (document.visibilityState !== 'hidden') refreshStatus();
+          }
+          return;
         }
-        return;
-      }
-      pending.current = null;
-      needsCheck.current = change === 'granted';
-      publishStatus(change === 'granted' ? 'checking' : 'consent-required');
-      if (needsCheck.current && document.visibilityState !== 'hidden') refreshStatus();
-    });
+        pending.current = null;
+        needsCheck.current = change === 'granted';
+        publishStatus(change === 'granted' ? 'checking' : 'consent-required');
+        if (needsCheck.current && document.visibilityState !== 'hidden') refreshStatus();
+      },
+      (enabled) => {
+        if (mounted.current) setQuickUnfollowUpdate({ enabled });
+      },
+    );
   }, [connector, publishStatus, refreshStatus]);
 
   const refreshConnection = useCallback(() => {
@@ -134,5 +141,5 @@ export function useConnectorStatus(
     };
   }, [refreshConnection, watchAccess, workspaceVisible]);
 
-  return { ...connection, refreshConnection };
+  return { ...connection, refreshConnection, quickUnfollowUpdate };
 }

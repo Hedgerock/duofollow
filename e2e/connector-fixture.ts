@@ -86,6 +86,7 @@ export async function openComparison(
     identity,
     refreshFields,
     holdRefresh = false,
+    quickUnfollow = false,
   }: {
     incomplete?: boolean;
     theme?: 'dark' | 'light';
@@ -93,6 +94,7 @@ export async function openComparison(
     identity?: ComparisonIdentity;
     refreshFields?: Partial<Record<keyof FollowingComparison, unknown>>;
     holdRefresh?: boolean;
+    quickUnfollow?: boolean;
   } = {},
 ) {
   const summary = comparison(incomplete, profileCount, identity);
@@ -100,7 +102,7 @@ export async function openComparison(
     ? { ...summary, comparison: { ...summary.comparison, ...refreshFields } }
     : undefined;
   await page.addInitScript(
-    ({ summary, refreshSummary, theme, holdRefresh }) => {
+    ({ summary, refreshSummary, theme, holdRefresh, quickUnfollow }) => {
       let response: unknown = summary;
       let hasCompared = false;
       const refreshGate = holdRefresh
@@ -120,8 +122,23 @@ export async function openComparison(
         configurable: true,
         value: {
           connect() {
-            const event = { addListener() {} };
-            return { onMessage: event, onDisconnect: event, disconnect() {} };
+            let listener: ((message: unknown) => void) | undefined;
+            const onPreference = (event: Event) => {
+              quickUnfollow = (event as CustomEvent<boolean>).detail;
+              listener?.({ quickUnfollow });
+            };
+            window.addEventListener('duofollow-test:quick-unfollow', onPreference);
+            return {
+              onMessage: {
+                addListener(callback: (message: unknown) => void) {
+                  listener = callback;
+                },
+              },
+              onDisconnect: { addListener() {} },
+              disconnect() {
+                window.removeEventListener('duofollow-test:quick-unfollow', onPreference);
+              },
+            };
           },
           sendMessage(
             _id: string,
@@ -142,10 +159,15 @@ export async function openComparison(
                   if (refreshSummary) response = refreshSummary;
                   return;
                 }
+                case 'GET_QUICK_UNFOLLOW':
+                  reply({ success: true, enabled: quickUnfollow, confirmation: 'website' });
+                  return;
                 case 'REQUEST_UNFOLLOW':
+                case 'REQUEST_QUICK_UNFOLLOW':
                   unfollowTarget = message.targetUserId;
                   reply({ success: true, requestId: 'fixture-unfollow' });
                   return;
+                case 'CONFIRM_QUICK_UNFOLLOW':
                 case 'GET_UNFOLLOW_STATUS':
                   reply({ success: true, targetUserId: unfollowTarget });
                   return;
@@ -158,7 +180,7 @@ export async function openComparison(
       });
       if (!Reflect.get(window, 'chrome')) Reflect.set(window, 'chrome', chrome);
     },
-    { summary, refreshSummary, theme, holdRefresh },
+    { summary, refreshSummary, theme, holdRefresh, quickUnfollow },
   );
   await page.goto('/duofollow/');
   await page.locator('#duolingo-username').fill(identity?.accountUsername ?? 'lingua_demo');
