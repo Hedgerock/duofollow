@@ -8,6 +8,7 @@
 - Switch between all received, mutual, and non-mutual follows. The all-received view highlights mutual follows and labels unconfirmed profiles when the followers list is incomplete.
 - Follows can be sorted by name in either direction or shown in the order received.
 - Browser integration tests and screenshot comparisons can run in Docker Compose.
+- Pull requests run the browser integration and Linux screenshot checks.
 - The home page provides Open Graph metadata and a 1200 × 630 image for link previews.
 - Settings let visitors change text size and typeface and distinguish follow statuses by solid, dashed, and dotted markers.
 - A Chromium load test tracks retained JS heap, DOM nodes, and event listeners on a virtual list of 10,000 profiles.

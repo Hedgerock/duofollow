@@ -10,6 +10,7 @@ export default defineConfig({
   ],
   snapshotPathTemplate: '{testDir}/snapshots/{platform}/{testFilePath}/{arg}{ext}',
   updateSnapshots: 'none',
+  workers: process.env.CI ? 1 : undefined,
   use: {
     browserName: 'chromium',
     baseURL,
