@@ -24,6 +24,83 @@ test('filters received profiles and switches views without comparing again', asy
   ).toHaveLength(1);
 });
 
+test('highlights the matching nickname without resizing the searched list', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 820 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const panel = await openComparison(page, {
+    identity: {
+      accountUsername: 'lingua_demo',
+      profile: { displayName: 'Jer Sal', username: 'JerSal2' },
+    },
+  });
+  const search = panel.getByRole('searchbox');
+  const body = panel.locator('.virtual-following');
+  const size = () =>
+    body.evaluate((list) => {
+      const box = list.getBoundingClientRect();
+      return {
+        y: box.top - list.closest('section')!.getBoundingClientRect().top,
+        height: box.height,
+      };
+    });
+  const initial = await size();
+
+  await search.fill('ers');
+  const matches = panel.locator('[data-following-id]');
+  await expect(matches).toHaveCount(1);
+  await expect(matches.first()).toContainText('@JerSal2');
+  const highlight = matches.locator('mark');
+  await expect(highlight).toHaveText('erS');
+  await expect(highlight).toHaveAttribute('data-highlight', 'true');
+  expect(await size()).toEqual(initial);
+  await highlight.evaluate((mark) => {
+    const range = document.createRange();
+    range.selectNodeContents(mark);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  await expect(highlight).not.toHaveAttribute('data-highlight');
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('erS');
+  await expect(matches).toHaveCount(1);
+
+  await search.fill('not-found');
+  await expect(matches).toHaveCount(0);
+  expect(await size()).toEqual(initial);
+  await search.clear();
+  await expect(matches).toHaveCount(3);
+  expect(await size()).toEqual(initial);
+});
+
+test('keeps search in place when switching away from the legend', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 820 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const panel = await openComparison(page);
+  const search = panel.getByRole('searchbox');
+  const searchTop = () =>
+    search.evaluate(
+      (input) =>
+        input.getBoundingClientRect().top - input.closest('section')!.getBoundingClientRect().top,
+    );
+  const initial = await searchTop();
+  const listHeight = () =>
+    panel.locator('.virtual-following').evaluate((list) => list.getBoundingClientRect().height);
+  const initialHeight = await listHeight();
+  const legend = panel.locator('.following-legend');
+  const views = panel.getByRole('group', { name: 'Show follows' });
+  await expect(legend).toBeVisible();
+
+  for (const view of ['Mutual', 'Non-mutual']) {
+    await views.getByRole('button', { name: view, exact: true }).click();
+    await expect(legend).toBeHidden();
+    expect(await searchTop()).toBe(initial);
+    expect(await listHeight()).toBe(initialHeight);
+  }
+  await views.getByRole('button', { name: 'All received', exact: true }).click();
+  await expect(legend).toBeVisible();
+  expect(await searchTop()).toBe(initial);
+});
+
 test('reports a malformed comparison and restores the previous list', async ({ page }) => {
   const panel = await openComparison(page, { refreshFields: { following: {} } });
   await expect(panel.locator('[data-following-id]')).toHaveCount(3);

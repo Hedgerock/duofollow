@@ -603,6 +603,10 @@ main[inert] {
   list-style: none;
 }
 
+.following-legend[aria-hidden='true'] {
+  visibility: hidden;
+}
+
 .relationship-badge,
 .relationship-marker {
   --relationship-color: var(--text-muted);
@@ -752,7 +756,15 @@ main[inert] {
   font-size: 0.75rem;
   color: var(--text-muted);
 }
-.following-count {
+.following-count-slot {
+  display: inline-grid;
+  align-items: center;
+  justify-items: end;
+}
+
+.following-count,
+.following-count-measure {
+  grid-area: 1 / 1;
   display: inline-flex;
   align-items: baseline;
   justify-content: center;
@@ -767,13 +779,19 @@ main[inert] {
   font-variant-numeric: tabular-nums;
 }
 
-.following-count strong {
+.following-count-measure {
+  visibility: hidden;
+}
+
+.following-count strong,
+.following-count-measure strong {
   font-size: clamp(1.125rem, calc(2.3vw * var(--font-scale)), 1.375rem);
   font-weight: 750;
   line-height: 1.2;
 }
 
-.following-count small {
+.following-count small,
+.following-count-measure small {
   color: var(--text-soft);
   font-size: 0.6875rem;
 }
@@ -1473,6 +1491,48 @@ footer a,
   min-width: 0;
   max-width: calc(100% - 30px);
   pointer-events: none;
+}
+
+.following-search-match {
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+}
+
+.following-search-match[data-highlight='true'] {
+  background: color-mix(in srgb, var(--focus) 35%, transparent);
+  animation: following-search-match 1.5s ease both;
+}
+
+.following-count [data-search-count='true'] {
+  animation: following-count-reveal 180ms ease-out both;
+}
+
+@keyframes following-search-match {
+  0%,
+  100% {
+    background: transparent;
+  }
+  15%,
+  50% {
+    background: color-mix(in srgb, var(--focus) 35%, transparent);
+  }
+}
+
+@keyframes following-count-reveal {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .following-search-match[data-highlight='true'],
+  .following-count [data-search-count='true'] {
+    animation: none;
+  }
 }
 
 .profile-card-text > * {

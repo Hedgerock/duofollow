@@ -4,6 +4,7 @@ import { privacyPath } from '@duofollow/extension/src/locales';
 import { ConnectionDialog } from '@duofollow/src/ConnectionDialog';
 import { ComparisonSkeleton } from '@duofollow/src/following/ComparisonSkeleton';
 import { CoverageDetails } from '@duofollow/src/following/CoverageDetails';
+import { FollowingCount } from '@duofollow/src/following/FollowingCount';
 import { getDuolingoProfileUrl } from '@duofollow/src/following/profiles';
 import { RelationshipLegend } from '@duofollow/src/following/RelationshipLegend';
 import { FOLLOWING_ROW_HEIGHT } from '@duofollow/src/following/useFollowingViewport';
@@ -68,8 +69,18 @@ export function Workspace({
     unfollowingId,
     removingId,
   } = workspace;
-  const { activeView, hasFullView, canShowNonMutual, total, query, sort, searchTerm, users } =
-    followingList;
+  const {
+    activeView,
+    hasFullView,
+    canShowNonMutual,
+    total,
+    query,
+    sort,
+    searchTerm,
+    highlighting,
+    users,
+  } = followingList;
+  const formattedTotal = formatNumber(total);
   const listTitle = messages.followingViews[activeView];
   const followingCoverage = comparison?.coverage?.following;
   const followersCoverage = comparison?.coverage?.followers;
@@ -273,10 +284,12 @@ export function Workspace({
                         )}
                       </p>
                     </div>
-                    <span className="following-count" aria-live="polite" aria-atomic="true">
-                      <strong>{formatNumber(searchTerm ? users.length : total)}</strong>
-                      {searchTerm && <small> {messages.ofTotal(formatNumber(total))}</small>}
-                    </span>
+                    <FollowingCount
+                      displayed={searchTerm ? formatNumber(users.length) : formattedTotal}
+                      total={formattedTotal}
+                      ofTotal={messages.ofTotal(formattedTotal)}
+                      searching={!!searchTerm}
+                    />
                   </div>
 
                   {hasFullView && (
@@ -305,15 +318,14 @@ export function Workspace({
                           {messages.incompleteFollowersNote}
                         </p>
                       )}
-                      {activeView === 'all' && (
-                        <RelationshipLegend
-                          relationships={['mutual', canShowNonMutual ? 'non-mutual' : 'unknown']}
-                          messages={messages}
-                        />
-                      )}
+                      <RelationshipLegend
+                        relationships={['mutual', canShowNonMutual ? 'non-mutual' : 'unknown']}
+                        messages={messages}
+                        visible={activeView === 'all'}
+                      />
                     </div>
                   )}
-                  {total > 0 && (
+                  {(total > 0 || (hasFullView && comparison.checkedFollowing > 0)) && (
                     <div className="toolbar following-toolbar">
                       <input
                         type="search"
@@ -360,6 +372,8 @@ export function Workspace({
                   <VirtualFollowingList
                     key={comparison.accountUsername}
                     users={users}
+                    highlightTerm={searchTerm}
+                    highlighting={highlighting}
                     rowHeight={rowHeight}
                     viewKey={`${activeView}:${sort}:${sort === 'received' ? '' : locale}:${searchTerm}`}
                     label={listTitle}

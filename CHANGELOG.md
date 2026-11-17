@@ -5,6 +5,7 @@
 ### Added
 
 - The extension settings and confirmation window support a saved choice of English, Russian, or Ukrainian.
+- Search briefly highlights the matching characters in a profile name or username. The results area keeps its height while filtering.
 
 - Quick unfollow lets the website dialog confirm a single unfollow. The standard flow asks for additional confirmation in the extension.
 

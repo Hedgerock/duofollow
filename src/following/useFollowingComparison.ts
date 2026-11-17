@@ -13,6 +13,7 @@ import {
   getConnectorErrorDetails,
 } from '@duofollow/extension/src/dto/ConnectorError';
 import { isConnectorFailure } from '@duofollow/extension/src/dto/ConnectorResult';
+import { getSearchTerm, matchesSearch } from '@duofollow/src/following/followingSearch';
 import { getProfileDisplayName } from '@duofollow/src/following/profiles';
 import { localizedError, translations } from '@duofollow/src/i18n/messages';
 
@@ -33,9 +34,8 @@ export type FollowingView = 'all' | 'mutual' | 'non-mutual';
 const ACCOUNT_STORAGE_KEY = 'duofollow.accountUsername';
 const EMPTY_USERS: ComparedFollowingUser[] = [];
 
-function normalizeSearch(value: string) {
-  return value.normalize('NFC').toLowerCase();
-}
+const EMPTY_SEARCH = { query: '', highlight: false };
+const SEARCH_HIGHLIGHT_MS = 1_500;
 
 function readSavedUsername(): string {
   try {
@@ -67,7 +67,18 @@ export function useFollowingComparison(
     accountUsername ? { kind: 'comparison', username: accountUsername } : null,
   );
   const [comparison, setComparison] = useState<FollowingComparison | null>(null);
-  const [query, setQuery] = useState('');
+  const [search, setSearch] = useState(EMPTY_SEARCH);
+  const setQuery = useCallback((query: string) => {
+    setSearch({ query, highlight: !!getSearchTerm(query) });
+  }, []);
+
+  useEffect(() => {
+    if (!search.highlight) return;
+    const timer = setTimeout(() => {
+      setSearch((current) => (current === search ? { ...current, highlight: false } : current));
+    }, SEARCH_HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
   const [sort, setSort] = useState<FollowingSortOrder>('received');
   const [view, setView] = useState<FollowingView>('non-mutual');
   // React commits state asynchronously. Share ownership of the current operation between both hooks.
@@ -138,7 +149,7 @@ export function useFollowingComparison(
         saveUsername(data.accountUsername);
         setComparison(data);
         setAccountUsername(data.accountUsername);
-        setQuery('');
+        setSearch(EMPTY_SEARCH);
         if (quietRequest.current === request) return;
 
         const { format } = new Intl.NumberFormat(locale);
@@ -177,7 +188,7 @@ export function useFollowingComparison(
     setRequest(null);
     setComparison(null);
     setAccountUsername('');
-    setQuery('');
+    setSearch(EMPTY_SEARCH);
     try {
       window.localStorage.removeItem(ACCOUNT_STORAGE_KEY);
     } catch {
@@ -237,14 +248,13 @@ export function useFollowingComparison(
           compare(left.username, right.username)),
     );
   }, [locale, viewUsers, sort]);
-  const searchTerm = normalizeSearch(query.trim().replace(/^@/, ''));
+  const searchTerm = getSearchTerm(search.query);
   const visibleFollowing = useMemo(() => {
     if (!searchTerm) return orderedUsers;
 
     return orderedUsers.filter(
       ({ displayName, username }) =>
-        normalizeSearch(displayName).includes(searchTerm) ||
-        normalizeSearch(username).includes(searchTerm),
+        matchesSearch(displayName, searchTerm) || matchesSearch(username, searchTerm),
     );
   }, [orderedUsers, searchTerm]);
 
@@ -263,8 +273,9 @@ export function useFollowingComparison(
       hasFullView: following !== undefined,
       canShowNonMutual,
       total: viewUsers.length,
-      query,
+      query: search.query,
       setQuery,
+      highlighting: search.highlight,
       sort,
       setSort,
       searchTerm,

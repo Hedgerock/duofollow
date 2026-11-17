@@ -1,5 +1,6 @@
 import { memo } from 'react';
 
+import { HighlightedSearchText } from '@duofollow/src/following/HighlightedSearchText';
 import {
   getDuolingoProfileUrl,
   getProfileDisplayName,
@@ -22,6 +23,8 @@ import type { Messages } from '@duofollow/src/i18n/messages';
 interface ListProps {
   users: ComparedFollowingUser[];
   rowHeight?: number;
+  highlightTerm?: string;
+  highlighting?: boolean;
   /** Reset scroll when the visible view, search, or sort order changes. */
   viewKey: string;
   label: string;
@@ -36,6 +39,8 @@ interface ListProps {
 
 interface RowProps {
   user: ComparedFollowingUser;
+  highlightTerm: string;
+  highlighting: boolean;
   index: number;
   rowHeight: number;
   total: number;
@@ -48,6 +53,8 @@ interface RowProps {
 
 const FollowingRow = memo(function FollowingRow({
   user,
+  highlightTerm,
+  highlighting,
   index,
   rowHeight,
   total,
@@ -95,10 +102,32 @@ const FollowingRow = memo(function FollowingRow({
       <ProfileAvatar name={displayName || username} picture={user.picture} lazy />
       <div className="user-info profile-card-text">
         <strong title={name}>
-          <bdi>{name}</bdi>
+          <bdi>
+            {highlightTerm && (displayName || username) ? (
+              <HighlightedSearchText
+                key={highlightTerm}
+                text={name}
+                term={highlightTerm}
+                active={highlighting}
+              />
+            ) : (
+              name
+            )}
+          </bdi>
         </strong>
         <span title={identifier}>
-          <bdi>{identifier}</bdi>
+          <bdi>
+            {highlightTerm && username ? (
+              <HighlightedSearchText
+                key={highlightTerm}
+                text={identifier}
+                term={highlightTerm}
+                active={highlighting}
+              />
+            ) : (
+              identifier
+            )}
+          </bdi>
         </span>
       </div>
       {relationship === 'non-mutual' && (
@@ -146,6 +175,8 @@ const FollowingRow = memo(function FollowingRow({
 export const VirtualFollowingList = memo(function VirtualFollowingList({
   users,
   rowHeight = FOLLOWING_ROW_HEIGHT,
+  highlightTerm = '',
+  highlighting = false,
   viewKey,
   label,
   showRelationships,
@@ -182,6 +213,8 @@ export const VirtualFollowingList = memo(function VirtualFollowingList({
             <FollowingRow
               key={users[index].userId}
               user={users[index]}
+              highlightTerm={highlightTerm}
+              highlighting={highlighting}
               index={index}
               rowHeight={rowHeight}
               total={total}

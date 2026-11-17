@@ -8,3 +8,4 @@
 - [ADR-0004. Быстрая отписка](records/0004-quick-unfollow.md) — Accepted.
 - [ADR-0005. Подтверждение быстрой отписки на сайте](records/0005-quick-unfollow-site-confirmation.md) — Accepted.
 - [ADR-0006. Выбор языка интерфейса расширения](records/0006-extension-language.md) — Accepted.
+- [ADR-0007. Совпадения и геометрия списка при поиске](records/0007-following-search.md) — Accepted.
