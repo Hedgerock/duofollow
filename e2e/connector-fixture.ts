@@ -49,19 +49,6 @@ function comparison(
     : profiles.filter(({ relationship }) => relationship === 'non-mutual');
   return {
     success: true,
-    firstPage: {
-      received: profiles.length,
-      cursor: 'v1:500',
-      totalUsers: totalFollowing,
-      isFollowingTrue: profiles.length,
-      isFollowingFalse: 0,
-      isFollowedByTrue: 0,
-      isFollowedByFalse: 0,
-      isFollowedByMissingOrInvalid: profiles.length,
-    },
-    secondPage: null,
-    duplicatedUsers: 0,
-    uniqueUsers: profiles.length,
     comparison: {
       accountUsername: identity?.accountUsername ?? 'lingua_demo',
       accountPicture: null,

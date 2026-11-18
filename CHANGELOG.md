@@ -20,6 +20,8 @@
 
 ### Changed
 
+- DuoFollow rejects inconsistent comparison data and keeps the previous result when a refresh returns an invalid reply.
+
 - Unfollows require final confirmation in the Connector window. After a lost response, the Connector checks the follow again using a read-only request and keeps the profile in the list when the outcome remains unknown.
 
 - The **Partial** label opens and closes its explanation without resizing neighboring cards.

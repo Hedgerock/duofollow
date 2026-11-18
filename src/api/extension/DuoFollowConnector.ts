@@ -128,18 +128,19 @@ export class DuoFollowConnector {
   }
 
   async getFollowingSummary(username: string): Promise<FollowingComparisonResult> {
-    const result = await this.send<FollowingComparisonResult>(
-      { type: 'GET_FOLLOWING_SUMMARY', username },
-      30_000,
-    );
+    const result = await this.send<unknown>({ type: 'GET_FOLLOWING_SUMMARY', username }, 30_000);
     if (isConnectorFailure(result)) return result;
-    if (!isConnectorSuccess(result) || !isFollowingComparison(result.comparison)) {
+    if (
+      !isConnectorSuccess(result) ||
+      !('comparison' in result) ||
+      !isFollowingComparison(result.comparison)
+    ) {
       throw new ConnectorError(
         'INVALID_RESPONSE',
         'Outdated connector response. Reload the extension.',
       );
     }
-    return result;
+    return { success: true, comparison: result.comparison };
   }
 
   async getQuickUnfollowPreference(): Promise<boolean> {

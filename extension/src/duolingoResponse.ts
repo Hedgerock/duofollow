@@ -16,13 +16,13 @@ export async function assertDuolingoResponse(response: Response, message: string
   }
 }
 
-export async function readDuolingoJson<T>(
+export async function readDuolingoJson(
   response: Response,
   message: string,
   signal: AbortSignal,
-): Promise<T> {
+): Promise<unknown> {
   try {
-    return (await response.json()) as T;
+    return await response.json();
   } catch (error) {
     signal.throwIfAborted();
     if (error instanceof SyntaxError) throw new ConnectorError('INVALID_RESPONSE', message);

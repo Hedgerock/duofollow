@@ -660,10 +660,9 @@ describe('extension worker', () => {
       .mockResolvedValueOnce(followers([{ userId: 1 }]));
 
     const result = await compare('  @LEARNER  ');
+    expect(Object.keys(result).sort()).toEqual(['comparison', 'success']);
     expect(result).toMatchObject({
       success: true,
-      firstPage: { received: 3, isFollowedByFalse: 1, isFollowedByMissingOrInvalid: 2 },
-      secondPage: null,
       comparison: {
         accountUsername: 'Learner',
         accountPicture: account.picture,
@@ -715,8 +714,6 @@ describe('extension worker', () => {
 
     await expect(compare('Learner')).resolves.toMatchObject({
       success: true,
-      firstPage: { cursor: 'v1:500' },
-      secondPage: null,
       comparison: {
         checkedFollowing: 376,
         totalFollowing: 695,
@@ -909,6 +906,43 @@ describe('extension worker', () => {
     });
   });
 
+  it.each([0, -1, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects profile ID %s returned by the Duolingo API',
+    async (userId) => {
+      fetchMock
+        .mockResolvedValueOnce(resolveAccount())
+        .mockResolvedValueOnce(following([{ userId }]))
+        .mockResolvedValueOnce(followers([]));
+      await expect(compare('Learner')).resolves.toMatchObject({
+        success: false,
+        errorCode: 'INVALID_RESPONSE',
+      });
+    },
+  );
+
+  it('rejects an invalid profile returned by lookup before requesting lists', async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ users: [{ id: 0, username: account.username }] }),
+    );
+    await expect(compare(account.username)).resolves.toMatchObject({
+      success: false,
+      errorCode: 'INVALID_RESPONSE',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('does not cache readiness from a malformed Followers page', async () => {
+    fetchMock
+      .mockResolvedValueOnce(followers([{ userId: 0 }]))
+      .mockResolvedValueOnce(followers([]));
+    await expect(checkConnection()).resolves.toEqual({
+      session: 'duolingo-unavailable',
+      errorCode: 'INVALID_RESPONSE',
+    });
+    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('distinguishes malformed JSON, an invalid page and a failed fetch', async () => {
     fetchMock.mockResolvedValueOnce(new Response('{'));
     await expect(compare('Learner')).resolves.toMatchObject({
@@ -935,6 +969,16 @@ describe('extension worker', () => {
   const target = { userId: 202, username: 'Target' };
   const prepare = () =>
     fetchMock.mockResolvedValueOnce(resolveAccount()).mockResolvedValueOnce(following([target]));
+
+  it('does not send DELETE if the final Following page contains an invalid ID', async () => {
+    prepare().mockResolvedValueOnce(following([target, { userId: -1 }]));
+    const requestId = await openConfirmation();
+    await expect(confirm(requestId)).resolves.toMatchObject({
+      success: false,
+      errorCode: 'INVALID_RESPONSE',
+    });
+    expect(writeCalls()).toHaveLength(0);
+  });
 
   it('only deletes after the extension window confirms the bound account and target', async () => {
     prepare()

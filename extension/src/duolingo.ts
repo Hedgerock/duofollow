@@ -1,6 +1,11 @@
 import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import { isRecord, isUserId } from '@duofollow/extension/src/dto/validation';
 import { parseDuolingoAvatarUrl } from '@duofollow/extension/src/duolingoAvatarUrl';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
+import {
+  findAccountProfile,
+  parseRelationshipPage,
+} from '@duofollow/extension/src/duolingoPayload';
 import {
   assertDuolingoRateLimit,
   checkDuolingoRateLimit,
@@ -16,18 +21,15 @@ import {
 
 import type {
   ComparedFollowingUser,
-  DuolingoFollowingPageDto,
   FollowingComparisonResult,
-  FollowingPageSummary,
   RelationshipCoverageStatus,
   UnfollowResult,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import type { RelationshipList, RelationshipPage } from '@duofollow/extension/src/duolingoPayload';
 
 export const UNCONFIRMED_UNFOLLOW = 'Ответ Duolingo не удалось проверить.';
 const ACCOUNT_MISMATCH = 'Укажи имя аккаунта, в который ты вошёл в Duolingo.';
 
-type RelationshipList = 'following' | 'followers';
-type RelationshipPage = DuolingoFollowingPageDto['following'];
 type DuolingoAccount = { userId: string; username: string; picture: string | null };
 
 function readPicture(value: unknown): string | null {
@@ -72,25 +74,12 @@ async function getRelationshipPage(
   });
 
   await assertDuolingoResponse(response, `Duolingo ${list} returned HTTP ${response.status}`);
-  const data = await readDuolingoJson<Partial<Record<RelationshipList, RelationshipPage>> | null>(
+  const data = await readDuolingoJson(
     response,
     `Duolingo ${list} returned invalid JSON`,
     requestSignal,
   );
-  const page = data?.[list];
-
-  if (
-    !page ||
-    !Array.isArray(page.users) ||
-    page.users.some((user) => !Number.isSafeInteger(user?.userId)) ||
-    !Number.isSafeInteger(page.totalUsers) ||
-    page.totalUsers < 0 ||
-    (page.cursor != null && typeof page.cursor !== 'string')
-  ) {
-    throw new ConnectorError('INVALID_RESPONSE', `Duolingo returned an invalid ${list} page`);
-  }
-
-  return page;
+  return parseRelationshipPage(data, list);
 }
 
 function getRelationshipCoverage(
@@ -99,23 +88,6 @@ function getRelationshipCoverage(
 ): RelationshipCoverageStatus {
   if (cursor === null) return uniqueUsers === totalUsers ? 'complete' : 'total-mismatch';
   return cursor ? 'cursor-present' : 'cursor-missing';
-}
-
-function summarizeFollowingPage(page: RelationshipPage): FollowingPageSummary {
-  const { users, cursor, totalUsers } = page;
-  const isFollowedByTrue = users.filter((user) => user.isFollowedBy === true).length;
-  const isFollowedByFalse = users.filter((user) => user.isFollowedBy === false).length;
-
-  return {
-    received: users.length,
-    cursor: cursor || null,
-    totalUsers,
-    isFollowingTrue: users.filter((user) => user.isFollowing === true).length,
-    isFollowingFalse: users.filter((user) => user.isFollowing === false).length,
-    isFollowedByTrue,
-    isFollowedByFalse,
-    isFollowedByMissingOrInvalid: users.length - isFollowedByTrue - isFollowedByFalse,
-  };
 }
 
 async function requireSessionUserId(signal: AbortSignal): Promise<string> {
@@ -165,29 +137,13 @@ async function resolveDuolingoAccount(
   }
 
   await assertDuolingoResponse(response, `Поиск профиля Duolingo вернул HTTP ${response.status}.`);
-  const data = await readDuolingoJson<{
-    users?: Array<{ id?: unknown; username?: unknown; picture?: unknown }>;
-  } | null>(response, 'Duolingo вернул некорректный JSON при поиске профиля.', options.signal);
-
-  if (!Array.isArray(data?.users)) {
-    throw new ConnectorError(
-      'INVALID_RESPONSE',
-      'Duolingo вернул неожиданный ответ при поиске профиля.',
-    );
-  }
-
-  const account = data.users.find(
-    (user) =>
-      typeof user?.username === 'string' && user.username.toLowerCase() === username.toLowerCase(),
+  const data = await readDuolingoJson(
+    response,
+    'Duolingo вернул некорректный JSON при поиске профиля.',
+    options.signal,
   );
-
-  if (!account || typeof account.username !== 'string') {
-    throw new Error(`Профиль @${username} не найден.`);
-  }
-
-  if (typeof account.id !== 'number' || !Number.isSafeInteger(account.id) || account.id <= 0) {
-    throw new ConnectorError('INVALID_RESPONSE', 'Duolingo вернул некорректный ID профиля.');
-  }
+  const account = findAccountProfile(data, username);
+  if (!account) throw new Error(`Профиль @${username} не найден.`);
   if (String(account.id) !== sessionUserId)
     throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
 
@@ -246,10 +202,6 @@ export async function getFollowingSummary(
 
   return {
     success: true,
-    firstPage: summarizeFollowingPage(following),
-    secondPage: null,
-    duplicatedUsers: 0,
-    uniqueUsers: followingById.size,
     comparison: {
       coverage,
       checkedFollowing: followingById.size,
@@ -295,11 +247,7 @@ export async function prepareUnfollow(
   targetUserId: unknown,
   signal: AbortSignal,
 ) {
-  if (
-    typeof targetUserId !== 'number' ||
-    !Number.isSafeInteger(targetUserId) ||
-    targetUserId <= 0
-  ) {
+  if (!isUserId(targetUserId)) {
     throw new Error('У подписки некорректный ID.');
   }
 
@@ -402,10 +350,10 @@ export async function performUnfollow(
     await assertDuolingoResponse(response, message);
   }
 
-  const data: { successful?: unknown } | null = await response.json().catch(() => {
+  const data: unknown = await response.json().catch(() => {
     throw new ConnectorError('UNFOLLOW_UNCONFIRMED', UNCONFIRMED_UNFOLLOW);
   });
-  if (data?.successful !== true) {
+  if (!isRecord(data) || data.successful !== true) {
     throw new ConnectorError('UNFOLLOW_UNCONFIRMED', 'Duolingo не подтвердил отписку.');
   }
 

@@ -64,19 +64,6 @@ vi.mock('react', async (original) => ({
 function success(accountUsername: string, incomplete = false): FollowingComparisonResult {
   return {
     success: true,
-    firstPage: {
-      received: 1,
-      cursor: 'v1:500',
-      totalUsers: 2,
-      isFollowingTrue: 1,
-      isFollowingFalse: 0,
-      isFollowedByTrue: 0,
-      isFollowedByFalse: 1,
-      isFollowedByMissingOrInvalid: 0,
-    },
-    secondPage: null,
-    duplicatedUsers: 0,
-    uniqueUsers: 1,
     comparison: {
       accountUsername,
       checkedFollowing: 1,

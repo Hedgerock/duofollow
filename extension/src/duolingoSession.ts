@@ -1,5 +1,6 @@
-import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import { isUserId } from '@duofollow/extension/src/dto/validation';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
+import { parseRelationshipPage } from '@duofollow/extension/src/duolingoPayload';
 import {
   assertDuolingoRateLimit,
   checkDuolingoRateLimit,
@@ -23,7 +24,7 @@ function readSessionUserId(token: string | undefined): string | null {
     if (typeof subject !== 'string' && typeof subject !== 'number') return null;
 
     const userId = Number(subject);
-    if (!/^\d+$/.test(String(subject)) || !Number.isSafeInteger(userId) || userId <= 0) return null;
+    if (!/^\d+$/.test(String(subject)) || !isUserId(userId)) return null;
     if (typeof claims?.exp === 'number' && claims.exp * 1000 <= Date.now()) return null;
 
     return String(userId);
@@ -135,13 +136,11 @@ async function verifyDuolingoSession(
 
   if (response.status === 401) return 'signed-out';
   await assertDuolingoResponse(response, `Duolingo session check returned HTTP ${response.status}`);
-  const data = await readDuolingoJson<{ followers?: { users?: unknown } } | null>(
+  const data = await readDuolingoJson(
     response,
     'Duolingo session check returned invalid JSON',
     requestSignal,
   );
-  if (!Array.isArray(data?.followers?.users)) {
-    throw new ConnectorError('INVALID_RESPONSE', 'Duolingo session check returned an invalid page');
-  }
+  parseRelationshipPage(data, 'followers');
   return 'ready';
 }

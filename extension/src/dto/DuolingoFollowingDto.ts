@@ -1,47 +1,11 @@
 import type { ConnectorFailure } from '@duofollow/extension/src/dto/ConnectorError';
 
-export interface DuolingoFollowingUserDto {
+export interface NonMutualFollowingUser {
   userId: number;
   username: string;
   displayName: string;
-  picture: string | null;
-  isFollowing?: unknown;
-  isFollowedBy?: unknown;
+  picture?: string | null;
 }
-
-export interface FollowingPageSummary {
-  received: number;
-  cursor: string | null;
-  totalUsers: number;
-  isFollowingTrue: number;
-  isFollowingFalse: number;
-  isFollowedByTrue: number;
-  isFollowedByFalse: number;
-  isFollowedByMissingOrInvalid: number;
-}
-
-export interface FollowingPaginationDiagnostics {
-  success: true;
-  firstPage: FollowingPageSummary;
-  secondPage: FollowingPageSummary | null;
-  duplicatedUsers: number;
-  uniqueUsers: number;
-}
-
-export type FollowingPaginationResult = FollowingPaginationDiagnostics | ConnectorFailure;
-
-export interface DuolingoFollowingPageDto {
-  following: {
-    cursor?: string | null;
-    totalUsers: number;
-    users: DuolingoFollowingUserDto[];
-  };
-}
-
-export type NonMutualFollowingUser = Pick<
-  DuolingoFollowingUserDto,
-  'userId' | 'username' | 'displayName'
-> & { picture?: string | null };
 
 export type FollowingRelationship = 'mutual' | 'non-mutual' | 'unknown';
 
@@ -73,6 +37,6 @@ export interface FollowingComparison {
 }
 
 export type FollowingComparisonResult =
-  (FollowingPaginationDiagnostics & { comparison: FollowingComparison }) | ConnectorFailure;
+  { success: true; comparison: FollowingComparison } | ConnectorFailure;
 
 export type UnfollowResult = { success: true; targetUserId: number } | ConnectorFailure;

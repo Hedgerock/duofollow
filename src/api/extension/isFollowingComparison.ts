@@ -1,25 +1,19 @@
 import { relationshipCoverageStatuses } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
+import { isCount, isRecord, isUserId } from '@duofollow/extension/src/dto/validation';
 
 import type {
   ComparedFollowingUser,
   FollowingComparison,
   NonMutualFollowingUser,
+  RelationshipCoverageStatus,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function isCoverageStatus(value: unknown): boolean {
   return relationshipCoverageStatuses.some((status) => status === value);
 }
 
 function hasCoverageStatuses(value: unknown): boolean {
-  return isObject(value) && isCoverageStatus(value.following) && isCoverageStatus(value.followers);
-}
-
-function isCount(value: unknown): boolean {
-  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+  return isRecord(value) && isCoverageStatus(value.following) && isCoverageStatus(value.followers);
 }
 
 function isOptionalPicture(value: unknown): boolean {
@@ -28,8 +22,8 @@ function isOptionalPicture(value: unknown): boolean {
 
 function isFollowingUser(value: unknown): value is NonMutualFollowingUser {
   return (
-    isObject(value) &&
-    Number.isSafeInteger(value.userId) &&
+    isRecord(value) &&
+    isUserId(value.userId) &&
     typeof value.username === 'string' &&
     typeof value.displayName === 'string' &&
     isOptionalPicture(value.picture)
@@ -54,10 +48,9 @@ function isProfileList(value: unknown, checkUser: (value: unknown) => boolean): 
   return true;
 }
 
-/** Checks the data the comparison screen consumes, including optional lists from older replies. */
-export function isFollowingComparison(value: unknown): value is FollowingComparison {
+function hasComparisonFields(value: unknown): value is FollowingComparison {
   return (
-    isObject(value) &&
+    isRecord(value) &&
     typeof value.accountUsername === 'string' &&
     value.accountUsername.trim().length > 0 &&
     isOptionalPicture(value.accountPicture) &&
@@ -71,5 +64,79 @@ export function isFollowingComparison(value: unknown): value is FollowingCompari
     (value.nonMutualFollowing === null ||
       isProfileList(value.nonMutualFollowing, isFollowingUser)) &&
     (value.following === undefined || isProfileList(value.following, isComparedUser))
+  );
+}
+
+function coverageMatchesCount(
+  status: RelationshipCoverageStatus,
+  checked: number,
+  total: number,
+): boolean {
+  if (status === 'complete') return checked === total;
+  if (status === 'total-mismatch') return checked !== total;
+  return true;
+}
+
+function listMatchesComparison(
+  following: ComparedFollowingUser[],
+  checked: number,
+  mutual: number,
+  nonMutualIds: ReadonlySet<number> | null,
+): boolean {
+  if (following.length !== checked) return false;
+
+  const seen = new Set<number>();
+  let observedMutual = 0;
+  for (const { userId, relationship } of following) {
+    if (seen.has(userId)) return false;
+    seen.add(userId);
+
+    if (relationship === 'mutual') {
+      observedMutual++;
+    } else if (nonMutualIds === null) {
+      if (relationship !== 'unknown') return false;
+    } else if (relationship !== 'non-mutual' || !nonMutualIds.has(userId)) {
+      return false;
+    }
+  }
+  return observedMutual === mutual;
+}
+
+/** Checks shape and consistency with the coverage and profile lists available in the reply. */
+export function isFollowingComparison(value: unknown): value is FollowingComparison {
+  if (!hasComparisonFields(value)) return false;
+  const {
+    checkedFollowing,
+    totalFollowing,
+    checkedFollowers,
+    totalFollowers,
+    mutualUsers,
+    nonMutualUsers,
+    nonMutualFollowing,
+    following,
+    coverage,
+  } = value;
+
+  if (mutualUsers > Math.min(checkedFollowing, checkedFollowers)) return false;
+  if ((nonMutualUsers === null) !== (nonMutualFollowing === null)) return false;
+  if (nonMutualUsers !== null && nonMutualUsers !== checkedFollowing - mutualUsers) return false;
+  if (
+    coverage &&
+    (!coverageMatchesCount(coverage.following, checkedFollowing, totalFollowing) ||
+      !coverageMatchesCount(coverage.followers, checkedFollowers, totalFollowers) ||
+      (coverage.followers === 'complete') !== (nonMutualUsers !== null))
+  ) {
+    return false;
+  }
+
+  let nonMutualIds: Set<number> | null = null;
+  if (nonMutualFollowing !== null) {
+    if (nonMutualFollowing.length !== nonMutualUsers) return false;
+    nonMutualIds = new Set(nonMutualFollowing.map(({ userId }) => userId));
+    if (nonMutualIds.size !== nonMutualFollowing.length) return false;
+  }
+
+  return (
+    !following || listMatchesComparison(following, checkedFollowing, mutualUsers, nonMutualIds)
   );
 }

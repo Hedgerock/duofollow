@@ -42,10 +42,10 @@ Connector применяет общую паузу после HTTP 429 к про
 сообщает `RATE_LIMITED` до нового запроса к Duolingo.
 [ADR-0008](../decisions/records/0008-shared-duolingo-rate-limit.md)
 
-Runtime-валидация на границах API и рабочего ответа Connector будет проверять положительные ID и согласованность полей,
-от которых зависит показ результата. Старые ответы без `coverage` сохраняют совместимость. При следующем изменении
-протокола исследовательские поля `firstPage`, `secondPage`, `duplicatedUsers` и `uniqueUsers` исключаются из рабочего
-ответа после проверки совместимости.
+Connector проверяет ID и структуру ответов Duolingo. Клиент сверяет счётчики, охват и списки профилей.
+Поля `firstPage`, `secondPage`, `duplicatedUsers` и `uniqueUsers` исключены из рабочих ответов.
+Согласованные ответы старого формата без `coverage` сохраняют совместимость.
+[ADR-0010](../decisions/records/0010-response-validation.md)
 
 ## Публичный выпуск Chrome-расширения
 

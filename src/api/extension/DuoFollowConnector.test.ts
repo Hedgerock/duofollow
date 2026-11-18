@@ -24,6 +24,20 @@ const comparison: FollowingComparison = {
   nonMutualFollowing: null,
 };
 const profile = { userId: 2, displayName: '', username: '', picture: null };
+const mutual = { ...profile, userId: 3, relationship: 'mutual' } as const;
+const nonMutual = { ...profile, relationship: 'non-mutual' } as const;
+const completeComparison: FollowingComparison = {
+  ...comparison,
+  checkedFollowing: 2,
+  totalFollowing: 2,
+  checkedFollowers: 1,
+  totalFollowers: 1,
+  mutualUsers: 1,
+  nonMutualUsers: 1,
+  nonMutualFollowing: [profile],
+  following: [mutual, nonMutual],
+  coverage: { following: 'complete', followers: 'complete' },
+};
 
 function stubRuntime(response?: unknown, lastError?: { message: string }) {
   const sendMessage = vi.fn(
@@ -102,9 +116,15 @@ describe('DuoFollowConnector', () => {
     });
   });
 
-  it('sends the username and accepts a legacy partial comparison without the full list', async () => {
+  it('accepts a legacy partial comparison and discards old diagnostic fields', async () => {
     const result = { success: true, comparison };
-    const sendMessage = stubRuntime(result);
+    const sendMessage = stubRuntime({
+      ...result,
+      firstPage: { cursor: 'v1:500' },
+      secondPage: null,
+      duplicatedUsers: 0,
+      uniqueUsers: 1,
+    });
     await expect(client.getFollowingSummary('Learner')).resolves.toEqual(result);
     expect(sendMessage).toHaveBeenCalledWith(
       'test-extension',
@@ -161,6 +181,59 @@ describe('DuoFollowConnector', () => {
     await expect(client.getFollowingSummary('Learner')).rejects.toMatchObject({
       errorCode: 'INVALID_RESPONSE',
     });
+  });
+
+  it.each([
+    ['a zero ID', { following: [mutual, { ...nonMutual, userId: 0 }] }],
+    ['a negative ID', { nonMutualFollowing: [{ ...profile, userId: -2 }] }],
+    ['a duplicate ID in the modern list', { following: [mutual, mutual] }],
+    [
+      'a duplicate ID in the legacy list',
+      {
+        checkedFollowing: 3,
+        totalFollowing: 3,
+        coverage: undefined,
+        following: undefined,
+        nonMutualUsers: 2,
+        nonMutualFollowing: [profile, profile],
+      },
+    ],
+    ['too many mutual follows', { checkedFollowers: 0, totalFollowers: 0 }],
+    ['a wrong non-mutual counter', { nonMutualUsers: 0 }],
+    ['a wrong non-mutual list size', { nonMutualFollowing: [] }],
+    ['a missing listed profile', { following: [mutual] }],
+    ['non-mutual IDs that differ between the lists', { nonMutualFollowing: [mutual] }],
+    [
+      'a wrong mutual count in the list',
+      { following: [mutual, { ...nonMutual, relationship: 'mutual' }] },
+    ],
+    ['a contradictory total for complete coverage', { totalFollowing: 3 }],
+    [
+      'a non-mutual list with partial Followers',
+      { coverage: { following: 'complete', followers: 'cursor-present' } },
+    ],
+    [
+      'no non-mutual result with complete Followers',
+      { nonMutualUsers: null, nonMutualFollowing: null },
+    ],
+  ])('rejects %s when comparison fields disagree', async (_label, fields) => {
+    stubRuntime({ success: true, comparison: { ...completeComparison, ...fields } });
+    await expect(client.getFollowingSummary('Learner')).rejects.toMatchObject({
+      errorCode: 'INVALID_RESPONSE',
+    });
+  });
+
+  it('accepts a valid result even when the received count exceeds a reported total', async () => {
+    const result = {
+      success: true,
+      comparison: {
+        ...completeComparison,
+        totalFollowing: 1,
+        coverage: { following: 'total-mismatch', followers: 'complete' },
+      },
+    };
+    stubRuntime(result);
+    await expect(client.getFollowingSummary('Learner')).resolves.toEqual(result);
   });
 
   it('passes a worker error through to the app', async () => {

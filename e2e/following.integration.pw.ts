@@ -101,17 +101,22 @@ test('keeps search in place when switching away from the legend', async ({ page 
   expect(await searchTop()).toBe(initial);
 });
 
-test('reports a malformed comparison and restores the previous list', async ({ page }) => {
-  const panel = await openComparison(page, { refreshFields: { following: {} } });
-  await expect(panel.locator('[data-following-id]')).toHaveCount(3);
+for (const { label, refreshFields } of [
+  { label: 'malformed', refreshFields: { following: {} } },
+  { label: 'inconsistent', refreshFields: { checkedFollowing: 4 } },
+]) {
+  test(`reports a ${label} comparison and restores the previous list`, async ({ page }) => {
+    const panel = await openComparison(page, { refreshFields });
+    await expect(panel.locator('[data-following-id]')).toHaveCount(3);
 
-  await page.getByRole('button', { name: 'Compare my follows' }).click();
+    await page.getByRole('button', { name: 'Compare my follows' }).click();
 
-  await expect(page.getByText('Could not compare follows')).toBeVisible();
-  await expect(page.getByText('The response was unexpected.', { exact: false })).toBeVisible();
-  await expect(panel.locator('[data-following-id]')).toHaveCount(3);
-  await expect(panel.getByText('セリーナ')).toBeVisible();
-});
+    await expect(page.getByText('Could not compare follows')).toBeVisible();
+    await expect(page.getByText('The response was unexpected.', { exact: false })).toBeVisible();
+    await expect(panel.locator('[data-following-id]')).toHaveCount(3);
+    await expect(panel.getByText('セリーナ')).toBeVisible();
+  });
+}
 
 test('matches the comparison skeleton to the result card heights during refresh', async ({
   page,
