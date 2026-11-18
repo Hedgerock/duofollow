@@ -254,16 +254,20 @@ describe('DuoFollowConnector', () => {
 
   it('distinguishes a signed-out session, an older connector and a closed channel', async () => {
     const sendMessage = stubRuntime({ session: 'signed-out' });
-    await expect(client.getConnectionStatus()).resolves.toBe('signed-out');
+    await expect(client.getConnectionStatus()).resolves.toEqual({ status: 'signed-out' });
     expect(sendMessage).toHaveBeenCalledWith(
       'test-extension',
-      { type: 'GET_DUOLINGO_ACCESS' },
+      { type: 'GET_DUOLINGO_ACCESS', includeAccount: true },
       expect.any(Function),
     );
+    stubRuntime({ session: 'session-changed' });
+    await expect(client.getConnectionStatus()).resolves.toEqual({ status: 'session-changed' });
     stubRuntime({ success: false, error: 'Unsupported message' });
-    await expect(client.getConnectionStatus()).resolves.toBe('connector-outdated');
+    await expect(client.getConnectionStatus()).resolves.toEqual({ status: 'connector-outdated' });
     stubRuntime(undefined, { message: 'Receiving end does not exist' });
-    await expect(client.getConnectionStatus()).resolves.toBe('connector-unavailable');
+    await expect(client.getConnectionStatus()).resolves.toEqual({
+      status: 'connector-unavailable',
+    });
   });
 
   it.each([
@@ -273,12 +277,37 @@ describe('DuoFollowConnector', () => {
     ['UNRECOGNIZED', 'duolingo-unavailable'],
   ])('maps a session code %s to the UI status %s', async (errorCode, status) => {
     stubRuntime({ session: 'duolingo-unavailable', errorCode });
-    await expect(client.getConnectionStatus()).resolves.toBe(status);
+    await expect(client.getConnectionStatus()).resolves.toEqual({ status });
+  });
+
+  it('treats the active profile as optional and accepts only data for the verified ID', async () => {
+    stubRuntime({ session: 'ready' });
+    await expect(client.getConnectionStatus()).resolves.toEqual({ status: 'ready' });
+    stubRuntime({
+      session: 'ready',
+      sessionUserId: 42,
+      account: { userId: 43, username: 'Other', picture: null },
+    });
+    await expect(client.getConnectionStatus()).resolves.toEqual({
+      status: 'ready',
+      sessionUserId: 42,
+      account: null,
+    });
+    stubRuntime({
+      session: 'ready',
+      sessionUserId: 42,
+      account: { userId: 42, username: 'Active', picture: 'https://wrong.example/image' },
+    });
+    await expect(client.getConnectionStatus()).resolves.toEqual({
+      status: 'ready',
+      sessionUserId: 42,
+      account: { userId: 42, username: 'Active', picture: null },
+    });
   });
 
   it('reports missing consent and only opens access settings on request', async () => {
     stubRuntime({ session: 'consent-required' });
-    await expect(client.getConnectionStatus()).resolves.toBe('consent-required');
+    await expect(client.getConnectionStatus()).resolves.toEqual({ status: 'consent-required' });
     const sendMessage = stubRuntime({ success: true });
     await expect(client.openDuolingoSettings()).resolves.toBeUndefined();
     expect(sendMessage).toHaveBeenCalledWith(

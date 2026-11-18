@@ -12,3 +12,4 @@
 - [ADR-0008. Общая пауза запросов Duolingo после HTTP 429](records/0008-shared-duolingo-rate-limit.md) — Accepted.
 - [ADR-0009. Проверки кода в pull request](records/0009-quality-checks-in-pr.md) — Accepted.
 - [ADR-0010. Валидация ответов Duolingo и Connector](records/0010-response-validation.md) — Accepted.
+- [ADR-0011. Автоматическое подключение аккаунта Duolingo](records/0011-active-duolingo-account.md) — Accepted.

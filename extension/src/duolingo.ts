@@ -1,6 +1,6 @@
 import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
 import { isRecord, isUserId } from '@duofollow/extension/src/dto/validation';
-import { parseDuolingoAvatarUrl } from '@duofollow/extension/src/duolingoAvatarUrl';
+import { normalizeDuolingoPicture } from '@duofollow/extension/src/duolingoAvatarUrl';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
 import {
   findAccountProfile,
@@ -15,10 +15,12 @@ import {
   readDuolingoJson,
 } from '@duofollow/extension/src/duolingoResponse';
 import {
+  getCachedDuolingoAccount,
   getDuolingoSessionUserId,
   identifyUnfollowSession,
 } from '@duofollow/extension/src/duolingoSession';
 
+import type { ConnectedDuolingoAccount } from '@duofollow/extension/src/dto/ConnectorSession';
 import type {
   ComparedFollowingUser,
   FollowingComparisonResult,
@@ -31,25 +33,6 @@ export const UNCONFIRMED_UNFOLLOW = 'Ответ Duolingo не удалось п�
 const ACCOUNT_MISMATCH = 'Укажи имя аккаунта, в который ты вошёл в Duolingo.';
 
 type DuolingoAccount = { userId: string; username: string; picture: string | null };
-
-function readPicture(value: unknown): string | null {
-  const url = parseDuolingoAvatarUrl(value);
-  if (!url) return null;
-
-  const path = url.pathname.replace(/\/$/, '');
-  const isAvatarRenderBase =
-    url.hostname === 'd3gq3s1iyyx31w.cloudfront.net' &&
-    path.startsWith('/static/render/bg/') &&
-    /-\d+$/.test(path);
-  const isProfilePhotoBase =
-    url.hostname === 'simg-ssl.duolingo.com' && /^\/avatar\/[^/]+$/.test(path);
-
-  if (isAvatarRenderBase || isProfilePhotoBase) {
-    url.pathname = `${path}/medium`;
-  }
-
-  return url.href;
-}
 
 async function getRelationshipPage(
   list: RelationshipList,
@@ -150,23 +133,37 @@ async function resolveDuolingoAccount(
   return {
     userId: String(account.id),
     username: account.username,
-    picture: readPicture(account.picture),
+    picture: normalizeDuolingoPicture(account.picture),
   };
 }
 
 export async function getFollowingSummary(
   input: unknown,
   signal: AbortSignal,
+  expectedAccountId?: unknown,
 ): Promise<FollowingComparisonResult> {
-  const {
-    userId,
-    username,
-    picture: accountPicture,
-  } = await resolveDuolingoAccount(input, signal, true);
+  let cachedAccount: ConnectedDuolingoAccount | undefined;
+  if (expectedAccountId !== undefined) {
+    const sessionId = await requireSessionUserId(signal);
+    if (!isUserId(expectedAccountId) || sessionId !== String(expectedAccountId)) {
+      throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
+    }
+    cachedAccount = getCachedDuolingoAccount(sessionId, input, signal);
+  }
+  const account = cachedAccount ?? (await resolveDuolingoAccount(input, signal, true));
+  const { username, picture: accountPicture } = account;
+  const userId = String(account.userId);
+  if (expectedAccountId !== undefined && String(expectedAccountId) !== userId) {
+    throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
+  }
   const [following, followers] = await Promise.all([
     getRelationshipPage('following', userId, signal),
     getRelationshipPage('followers', userId, signal),
   ]);
+
+  if ((await requireSessionUserId(signal)) !== userId) {
+    throw new ConnectorError('ACCOUNT_MISMATCH', ACCOUNT_MISMATCH);
+  }
 
   const followingById = new Map(following.users.map((user) => [user.userId, user]));
   const followerIds = new Set(followers.users.map((user) => user.userId));
@@ -181,7 +178,7 @@ export async function getFollowingSummary(
       userId,
       username: typeof username === 'string' ? username.trim() : '',
       displayName: typeof displayName === 'string' ? displayName.trim() : '',
-      picture: readPicture(picture),
+      picture: normalizeDuolingoPicture(picture),
       relationship: followerIds.has(userId)
         ? 'mutual'
         : followersComplete

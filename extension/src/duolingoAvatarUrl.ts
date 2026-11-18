@@ -15,3 +15,22 @@ export function parseDuolingoAvatarUrl(value: unknown): URL | null {
     return null;
   }
 }
+
+export function normalizeDuolingoPicture(value: unknown): string | null {
+  const url = parseDuolingoAvatarUrl(value);
+  if (!url) return null;
+
+  const path = url.pathname.replace(/\/$/, '');
+  const isAvatarRenderBase =
+    url.hostname === 'd3gq3s1iyyx31w.cloudfront.net' &&
+    path.startsWith('/static/render/bg/') &&
+    /-\d+$/.test(path);
+  const isProfilePhotoBase =
+    url.hostname === 'simg-ssl.duolingo.com' && /^\/avatar\/[^/]+$/.test(path);
+
+  if (isAvatarRenderBase || isProfilePhotoBase) {
+    url.pathname = `${path}/medium`;
+  }
+
+  return url.href;
+}

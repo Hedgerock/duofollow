@@ -17,6 +17,7 @@ import { getSearchTerm, matchesSearch } from '@duofollow/src/following/following
 import { getProfileDisplayName } from '@duofollow/src/following/profiles';
 import { localizedError, translations } from '@duofollow/src/i18n/messages';
 
+import type { ConnectedDuolingoAccount } from '@duofollow/extension/src/dto/ConnectorSession';
 import type {
   ComparedFollowingUser,
   FollowingComparison,
@@ -26,7 +27,7 @@ import type { Locale } from '@duofollow/extension/src/locales';
 import type { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 import type { NotificationInput } from '@duofollow/src/notifications';
 
-type ComparisonRequest = { kind: 'comparison'; username: string };
+type ComparisonRequest = { kind: 'comparison'; username: string; sessionUserId?: number };
 export type FollowingActivity = RefObject<{ kind: 'comparison' | 'unfollow' } | null>;
 export type FollowingSortOrder = 'received' | 'name-asc' | 'name-desc';
 export type FollowingView = 'all' | 'mutual' | 'non-mutual';
@@ -60,7 +61,8 @@ export function useFollowingComparison(
     enabled,
     locale,
     workspaceVisible,
-  }: { enabled: boolean; locale: Locale; workspaceVisible: boolean },
+    activeAccountId,
+  }: { enabled: boolean; locale: Locale; workspaceVisible: boolean; activeAccountId?: number },
 ) {
   const [accountUsername, setAccountUsername] = useState(readSavedUsername);
   const [request, setRequest] = useState<ComparisonRequest | null>(() =>
@@ -100,7 +102,8 @@ export function useFollowingComparison(
   }, [request]);
 
   useEffect(() => {
-    if (!request) return;
+    if (!request || activity.current !== request) return;
+    if (activeAccountId !== undefined && request.sessionUserId !== activeAccountId) return;
     const messages = translations[locale];
     const copy = messages.notifications;
 
@@ -115,7 +118,11 @@ export function useFollowingComparison(
         title: copy.comparing,
         message: copy.loadingAccount(request.username),
       });
-      pending = { request, result: connector.getFollowingSummary(request.username) };
+      const result =
+        request.sessionUserId === undefined
+          ? connector.getFollowingSummary(request.username)
+          : connector.getFollowingSummary(request.username, request.sessionUserId);
+      pending = { request, result };
       pendingRequest.current = pending;
     }
 
@@ -146,7 +153,7 @@ export function useFollowingComparison(
         }
 
         const data = response.comparison;
-        saveUsername(data.accountUsername);
+        if (request.sessionUserId === undefined) saveUsername(data.accountUsername);
         setComparison(data);
         setAccountUsername(data.accountUsername);
         setSearch(EMPTY_SEARCH);
@@ -170,24 +177,31 @@ export function useFollowingComparison(
     return () => {
       active = false;
     };
-  }, [activity, connector, enabled, locale, notify, request]);
+  }, [activeAccountId, activity, connector, enabled, locale, notify, request]);
 
-  function compareFollowing() {
-    const username = accountUsername.trim();
+  function compareFollowing(account?: ConnectedDuolingoAccount) {
+    const username = account?.username ?? accountUsername.trim();
     if (!enabled || !username || activity.current !== null) return;
 
-    const next: ComparisonRequest = { kind: 'comparison', username };
+    const next: ComparisonRequest = {
+      kind: 'comparison',
+      username,
+      sessionUserId: account?.userId,
+    };
     activity.current = next;
     setRequest(next);
   }
 
-  const clearComparison = useCallback(() => {
-    if (activity.current?.kind === 'comparison') activity.current = null;
+  const resetComparison = useCallback((account?: ConnectedDuolingoAccount) => {
+    const next: ComparisonRequest | null = account
+      ? { kind: 'comparison', username: account.username, sessionUserId: account.userId }
+      : null;
+    activity.current = next;
     pendingRequest.current = null;
     quietRequest.current = null;
-    setRequest(null);
+    setRequest(next);
     setComparison(null);
-    setAccountUsername('');
+    setAccountUsername(account?.username ?? '');
     setSearch(EMPTY_SEARCH);
     try {
       window.localStorage.removeItem(ACCOUNT_STORAGE_KEY);
@@ -262,7 +276,7 @@ export function useFollowingComparison(
     accountUsername,
     setAccountUsername,
     compareFollowing,
-    clearComparison,
+    resetComparison,
     isLoading: enabled && request !== null,
     comparison,
     activity,

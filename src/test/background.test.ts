@@ -210,9 +210,11 @@ afterEach(() => {
 });
 
 describe('extension worker', () => {
-  const checkConnection = (url = approvedOrigin) =>
+  const checkConnection = (url = approvedOrigin, includeAccount = false) =>
     new Promise((resolve) => {
-      expect(listener({ type: 'GET_DUOLINGO_ACCESS' }, { url }, resolve)).toBe(true);
+      expect(listener({ type: 'GET_DUOLINGO_ACCESS', includeAccount }, { url }, resolve)).toBe(
+        true,
+      );
     });
 
   it('only reports the session on the DuoFollow page', () => {
@@ -447,6 +449,95 @@ describe('extension worker', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('shares the active profile lookup and returns only verified profile fields', async () => {
+    const sessionUserId = 999;
+    getCookie.mockResolvedValue(sessionCookie(sessionUserId));
+    fetchMock.mockResolvedValueOnce(followers([])).mockResolvedValueOnce(
+      Response.json({
+        id: sessionUserId,
+        username: 'ActiveAccount',
+        picture: '//simg-ssl.duolingo.com/avatar/example',
+        email: 'unneeded@example.com',
+      }),
+    );
+    const check = () => checkConnection(approvedOrigin, true);
+    const expected = {
+      session: 'ready',
+      sessionUserId,
+      account: {
+        userId: sessionUserId,
+        username: 'ActiveAccount',
+        picture: 'https://simg-ssl.duolingo.com/avatar/example/medium',
+      },
+    };
+    await expect(Promise.all([check(), check()])).resolves.toEqual([expected, expected]);
+    await expect(check()).resolves.toEqual(expected);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const profileUrl = new URL(String(fetchMock.mock.calls[1][0]));
+    expect(profileUrl.pathname).toBe('/2017-06-30/users/999');
+    expect(profileUrl.searchParams.get('fields')).toBe('id,username,picture');
+  });
+
+  it('compares the verified active account using the profile cache', async () => {
+    const sessionUserId = 999;
+    getCookie.mockResolvedValue(sessionCookie(sessionUserId));
+    fetchMock
+      .mockResolvedValueOnce(followers([]))
+      .mockResolvedValueOnce(Response.json({ id: sessionUserId, username: 'ActiveAccount' }));
+    await expect(checkConnection(approvedOrigin, true)).resolves.toMatchObject({
+      account: { userId: sessionUserId, username: 'ActiveAccount' },
+    });
+    fetchMock.mockResolvedValueOnce(following([])).mockResolvedValueOnce(followers([]));
+    const result = await new Promise((resolve) =>
+      listener(
+        { type: 'GET_FOLLOWING_SUMMARY', username: 'ActiveAccount', sessionUserId },
+        { url: approvedOrigin },
+        resolve,
+      ),
+    );
+    expect(result).toMatchObject({
+      success: true,
+      comparison: { accountUsername: 'ActiveAccount' },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps the session ready for manual entry when the active profile is unavailable', async () => {
+    const sessionUserId = 999;
+    getCookie.mockResolvedValue(sessionCookie(sessionUserId));
+    fetchMock
+      .mockResolvedValueOnce(followers([]))
+      .mockResolvedValueOnce(Response.json({ id: 123, username: 'WrongAccount' }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ id: sessionUserId, username: 'ActiveAccount' }));
+    const check = () => checkConnection(approvedOrigin, true);
+    await expect(check()).resolves.toEqual({ session: 'ready', sessionUserId, account: null });
+    await expect(check()).resolves.toEqual({ session: 'ready', sessionUserId, account: null });
+    await expect(check()).resolves.toMatchObject({ account: { username: 'ActiveAccount' } });
+  });
+
+  it.each([
+    [1000, 'session-changed'],
+    [null, 'signed-out'],
+  ] as const)(
+    'discards a late profile response when the current ID becomes %s',
+    async (userId, session) => {
+      getCookie.mockResolvedValue(sessionCookie(999));
+      let complete!: (response: Response) => void;
+      fetchMock.mockResolvedValueOnce(followers([])).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+      const check = checkConnection(approvedOrigin, true);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      getCookie.mockResolvedValue(userId === null ? null : sessionCookie(userId));
+      complete(Response.json({ id: 999, username: 'OldAccount' }));
+      await expect(check).resolves.toEqual({ session });
+    },
+  );
+
   it('does not reuse a verified result after sign-out, account switch or regrant', async () => {
     fetchMock.mockImplementation(async () => followers([]));
     await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
@@ -465,24 +556,30 @@ describe('extension worker', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('discards a late successful response from a previous account', async () => {
-    let complete!: (response: Response) => void;
-    fetchMock.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          complete = resolve;
-        }),
-    );
-    const first = checkConnection();
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
-    getCookie.mockResolvedValue(sessionCookie(999));
-    fetchMock.mockResolvedValueOnce(followers([]));
-    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
-    complete(followers([]));
-    await expect(first).resolves.toEqual({ session: 'signed-out' });
-    await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
+  it.each([
+    [true, 'session-changed'],
+    [false, 'duolingo-unavailable'],
+  ] as const)(
+    'discards a late session check for a previous account (includeAccount=%s)',
+    async (includeAccount, session) => {
+      let complete!: (response: Response) => void;
+      fetchMock.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+      const first = checkConnection(approvedOrigin, includeAccount);
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+      getCookie.mockResolvedValue(sessionCookie(999));
+      fetchMock.mockResolvedValueOnce(followers([]));
+      await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+      complete(followers([]));
+      await expect(first).resolves.toEqual({ session });
+      await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it.each([
     ['120', 120_000],

@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Workspace } from '@duofollow/src/App';
 import { ConnectionDialog } from '@duofollow/src/ConnectionDialog';
+import {
+  AccountLookupFallback,
+  ConnectedAccountCard,
+} from '@duofollow/src/following/ConnectedAccountCard';
 import { CoverageDetails } from '@duofollow/src/following/CoverageDetails';
 import { RelationshipLegend } from '@duofollow/src/following/RelationshipLegend';
 import { useWorkspace } from '@duofollow/src/following/useWorkspace';
@@ -25,12 +29,16 @@ import type {
   FollowingComparisonResult,
   UnfollowResult,
 } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
-import type { AccessChange } from '@duofollow/src/api/extension/DuoFollowConnector';
+import type {
+  AccessChange,
+  ConnectorConnection,
+} from '@duofollow/src/api/extension/DuoFollowConnector';
 
 const { getConnectionStatus, getFollowingSummary, getQuickUnfollowPreference, unfollow } =
   vi.hoisted(() => ({
-    getConnectionStatus: vi.fn<() => Promise<ConnectorStatus>>(),
-    getFollowingSummary: vi.fn<(username: string) => Promise<FollowingComparisonResult>>(),
+    getConnectionStatus: vi.fn<() => Promise<ConnectorStatus | ConnectorConnection>>(),
+    getFollowingSummary:
+      vi.fn<(username: string, sessionUserId?: number) => Promise<FollowingComparisonResult>>(),
     getQuickUnfollowPreference: vi.fn<() => Promise<boolean>>(),
     unfollow:
       vi.fn<(username: string, targetUserId: number, quick?: boolean) => Promise<UnfollowResult>>(),
@@ -40,7 +48,10 @@ let onQuickUnfollowChanged: (enabled: boolean) => void;
 
 vi.mock('@duofollow/src/api/extension/DuoFollowConnector', () => ({
   DuoFollowConnector: class {
-    getConnectionStatus = getConnectionStatus;
+    async getConnectionStatus() {
+      const value = await getConnectionStatus();
+      return typeof value === 'string' ? { status: value } : value;
+    }
     getFollowingSummary = getFollowingSummary;
     getQuickUnfollowPreference = getQuickUnfollowPreference;
     unfollow = unfollow;
@@ -80,8 +91,7 @@ function success(accountUsername: string, incomplete = false): FollowingComparis
 }
 
 const flush = async () => {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let step = 0; step < 4; step++) await Promise.resolve();
 };
 
 function mountApp(saved?: string, blockStorage = false, browserLanguage = 'ru-RU') {
@@ -679,6 +689,143 @@ describe('comparison screen', () => {
     );
     expect(app.storage.setItem).toHaveBeenCalledWith('duofollow.theme', 'light');
     expect(app.workspace().props.inert).toBe(true);
+  });
+
+  it('starts the active account after permission and does not repeat on navigation or focus', async () => {
+    const account = { userId: 42, username: 'Active', picture: null };
+    const connected: ConnectorConnection = { status: 'ready', sessionUserId: 42, account };
+    getConnectionStatus.mockResolvedValueOnce('consent-required').mockResolvedValue(connected);
+    getFollowingSummary.mockResolvedValue(success('Active'));
+    const app = mountApp('Old');
+    await app.connect();
+    expect(getFollowingSummary).not.toHaveBeenCalled();
+
+    onAccessChanged('granted');
+    await flush();
+    app.render();
+    await flush();
+    expect(
+      findElement(app.render(), (node) => node.type === ConnectedAccountCard).props.account,
+    ).toEqual(account);
+    expect(getFollowingSummary).toHaveBeenCalledExactlyOnceWith('Active', 42);
+    expect(app.storage.setItem).not.toHaveBeenCalledWith('duofollow.accountUsername', 'Active');
+
+    app.setWorkspaceVisible(false);
+    app.setWorkspaceVisible(true);
+    app.focus();
+    await flush();
+    app.render();
+    expect(getFollowingSummary).toHaveBeenCalledTimes(1);
+
+    const card = findElement(app.render(), (node) => node.type === ConnectedAccountCard);
+    runEvent(card, 'onCompare');
+    app.render();
+    expect(getFollowingSummary).toHaveBeenCalledTimes(2);
+    expect(getFollowingSummary).toHaveBeenLastCalledWith('Active', 42);
+  });
+
+  it('rechecks a changed session immediately and keeps the sign-in dialog closed', async () => {
+    const old = { userId: 41, username: 'Old', picture: null };
+    const active = { userId: 42, username: 'Active', picture: null };
+    getConnectionStatus
+      .mockResolvedValueOnce({ status: 'ready', sessionUserId: old.userId, account: old })
+      .mockResolvedValueOnce({ status: 'session-changed' });
+    let finishCheck!: (state: ConnectorConnection) => void;
+    getConnectionStatus.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishCheck = resolve;
+      }),
+    );
+    getFollowingSummary
+      .mockResolvedValueOnce(success(old.username))
+      .mockResolvedValueOnce(success(active.username));
+
+    const app = mountApp();
+    await app.connect();
+    app.render();
+    await flush();
+    expect(visibleAccounts(app.render())).toContain(old.username);
+
+    app.focus();
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(3);
+    expect(visibleAccounts(app.render())).not.toContain(old.username);
+    expect(findElements(app.render(), (node) => node.type === ConnectionDialog)).toHaveLength(0);
+
+    finishCheck({ status: 'ready', sessionUserId: active.userId, account: active });
+    await flush();
+    app.render();
+    app.render();
+    await flush();
+    expect(getFollowingSummary).toHaveBeenLastCalledWith(active.username, active.userId);
+    expect(visibleAccounts(app.render())).toContain(active.username);
+  });
+
+  it('waits for the next scheduled check if the session changes again during retry', async () => {
+    getConnectionStatus.mockResolvedValue({ status: 'session-changed' });
+    const app = mountApp();
+    await app.connect();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(2);
+    expect(findElements(app.render(), (node) => node.type === ConnectionDialog)).toHaveLength(0);
+    expect(app.workspace().props.inert).toBe(true);
+
+    app.focus();
+    await flush();
+    expect(getConnectionStatus).toHaveBeenCalledTimes(4);
+  });
+
+  it('discards a late comparison when the active ID changes and clears on revocation', async () => {
+    const old = { userId: 41, username: 'Old', picture: null };
+    const active = { userId: 42, username: 'Active', picture: null };
+    getConnectionStatus
+      .mockResolvedValueOnce({ status: 'ready', sessionUserId: 41, account: old })
+      .mockResolvedValue({ status: 'ready', sessionUserId: 42, account: active });
+    let finishOld!: (result: FollowingComparisonResult) => void;
+    let finishActive!: (result: FollowingComparisonResult) => void;
+    getFollowingSummary
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishOld = resolve;
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          finishActive = resolve;
+        }),
+      );
+    const app = mountApp('Legacy');
+    await app.connect();
+    app.render();
+    expect(getFollowingSummary).toHaveBeenCalledExactlyOnceWith('Old', 41);
+    app.focus();
+    await flush();
+    app.render();
+    app.render();
+    expect(getFollowingSummary).toHaveBeenLastCalledWith('Active', 42);
+    finishOld(success('Old'));
+    await flush();
+    expect(visibleAccounts(app.render())).not.toContain('Old');
+
+    onAccessChanged('revoked');
+    app.render();
+    finishActive(success('Active'));
+    await flush();
+    expect(visibleAccounts(app.render())).not.toContain('Active');
+    expect(app.workspace().props.inert).toBe(true);
+  });
+
+  it('supports a manual comparison when active-profile detection fails', async () => {
+    getConnectionStatus.mockResolvedValue({ status: 'ready', sessionUserId: 42, account: null });
+    getFollowingSummary.mockResolvedValueOnce(success('Typed'));
+    const app = mountApp();
+    await app.connect();
+    expect(findElement(app.render(), (node) => node.type === AccountLookupFallback)).toBeDefined();
+    expect(getFollowingSummary).not.toHaveBeenCalled();
+    app.edit('Typed');
+    app.submit();
+    await flush();
+    expect(getFollowingSummary).toHaveBeenCalledExactlyOnceWith('Typed');
+    expect(visibleAccounts(app.render())).toContain('Typed');
   });
 
   it('restores a saved account once through the StrictMode effect cycle', async () => {

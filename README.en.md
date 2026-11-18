@@ -10,7 +10,7 @@ Desktop Chrome and the **DuoFollow Connector** extension are required. Build and
 
 1. [DuoFollow](https://hedgerock.github.io/duofollow/) requires an active Duolingo session in the same Chrome profile.
 2. The **Manage Duolingo access** page explains which data DuoFollow uses. **Open settings** opens the Connector settings, where **Grant access** enables access.
-3. The comparison form on the DuoFollow home page takes the username of the signed-in account. **Compare my follows** starts the comparison.
+3. On return to DuoFollow, the site detects the signed-in account and starts the comparison. **Refresh comparison** updates the result. If automatic detection fails, the form accepts the username of the signed-in account.
 4. The view controls switch between lists, and search finds profiles by name or `@username`. The sort control sits next to search. The arrow on each row opens the corresponding Duolingo profile.
 5. The person icon with a minus starts an unfollow for a non-mutual profile. The website dialog shows the selected profile. When Quick unfollow is on, the website dialog confirms the removal. The standard flow asks for additional confirmation in the extension.
 

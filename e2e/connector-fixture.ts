@@ -74,6 +74,7 @@ export async function openComparison(
     refreshFields,
     holdRefresh = false,
     quickUnfollow = false,
+    activeAccount = false,
   }: {
     incomplete?: boolean;
     theme?: 'dark' | 'light';
@@ -82,6 +83,7 @@ export async function openComparison(
     refreshFields?: Partial<Record<keyof FollowingComparison, unknown>>;
     holdRefresh?: boolean;
     quickUnfollow?: boolean;
+    activeAccount?: boolean;
   } = {},
 ) {
   const summary = comparison(incomplete, profileCount, identity);
@@ -89,7 +91,7 @@ export async function openComparison(
     ? { ...summary, comparison: { ...summary.comparison, ...refreshFields } }
     : undefined;
   await page.addInitScript(
-    ({ summary, refreshSummary, theme, holdRefresh, quickUnfollow }) => {
+    ({ summary, refreshSummary, theme, holdRefresh, quickUnfollow, activeAccount }) => {
       let response: unknown = summary;
       let hasCompared = false;
       const refreshGate = holdRefresh
@@ -136,7 +138,19 @@ export async function openComparison(
             queueMicrotask(() => {
               switch (message.type) {
                 case 'GET_DUOLINGO_ACCESS':
-                  reply({ session: 'ready' });
+                  reply(
+                    activeAccount
+                      ? {
+                          session: 'ready',
+                          sessionUserId: 1,
+                          account: {
+                            userId: 1,
+                            username: summary.comparison.accountUsername,
+                            picture: null,
+                          },
+                        }
+                      : { session: 'ready' },
+                  );
                   return;
                 case 'GET_FOLLOWING_SUMMARY': {
                   const result = response;
@@ -167,11 +181,13 @@ export async function openComparison(
       });
       if (!Reflect.get(window, 'chrome')) Reflect.set(window, 'chrome', chrome);
     },
-    { summary, refreshSummary, theme, holdRefresh, quickUnfollow },
+    { summary, refreshSummary, theme, holdRefresh, quickUnfollow, activeAccount },
   );
   await page.goto('/duofollow/');
-  await page.locator('#duolingo-username').fill(identity?.accountUsername ?? 'lingua_demo');
-  await page.getByRole('button', { name: 'Compare my follows' }).click();
+  if (!activeAccount) {
+    await page.locator('#duolingo-username').fill(identity?.accountUsername ?? 'lingua_demo');
+    await page.getByRole('button', { name: 'Compare my follows' }).click();
+  }
   await expect(page.getByRole('group', { name: 'Show follows' })).toBeVisible();
   await page.getByRole('button', { name: /Dismiss notification “Comparison complete”/ }).click();
   await page.getByRole('button', { name: 'All received', exact: true }).click();

@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
-import type { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
+import type {
+  ConnectorConnection,
+  DuoFollowConnector,
+} from '@duofollow/src/api/extension/DuoFollowConnector';
 
 const CHECK_INTERVAL_MS = 20_000;
 const RECHECK_DELAY_MS = 250;
-type Status = ConnectorStatus | 'checking';
+type Status = ConnectorConnection['status'] | 'checking';
+type Connection = Omit<ConnectorConnection, 'status'> & { status: Status };
+
+const unavailable: ConnectorConnection = { status: 'connector-unavailable' };
 
 export function useConnectorStatus(
   connector: Pick<DuoFollowConnector, 'getConnectionStatus' | 'watchAccessChanges'>,
   workspaceVisible: boolean,
 ) {
-  const [connection, setConnection] = useState<{ status: Status; revision: number }>({
+  const [connection, setConnection] = useState<Connection & { revision: number }>({
     status: 'checking',
     revision: 0,
   });
@@ -23,11 +29,22 @@ export function useConnectorStatus(
   const needsCheck = useRef(true);
   const stopWatching = useRef<(() => void) | undefined>(undefined);
 
-  const publishStatus = useCallback((status: Status) => {
-    lastStatus.current = status;
-    setConnection((previous) =>
-      previous.status === status ? previous : { status, revision: previous.revision + 1 },
-    );
+  const publishConnection = useCallback((next: Connection) => {
+    lastStatus.current = next.status;
+    setConnection((previous) => {
+      const sameStatus = previous.status === next.status;
+      const sameAccount =
+        previous.account === next.account ||
+        (previous.account &&
+          next.account &&
+          previous.account.userId === next.account.userId &&
+          previous.account.username === next.account.username &&
+          previous.account.picture === next.account.picture);
+      if (sameStatus && previous.sessionUserId === next.sessionUserId && sameAccount)
+        return previous;
+
+      return { ...next, revision: sameStatus ? previous.revision : previous.revision + 1 };
+    });
   }, []);
 
   const refreshStatus = useCallback(() => {
@@ -36,44 +53,57 @@ export function useConnectorStatus(
     needsCheck.current = false;
     const check: Promise<ConnectorStatus | undefined> = connector
       .getConnectionStatus()
-      .then(confirm, () => confirm('connector-unavailable'));
+      .then(confirm, () => confirm(unavailable));
     pending.current = check;
 
     function isCurrent() {
       return mounted.current && pending.current === check;
     }
 
-    function confirm(status: ConnectorStatus) {
+    function confirm(next: ConnectorConnection) {
       if (!isCurrent()) return;
       if (
-        status !== 'connector-unavailable' ||
+        next.status === 'session-changed' &&
+        visible.current &&
+        document.visibilityState !== 'hidden'
+      ) {
+        publishConnection(next);
+        return connector.getConnectionStatus().then(finish, () => finish(unavailable));
+      }
+      if (
+        next.status !== 'connector-unavailable' ||
         lastStatus.current !== 'ready' ||
         !visible.current
       ) {
-        return finish(status);
+        return finish(next);
       }
 
       // Confirm a transport failure before replacing a previously verified connection.
       return new Promise<void>((resolve) => setTimeout(resolve, RECHECK_DELAY_MS)).then(() => {
         if (!isCurrent()) return;
-        if (!visible.current) return finish(status);
-        return connector.getConnectionStatus().then(finish, () => finish(status));
+        if (!visible.current) return finish(next);
+        return connector.getConnectionStatus().then(finish, () => finish(next));
       });
     }
 
-    function finish(status: ConnectorStatus) {
+    function finish(next: ConnectorConnection) {
       if (!isCurrent()) return;
+      const { status } = next;
       pending.current = null;
       if (status === 'connector-unavailable' && !visible.current) {
         needsCheck.current = true;
         return;
       }
-      publishStatus(status);
+      publishConnection(next);
+      if (status === 'session-changed') {
+        needsCheck.current = true;
+        return;
+      }
       return status;
     }
 
     return check;
-  }, [connector, publishStatus]);
+  }, [connector, publishConnection]);
 
   const watchAccess = useCallback(() => {
     if (!mounted.current || !visible.current) return;
@@ -95,14 +125,14 @@ export function useConnectorStatus(
         }
         pending.current = null;
         needsCheck.current = change === 'granted';
-        publishStatus(change === 'granted' ? 'checking' : 'consent-required');
+        publishConnection({ status: change === 'granted' ? 'checking' : 'consent-required' });
         if (needsCheck.current && document.visibilityState !== 'hidden') refreshStatus();
       },
       (enabled) => {
         if (mounted.current) setQuickUnfollowUpdate({ enabled });
       },
     );
-  }, [connector, publishStatus, refreshStatus]);
+  }, [connector, publishConnection, refreshStatus]);
 
   const refreshConnection = useCallback(() => {
     watchAccess();

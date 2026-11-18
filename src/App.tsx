@@ -3,6 +3,10 @@ import { Link } from 'react-router';
 import { privacyPath } from '@duofollow/extension/src/locales';
 import { ConnectionDialog } from '@duofollow/src/ConnectionDialog';
 import { ComparisonSkeleton } from '@duofollow/src/following/ComparisonSkeleton';
+import {
+  AccountLookupFallback,
+  ConnectedAccountCard,
+} from '@duofollow/src/following/ConnectedAccountCard';
 import { CoverageDetails } from '@duofollow/src/following/CoverageDetails';
 import { FollowingCount } from '@duofollow/src/following/FollowingCount';
 import { getDuolingoProfileUrl } from '@duofollow/src/following/profiles';
@@ -55,6 +59,7 @@ export function Workspace({
     dismiss,
     clearNotifications,
     accountUsername,
+    connectedAccount,
     setAccountUsername,
     compareFollowing,
     isLoading,
@@ -171,35 +176,48 @@ export function Workspace({
               <p>{messages.intro}</p>
             </div>
 
-            <form
-              className="comparison-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                compareFollowing();
-              }}
-            >
-              <label htmlFor="duolingo-username">{messages.accountLabel}</label>
-              <input
-                id="duolingo-username"
-                type="text"
-                placeholder={messages.username}
-                autoCapitalize="none"
-                spellCheck={false}
-                required
-                value={accountUsername}
-                disabled={!isReady || isLoading}
-                onChange={(event) => setAccountUsername(event.target.value)}
+            {connectedAccount ? (
+              <ConnectedAccountCard
+                account={connectedAccount}
+                disabled={!isReady || unfollowingId !== null}
+                isLoading={isLoading}
+                messages={messages}
+                onCompare={compareFollowing}
               />
-              <button
-                type="submit"
-                className="primary-button"
-                disabled={
-                  !isReady || !accountUsername.trim() || isLoading || unfollowingId !== null
-                }
+            ) : (
+              <form
+                className="comparison-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  compareFollowing();
+                }}
               >
-                {isLoading ? messages.comparing : messages.compare}
-              </button>
-            </form>
+                {connectedAccount === null && (
+                  <AccountLookupFallback onRetry={refreshConnection} messages={messages} />
+                )}
+                <label htmlFor="duolingo-username">{messages.accountLabel}</label>
+                <input
+                  id="duolingo-username"
+                  type="text"
+                  placeholder={messages.username}
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  required
+                  value={accountUsername}
+                  disabled={!isReady || isLoading}
+                  onChange={(event) => setAccountUsername(event.target.value)}
+                />
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={
+                    !isReady || !accountUsername.trim() || isLoading || unfollowingId !== null
+                  }
+                >
+                  {isLoading ? messages.comparing : messages.compare}
+                </button>
+              </form>
+            )}
           </section>
           <div className="comparison-results" aria-busy={isLoading}>
             {(comparison || isLoading) && (

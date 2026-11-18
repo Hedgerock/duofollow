@@ -11,6 +11,10 @@ export const duolingoEndpoints = {
     method: 'GET',
     url: () => createApiUrl('/2023-05-23/users'),
   },
+  activeAccount: {
+    method: 'GET',
+    url: (userId: string) => createApiUrl(`/2017-06-30/users/${encodeURIComponent(userId)}`),
+  },
   following: {
     method: 'GET',
     url: (userId: string) =>

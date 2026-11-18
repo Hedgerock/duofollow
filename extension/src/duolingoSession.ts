@@ -1,4 +1,6 @@
-import { isUserId } from '@duofollow/extension/src/dto/validation';
+import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import { isRecord, isUserId } from '@duofollow/extension/src/dto/validation';
+import { normalizeDuolingoPicture } from '@duofollow/extension/src/duolingoAvatarUrl';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
 import { parseRelationshipPage } from '@duofollow/extension/src/duolingoPayload';
 import {
@@ -10,7 +12,11 @@ import {
   readDuolingoJson,
 } from '@duofollow/extension/src/duolingoResponse';
 
-import type { DuolingoSessionStatus } from '@duofollow/extension/src/dto/ConnectorSession';
+import type {
+  ConnectedDuolingoAccount,
+  ConnectorAccessResult,
+  DuolingoSessionStatus,
+} from '@duofollow/extension/src/dto/ConnectorSession';
 
 function readSessionUserId(token: string | undefined): string | null {
   const payload = token?.split('.')[1];
@@ -72,6 +78,8 @@ interface SessionVerification {
   signal: AbortSignal;
   readyAt?: number;
   pending?: Promise<DuolingoSessionStatus>;
+  profile?: { account: ConnectedDuolingoAccount; checkedAt: number };
+  pendingProfile?: Promise<ConnectedDuolingoAccount | null>;
 }
 
 let verification: SessionVerification | undefined;
@@ -82,11 +90,14 @@ let verification: SessionVerification | undefined;
  *
  * @param signal The current access grant’s signal. Revoking access cancels the probe and invalidates its result.
  */
-export async function checkDuolingoSession(signal: AbortSignal): Promise<DuolingoSessionStatus> {
+export async function checkDuolingoSession(
+  signal: AbortSignal,
+  includeAccount: boolean,
+): Promise<ConnectorAccessResult> {
   const userId = await getDuolingoSessionUserId(signal);
   if (!userId) {
     if (verification?.signal === signal) verification = undefined;
-    return 'signed-out';
+    return { session: 'signed-out' };
   }
 
   const lastRetryAt = await checkDuolingoRateLimit(signal);
@@ -94,18 +105,38 @@ export async function checkDuolingoSession(signal: AbortSignal): Promise<Duoling
     verification = { userId, signal };
   }
   const active = verification;
-  if (
+  const ready =
     active.readyAt !== undefined &&
     active.readyAt >= lastRetryAt &&
-    Date.now() - active.readyAt < READY_TTL_MS
-  )
-    return 'ready';
+    Date.now() - active.readyAt < READY_TTL_MS;
+  const session = ready ? 'ready' : await verifyCurrentSession(active);
+  if (!includeAccount) {
+    return { session: session === 'session-changed' ? 'duolingo-unavailable' : session };
+  }
+  if (session !== 'ready') return { session };
+
+  const account = await readVerifiedAccount(active);
+  const change = await detectSessionChange(active);
+  if (change) return { session: change };
+
+  return { session, sessionUserId: Number(userId), account };
+}
+
+async function detectSessionChange(
+  active: SessionVerification,
+): Promise<'signed-out' | 'session-changed' | undefined> {
+  const userId = await getDuolingoSessionUserId(active.signal);
+  if (!userId) return 'signed-out';
+  if (userId !== active.userId || verification !== active) return 'session-changed';
+}
+
+function verifyCurrentSession(active: SessionVerification): Promise<DuolingoSessionStatus> {
+  const { userId, signal } = active;
   active.pending ??= verifyDuolingoSession(userId, signal)
     .then(async (status) => {
       if (status === 'ready') await checkDuolingoRateLimit(signal);
-      if ((await getDuolingoSessionUserId(signal)) !== userId || verification !== active) {
-        return 'signed-out';
-      }
+      const change = await detectSessionChange(active);
+      if (change) return change;
       if (status === 'ready') active.readyAt = Date.now();
       return status;
     })
@@ -113,6 +144,77 @@ export async function checkDuolingoSession(signal: AbortSignal): Promise<Duoling
       active.pending = undefined;
     });
   return active.pending;
+}
+
+export function getCachedDuolingoAccount(
+  userId: string,
+  username: unknown,
+  signal: AbortSignal,
+): ConnectedDuolingoAccount | undefined {
+  const active = verification;
+  const profile = active?.profile;
+  if (
+    active?.userId === userId &&
+    active.signal === signal &&
+    profile &&
+    profile.account.username === username &&
+    Date.now() - profile.checkedAt < READY_TTL_MS
+  ) {
+    return profile.account;
+  }
+}
+
+function readVerifiedAccount(
+  active: SessionVerification,
+): Promise<ConnectedDuolingoAccount | null> {
+  if (active.profile && Date.now() - active.profile.checkedAt < READY_TTL_MS) {
+    return Promise.resolve(active.profile.account);
+  }
+
+  active.pendingProfile ??= fetchActiveAccount(active.userId, active.signal)
+    .then((account) => {
+      if (account) active.profile = { account, checkedAt: Date.now() };
+      return account;
+    })
+    .catch((error: unknown) => {
+      active.signal.throwIfAborted();
+      if (error instanceof ConnectorError && error.errorCode === 'RATE_LIMITED') throw error;
+      return null;
+    })
+    .finally(() => {
+      active.pendingProfile = undefined;
+    });
+  return active.pendingProfile;
+}
+
+async function fetchActiveAccount(
+  userId: string,
+  signal: AbortSignal,
+): Promise<ConnectedDuolingoAccount | null> {
+  const endpoint = duolingoEndpoints.activeAccount;
+  const url = endpoint.url(userId);
+  url.searchParams.set('fields', 'id,username,picture');
+
+  assertDuolingoRateLimit();
+  const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(5_000)]);
+  const response = await fetch(url, {
+    method: endpoint.method,
+    credentials: 'include',
+    cache: 'no-store',
+    redirect: 'error',
+    signal: requestSignal,
+  });
+  await assertDuolingoResponse(response, `Duolingo account returned HTTP ${response.status}`);
+  const data = await readDuolingoJson(
+    response,
+    'Duolingo returned an invalid account',
+    requestSignal,
+  );
+  if (!isRecord(data) || !isUserId(data.id) || String(data.id) !== userId) return null;
+  const username = typeof data.username === 'string' ? data.username.trim() : '';
+  if (!username || /[\s/@?#]/u.test(username)) return null;
+
+  return { userId: data.id, username, picture: normalizeDuolingoPicture(data.picture) };
 }
 
 async function verifyDuolingoSession(

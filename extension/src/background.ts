@@ -154,13 +154,13 @@ async function openSettingsFromSite(source?: chrome.tabs.Tab): Promise<void> {
   await chrome.tabs.create({ url, windowId, index: index + 1, openerTabId: id });
 }
 
-async function readAccessStatus(): Promise<ConnectorAccessResult> {
+async function readAccessStatus(includeAccount: boolean): Promise<ConnectorAccessResult> {
   const { signal } = accessController;
   if (!(await hasDuolingoAccess()) || signal.aborted) return { session: 'consent-required' };
 
   try {
-    const session = await checkDuolingoSession(signal);
-    return { session: signal.aborted ? 'consent-required' : session };
+    const result = await checkDuolingoSession(signal, includeAccount);
+    return signal.aborted ? { session: 'consent-required' } : result;
   } catch (error) {
     if (signal.aborted) return { session: 'consent-required' };
     const { errorCode } = describeConnectorError(error);
@@ -235,7 +235,11 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
 
   switch (message.type) {
     case 'GET_DUOLINGO_ACCESS':
-      return replyWith(readAccessStatus(), sendResponse, { session: 'duolingo-unavailable' });
+      return replyWith(
+        readAccessStatus('includeAccount' in message && message.includeAccount === true),
+        sendResponse,
+        { session: 'duolingo-unavailable' },
+      );
     case 'OPEN_DUOLINGO_SETTINGS':
       return replyWith(
         openSettingsFromSite(sender.tab).then(() => ({ success: true })),
@@ -276,7 +280,11 @@ chrome.runtime.onMessageExternal.addListener((message: unknown, sender, sendResp
     case 'GET_FOLLOWING_SUMMARY':
       return replyWith(
         withAccess((signal) =>
-          getFollowingSummary('username' in message ? message.username : undefined, signal),
+          getFollowingSummary(
+            'username' in message ? message.username : undefined,
+            signal,
+            'sessionUserId' in message ? message.sessionUserId : undefined,
+          ),
         ),
         sendResponse,
       );

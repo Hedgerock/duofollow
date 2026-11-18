@@ -130,6 +130,7 @@ test('matches the comparison skeleton to the result card heights during refresh'
     stats.locator('article').evaluateAll((cards) => cards.map((card) => card.clientHeight));
   const viewports = [
     { width: 1100, height: 900 },
+    { width: 796, height: 800 },
     { width: 320, height: 820 },
   ];
 
@@ -153,27 +154,54 @@ test('matches the comparison skeleton to the result card heights during refresh'
   expect(loadingHeights).toEqual(resultHeights);
 });
 
-test('keeps collapsed result cards the same height with one partial-coverage label', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1100, height: 900 });
-  await openComparison(page, {
-    refreshFields: { coverage: { following: 'cursor-present', followers: 'complete' } },
-  });
-  await page.getByRole('button', { name: 'Compare my follows' }).click();
-  await page.locator('.topbar .language-select').selectOption('ru');
+for (const fontSize of ['standard', 'large', 'extra-large'] as const) {
+  test(`aligns the result cards and their counts at ${fontSize} text size`, async ({ page }) => {
+    const incomplete = fontSize !== 'standard';
+    if (incomplete) {
+      await page.addInitScript((size) => {
+        localStorage.setItem(
+          'duofollow.appearance',
+          JSON.stringify({ fontSize: size, fontFamily: 'wide' }),
+        );
+      }, fontSize);
+    }
+    await openComparison(page, {
+      incomplete,
+      refreshFields: {
+        totalFollowing: 25_000,
+        coverage: {
+          following: 'cursor-present',
+          followers: incomplete ? 'total-mismatch' : 'complete',
+        },
+      },
+    });
+    await page.getByRole('button', { name: 'Compare my follows' }).click();
 
-  const cards = page.locator('.stats article');
-  await expect(cards).toHaveCount(4);
-  await expect(cards.first().getByRole('button', { name: /Частично/ })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
-  const [firstHeight, ...otherHeights] = await cards.evaluateAll((elements) =>
-    elements.map((element) => element.getBoundingClientRect().height),
-  );
-  expect(otherHeights).toEqual([firstHeight, firstHeight, firstHeight]);
-});
+    const cards = page.locator('.stats article');
+    await expect(cards).toHaveCount(4);
+    await expect(cards.first().getByRole('button', { name: /Partial/ })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    for (const locale of ['ru', 'en', 'uk']) {
+      await page.locator('.topbar .language-select').selectOption(locale);
+      for (const width of [1100, 900, 796, 761, 760, 651, 650, 390, 320]) {
+        await page.setViewportSize({ width, height: 820 });
+        const result = await cards.evaluateAll((elements) =>
+          elements.map((card) => {
+            const { y, height } = card.getBoundingClientRect();
+            const countY = card.querySelector('strong')?.getBoundingClientRect().y;
+            return { y, height, countY };
+          }),
+        );
+        expect(new Set(result.map(({ y }) => y)).size).toBe(width > 760 ? 1 : 2);
+        for (const card of result) {
+          expect(card, `${locale}, ${width}px`).toEqual(result.find((first) => first.y === card.y));
+        }
+      }
+    }
+  });
+}
 
 test('explains partial coverage next to both counters at 320 px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 820 });

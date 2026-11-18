@@ -4,9 +4,14 @@ import {
   isConnectorSuccess,
 } from '@duofollow/extension/src/dto/ConnectorResult';
 import { unfollowConfirmationMs } from '@duofollow/extension/src/dto/UnfollowConfirmation';
+import { isRecord, isUserId } from '@duofollow/extension/src/dto/validation';
+import { parseDuolingoAvatarUrl } from '@duofollow/extension/src/duolingoAvatarUrl';
 import { isFollowingComparison } from '@duofollow/src/api/extension/isFollowingComparison';
 
-import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
+import type {
+  ConnectedDuolingoAccount,
+  ConnectorStatus,
+} from '@duofollow/extension/src/dto/ConnectorSession';
 import type {
   FollowingComparisonResult,
   UnfollowResult,
@@ -20,6 +25,29 @@ interface ConnectorResponse {
   success: boolean;
   message?: string;
   error?: string;
+}
+
+export interface ConnectorConnection {
+  status: ConnectorStatus | 'session-changed';
+  sessionUserId?: number;
+  account?: ConnectedDuolingoAccount | null;
+}
+
+function readConnectedAccount(
+  value: unknown,
+  sessionUserId: number,
+): ConnectedDuolingoAccount | null {
+  if (!isRecord(value) || value.userId !== sessionUserId || typeof value.username !== 'string') {
+    return null;
+  }
+  const username = value.username.trim();
+  if (!username || /[\s/@?#]/u.test(username)) return null;
+
+  return {
+    userId: sessionUserId,
+    username,
+    picture: parseDuolingoAvatarUrl(value.picture)?.href ?? null,
+  };
 }
 
 export type AccessChange = 'granted' | 'revoked' | 'disconnected';
@@ -60,30 +88,41 @@ export class DuoFollowConnector {
     });
   }
 
-  async getConnectionStatus(): Promise<ConnectorStatus> {
+  async getConnectionStatus(): Promise<ConnectorConnection> {
     try {
-      const response = await this.send<{ session?: unknown; errorCode?: unknown }>(
-        { type: 'GET_DUOLINGO_ACCESS' },
-        7_000,
+      const response = await this.send<unknown>(
+        { type: 'GET_DUOLINGO_ACCESS', includeAccount: true },
+        12_000,
       );
+      if (!isRecord(response)) return { status: 'connector-outdated' };
+
       const status = response.session;
+      if (status === 'ready' && isUserId(response.sessionUserId)) {
+        return {
+          status,
+          sessionUserId: response.sessionUserId,
+          account: readConnectedAccount(response.account, response.sessionUserId),
+        };
+      }
       if (status === 'duolingo-unavailable') {
-        if (response.errorCode === 'RATE_LIMITED') return 'rate-limited';
-        if (response.errorCode === 'TIMEOUT') return 'duolingo-timeout';
-        if (response.errorCode === 'INVALID_RESPONSE') return 'duolingo-response-invalid';
+        if (response.errorCode === 'RATE_LIMITED') return { status: 'rate-limited' };
+        if (response.errorCode === 'TIMEOUT') return { status: 'duolingo-timeout' };
+        if (response.errorCode === 'INVALID_RESPONSE')
+          return { status: 'duolingo-response-invalid' };
       }
       if (
         status === 'ready' ||
         status === 'signed-out' ||
+        status === 'session-changed' ||
         status === 'duolingo-unavailable' ||
         status === 'consent-required'
       ) {
-        return status;
+        return { status };
       }
 
-      return 'connector-outdated';
+      return { status: 'connector-outdated' };
     } catch {
-      return 'connector-unavailable';
+      return { status: 'connector-unavailable' };
     }
   }
 
@@ -127,8 +166,15 @@ export class DuoFollowConnector {
     }
   }
 
-  async getFollowingSummary(username: string): Promise<FollowingComparisonResult> {
-    const result = await this.send<unknown>({ type: 'GET_FOLLOWING_SUMMARY', username }, 30_000);
+  async getFollowingSummary(
+    username: string,
+    sessionUserId?: number,
+  ): Promise<FollowingComparisonResult> {
+    const message =
+      sessionUserId === undefined
+        ? { type: 'GET_FOLLOWING_SUMMARY' as const, username }
+        : { type: 'GET_FOLLOWING_SUMMARY' as const, username, sessionUserId };
+    const result = await this.send<unknown>(message, 30_000);
     if (isConnectorFailure(result)) return result;
     if (
       !isConnectorSuccess(result) ||
@@ -214,8 +260,9 @@ export class DuoFollowConnector {
 
   private async send<Result>(
     message:
-      | { type: 'GET_DUOLINGO_ACCESS' | 'OPEN_DUOLINGO_SETTINGS' | 'GET_QUICK_UNFOLLOW' }
-      | { type: 'GET_FOLLOWING_SUMMARY'; username: string }
+      | { type: 'GET_DUOLINGO_ACCESS'; includeAccount: true }
+      | { type: 'OPEN_DUOLINGO_SETTINGS' | 'GET_QUICK_UNFOLLOW' }
+      | { type: 'GET_FOLLOWING_SUMMARY'; username: string; sessionUserId?: number }
       | {
           type: 'REQUEST_UNFOLLOW' | 'REQUEST_QUICK_UNFOLLOW';
           username: string;

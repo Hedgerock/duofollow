@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 import { useConnectorStatus } from '@duofollow/src/connection/useConnectorStatus';
@@ -16,10 +16,19 @@ const connector = new DuoFollowConnector(import.meta.env.VITE_DUOFOLLOW_EXTENSIO
  * Revoking access clears the stored account and results.
  */
 export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
-  const { status, revision, refreshConnection, quickUnfollowUpdate } = useConnectorStatus(
-    connector,
-    workspaceVisible,
-  );
+  const {
+    status: connectionStatus,
+    revision,
+    refreshConnection,
+    quickUnfollowUpdate,
+    sessionUserId,
+    account,
+  } = useConnectorStatus(connector, workspaceVisible);
+  const sessionChanged = connectionStatus === 'session-changed';
+  const status = sessionChanged ? 'checking' : connectionStatus;
+  const previousSessionId = useRef<number | undefined>(undefined);
+  const comparedSessionId = useRef<number | undefined>(undefined);
+  const hadReadySession = useRef(false);
   const [dismissedRevision, setDismissedRevision] = useState<number | null>(null);
   const isReady = status === 'ready';
   const issue = status === 'checking' || status === 'ready' ? null : status;
@@ -35,7 +44,7 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     accountUsername,
     setAccountUsername,
     compareFollowing,
-    clearComparison,
+    resetComparison,
     isLoading,
     comparison: previousComparison,
     removeSubscription,
@@ -44,9 +53,11 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     enabled: workspaceVisible && isReady,
     locale,
     workspaceVisible,
+    activeAccountId: account?.userId,
   });
   const consentRequired = status === 'consent-required';
-  const comparison = consentRequired ? null : previousComparison;
+  const sessionEnded = consentRequired || status === 'signed-out' || sessionChanged;
+  const comparison = sessionEnded ? null : previousComparison;
   const {
     confirmation,
     askToUnfollow,
@@ -72,11 +83,41 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
   }, [dismissGroup, workspaceVisible]);
 
   useLayoutEffect(() => {
-    if (!consentRequired) return;
-    clearComparison();
+    if (isReady) hadReadySession.current = true;
+    if (sessionEnded) {
+      if (!consentRequired && !sessionChanged && !hadReadySession.current) return;
+      hadReadySession.current = false;
+      previousSessionId.current = undefined;
+      comparedSessionId.current = undefined;
+      clearUnfollow();
+      resetComparison();
+      clearNotifications();
+      return;
+    }
+    if (sessionUserId === undefined) return;
+
+    const switched =
+      previousSessionId.current !== undefined && previousSessionId.current !== sessionUserId;
+    previousSessionId.current = sessionUserId;
+    if (switched) comparedSessionId.current = undefined;
+    const autoCompare = account && comparedSessionId.current !== account.userId;
+    if (!switched && !autoCompare) return;
+
+    comparedSessionId.current = account?.userId;
     clearUnfollow();
+    resetComparison(account ?? undefined);
     clearNotifications();
-  }, [clearComparison, clearNotifications, clearUnfollow, consentRequired]);
+  }, [
+    account,
+    clearNotifications,
+    clearUnfollow,
+    consentRequired,
+    isReady,
+    resetComparison,
+    sessionChanged,
+    sessionEnded,
+    sessionUserId,
+  ]);
 
   return {
     status,
@@ -91,7 +132,8 @@ export function useWorkspace(locale: Locale, workspaceVisible: boolean) {
     clearNotifications,
     accountUsername,
     setAccountUsername,
-    compareFollowing,
+    compareFollowing: () => compareFollowing(account ?? undefined),
+    connectedAccount: account,
     isLoading,
     comparison,
     followingList,
