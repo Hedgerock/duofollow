@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="439" viewBox="0 0 1030 565" role="img" aria-labelledby="title desc" font-family="system-ui, sans-serif">
+  <title id="title">Карта зависимостей DuoFollow</title>
+  <desc id="desc">SiteLayout объединяет интерфейс и рабочие хуки. DuoFollowConnector отправляет сообщения фоновому процессу расширения. Фоновый процесс проверяет доступ и выполняет чтение и отписку через API Duolingo.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto" markerUnits="userSpaceOnUse">
+      <path fill="#84bcf3" d="m0 0 10 5-10 5z" />
+    </marker>
+  </defs>
+
+  <rect width="1030" height="565" rx="24" fill="#0b1220" />
+  <g fill="#141e2e" stroke="#29374b">
+    <rect x="28" y="28" width="432" height="505" rx="18" />
+    <rect x="479" y="28" width="523" height="385" rx="18" />
+  </g>
+  <g fill="#e8edf7" font-size="21" font-weight="650">
+    <text x="52" y="67">Сайт DuoFollow</text>
+    <text x="503" y="67">Расширение Chrome</text>
+  </g>
+
+  <g fill="none" stroke="#84bcf3" stroke-width="2" marker-end="url(#arrow)">
+    <path d="M244 152v20H141v19" />
+    <path d="M244 152v20h105v19" />
+    <path d="M141 250v37" />
+    <path d="M349 250v37" />
+    <path d="M349 367v37" />
+    <path d="M436 436h33V123h33" />
+    <path d="M740 152v21H607v19" />
+    <path d="M740 152v21h135v19" />
+    <path d="M771 224h-56" />
+    <path d="M607 255v42" />
+    <path d="M875 255v42" />
+    <path d="M607 255v19h130v197" />
+  </g>
+
+  <g fill="#182436" stroke="#435771">
+    <rect x="52" y="94" width="384" height="58" rx="10" />
+    <rect x="52" y="192" width="178" height="58" rx="10" />
+    <rect x="262" y="192" width="174" height="58" rx="10" />
+    <rect x="52" y="288" width="178" height="66" rx="10" />
+    <rect x="262" y="288" width="174" height="79" rx="10" />
+    <rect x="262" y="405" width="174" height="62" rx="10" />
+    <rect x="503" y="94" width="475" height="58" rx="10" />
+    <rect x="503" y="193" width="208" height="62" rx="10" />
+    <rect x="771" y="193" width="207" height="62" rx="10" />
+    <rect x="503" y="298" width="208" height="68" rx="10" />
+    <rect x="771" y="298" width="207" height="68" rx="10" />
+  </g>
+  <rect x="610" y="472" width="254" height="61" rx="10" fill="#1d3826" stroke="#37683d" />
+  <g fill="#e8edf7" font-size="15" font-weight="650" text-anchor="middle">
+    <text x="244" y="119">SiteLayout</text>
+    <text x="141" y="218">Workspace</text>
+    <text x="349" y="218">useWorkspace</text>
+    <text x="141" y="315">VirtualFollowingList</text>
+    <text x="349" y="314">Хуки сценариев</text>
+    <text x="349" y="431">DuoFollowConnector</text>
+    <text x="740" y="119">background.ts · service worker</text>
+    <text x="607" y="218">duolingo.ts</text>
+    <text x="875" y="218">unfollowRequests.ts</text>
+    <text x="607" y="325">Общая пауза</text>
+    <text x="875" y="325">Журнал операции</text>
+    <text x="737" y="497" fill="#98e66d">API Duolingo</text>
+  </g>
+  <g fill="#b9c7db" font-size="12.5" text-anchor="middle">
+    <text x="244" y="137">Настройки и состояние сравнения</text>
+    <text x="141" y="236">Форма, статистика, список</text>
+    <text x="349" y="236">Координация сценариев</text>
+    <text x="141" y="335">Видимые строки</text>
+    <text x="349" y="334">Сессия, сравнение,</text>
+    <text x="349" y="350">отписка</text>
+    <text x="349" y="449">Команды Chrome Runtime</text>
+    <text x="740" y="137">Проверка источника команды и разрешений</text>
+    <text x="607" y="237">HTTP-запросы и сравнение</text>
+    <text x="875" y="237">Подтверждение и исход</text>
+    <text x="607" y="346">duolingoRateLimit.ts</text>
+    <text x="875" y="346">chrome.storage.session</text>
+    <text x="737" y="516">Профиль, Following, Followers</text>
+  </g>
+</svg>
