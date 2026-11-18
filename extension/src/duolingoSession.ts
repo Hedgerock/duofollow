@@ -1,6 +1,9 @@
 import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
-import { checkSessionRateLimit } from '@duofollow/extension/src/duolingoRateLimit';
+import {
+  assertDuolingoRateLimit,
+  checkDuolingoRateLimit,
+} from '@duofollow/extension/src/duolingoRateLimit';
 import {
   assertDuolingoResponse,
   readDuolingoJson,
@@ -85,8 +88,7 @@ export async function checkDuolingoSession(signal: AbortSignal): Promise<Duoling
     return 'signed-out';
   }
 
-  const lastRetryAt = await checkSessionRateLimit();
-  signal.throwIfAborted();
+  const lastRetryAt = await checkDuolingoRateLimit(signal);
   if (verification?.userId !== userId || verification.signal !== signal) {
     verification = { userId, signal };
   }
@@ -99,7 +101,7 @@ export async function checkDuolingoSession(signal: AbortSignal): Promise<Duoling
     return 'ready';
   active.pending ??= verifyDuolingoSession(userId, signal)
     .then(async (status) => {
-      if (status === 'ready') await checkSessionRateLimit();
+      if (status === 'ready') await checkDuolingoRateLimit(signal);
       if ((await getDuolingoSessionUserId(signal)) !== userId || verification !== active) {
         return 'signed-out';
       }
@@ -121,6 +123,7 @@ async function verifyDuolingoSession(
   url.searchParams.set('viewerId', userId);
   url.searchParams.set('pageSize', '1');
 
+  assertDuolingoRateLimit();
   const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(5_000)]);
   const response = await fetch(url, {
     method: endpoint.method,

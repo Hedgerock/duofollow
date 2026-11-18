@@ -113,6 +113,7 @@ const sessionCookie = (id: number) => ({
   value: `fixture.${btoa(JSON.stringify({ sub: id, exp: 4_000_000_000 }))}.signature`,
 });
 let sessionStorage: Record<string, unknown>;
+const setSessionStorage = vi.fn<(values: Record<string, unknown>) => Promise<void>>();
 const getSettings = vi.fn<() => Promise<Record<string, unknown>>>();
 const containsPermissions = vi.fn<() => Promise<boolean>>();
 const openOptionsPage = vi.fn<() => Promise<void>>();
@@ -127,6 +128,9 @@ let connectListener: (port: chrome.runtime.Port) => void;
 beforeEach(async () => {
   vi.resetModules();
   sessionStorage = {};
+  setSessionStorage.mockReset().mockImplementation(async (values) => {
+    Object.assign(sessionStorage, values);
+  });
   fetchMock.mockReset();
   getCookie.mockReset().mockResolvedValue(sessionCookie(account.id));
   getSettings.mockReset().mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1 });
@@ -153,7 +157,7 @@ beforeEach(async () => {
     storage: {
       session: {
         get: async (key: string) => ({ [key]: sessionStorage[key] }),
-        set: async (values: Record<string, unknown>) => Object.assign(sessionStorage, values),
+        set: setSessionStorage,
         remove: async (key: string) => {
           delete sessionStorage[key];
         },
@@ -511,6 +515,46 @@ describe('extension worker', () => {
     await expect(checkConnection()).resolves.toEqual({ session: 'ready' });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('blocks comparison and both unfollow modes until the shared deadline expires', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 2 });
+    fetchMock.mockResolvedValueOnce(
+      new Response(null, { status: 429, headers: { 'Retry-After': '5' } }),
+    );
+    await expect(checkConnection()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+
+    vi.resetModules();
+    await import('@duofollow/extension/src/background');
+    vi.setSystemTime(Date.now() + 4_999);
+    await expect(compare(account.username)).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    await expect(requestUnfollow()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    await expect(requestUnfollow(202, true)).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(createWindow).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + 1);
+    fetchMock
+      .mockResolvedValueOnce(resolveAccount())
+      .mockResolvedValueOnce(following([], 0, null))
+      .mockResolvedValueOnce(followers([]));
+    await expect(compare(account.username)).resolves.toMatchObject({ success: true });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([200, 400])(
+    'blocks additional comparison requests if another route returns 429 during a profile lookup with HTTP %i',
+    async (status) => {
+      fetchMock.mockImplementationOnce(async () => {
+        fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
+        await expect(checkConnection()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+        return status === 200 ? resolveAccount() : new Response(null, { status });
+      });
+
+      await expect(compare(account.username)).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it('uses a rate limit from comparison to postpone the next session check', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
@@ -924,6 +968,52 @@ describe('extension worker', () => {
     );
     await expect(status(requestId)).resolves.toEqual({ success: true, targetUserId: 202 });
     await expect(confirm(requestId)).resolves.toMatchObject({ errorCode: 'UNFOLLOW_CANCELLED' });
+    expect(writeCalls()).toHaveLength(1);
+  });
+
+  it.each([false, true])(
+    'blocks DELETE when a 429 arrives during unfollow authorization (quick %s)',
+    async (quick) => {
+      getSettings.mockResolvedValue({ [ACCESS_CONSENT_KEY]: 1, quickUnfollowConsent: 2 });
+      prepare().mockResolvedValueOnce(following([target]));
+      const requestId = await openConfirmation(quick);
+      setSessionStorage.mockImplementationOnce(async (values) => {
+        Object.assign(sessionStorage, values);
+        fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
+        await expect(checkConnection()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+      });
+
+      const result = await (quick ? confirmQuick(requestId) : confirm(requestId));
+      expect(result).toMatchObject({ success: false, errorCode: 'RATE_LIMITED' });
+      await expect(status(requestId)).resolves.toEqual(result);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      expect(writeCalls()).toHaveLength(0);
+    },
+  );
+
+  it('uses a DELETE rate limit for subsequent comparison and unfollow requests', async () => {
+    prepare()
+      .mockResolvedValueOnce(following([target]))
+      .mockResolvedValueOnce(new Response(null, { status: 429 }));
+
+    await expect(unfollow()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    await expect(compare(account.username)).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    await expect(requestUnfollow()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(writeCalls()).toHaveLength(1);
+  });
+
+  it('preserves an unknown unfollow outcome when a shared pause blocks recovery', async () => {
+    prepare()
+      .mockResolvedValueOnce(following([target]))
+      .mockImplementationOnce(async () => {
+        fetchMock.mockResolvedValueOnce(new Response(null, { status: 429 }));
+        await expect(checkConnection()).resolves.toMatchObject({ errorCode: 'RATE_LIMITED' });
+        throw new TypeError('Connection closed after DELETE');
+      });
+
+    await expect(unfollow()).resolves.toMatchObject({ errorCode: 'UNFOLLOW_UNCONFIRMED' });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(writeCalls()).toHaveLength(1);
   });
 

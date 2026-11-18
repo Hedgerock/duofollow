@@ -11,7 +11,7 @@ function retryDeadline(header: string | null, now: number): number {
   return Number.isSafeInteger(deadline) && deadline >= now ? deadline : now + DEFAULT_DELAY_MS;
 }
 
-async function getRetryDeadline(): Promise<number> {
+async function restoreRetryDeadline(): Promise<void> {
   try {
     const stored = (await chrome.storage.session.get(RETRY_KEY))[RETRY_KEY];
     if (typeof stored === 'number' && Number.isSafeInteger(stored)) {
@@ -20,21 +20,26 @@ async function getRetryDeadline(): Promise<number> {
   } catch {
     // The active worker still enforces its in-memory deadline.
   }
-  return retryAt;
 }
 
 export async function rememberDuolingoRateLimit(response: Response): Promise<void> {
   const deadline = retryDeadline(response.headers.get('Retry-After'), Date.now());
-  await getRetryDeadline();
   if (deadline <= retryAt) return;
   retryAt = deadline;
+  await restoreRetryDeadline();
+  if (retryAt !== deadline) return;
   await chrome.storage.session.set({ [RETRY_KEY]: deadline }).catch(() => {});
 }
 
-export async function checkSessionRateLimit(): Promise<number> {
-  const deadline = await getRetryDeadline();
-  if (deadline > Date.now()) {
-    throw new ConnectorError('RATE_LIMITED', 'Duolingo session check is waiting after HTTP 429');
+export function assertDuolingoRateLimit(): number {
+  if (retryAt > Date.now()) {
+    throw new ConnectorError('RATE_LIMITED', 'Duolingo requests are paused after HTTP 429');
   }
-  return deadline;
+  return retryAt;
+}
+
+export async function checkDuolingoRateLimit(signal: AbortSignal): Promise<number> {
+  await restoreRetryDeadline();
+  signal.throwIfAborted();
+  return assertDuolingoRateLimit();
 }

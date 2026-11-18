@@ -24,7 +24,7 @@
 
 - The **Partial** label opens and closes its explanation without resizing neighboring cards.
 
-- Browser tabs share Duolingo session checks and pause them after HTTP 429.
+- Browser tabs share Duolingo session checks. After HTTP 429, the extension pauses new session checks, comparisons, and unfollow requests until the shared retry deadline.
 - The site loads avatars from approved hosts and shows initials for other URLs.
 
 - The header and footer stay in place while the main content scrolls. The scrollbar follows the site theme.

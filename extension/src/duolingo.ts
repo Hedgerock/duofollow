@@ -2,6 +2,10 @@ import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
 import { parseDuolingoAvatarUrl } from '@duofollow/extension/src/duolingoAvatarUrl';
 import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
 import {
+  assertDuolingoRateLimit,
+  checkDuolingoRateLimit,
+} from '@duofollow/extension/src/duolingoRateLimit';
+import {
   assertDuolingoResponse,
   readDuolingoJson,
 } from '@duofollow/extension/src/duolingoResponse';
@@ -50,7 +54,7 @@ async function getRelationshipPage(
   userId: string,
   signal: AbortSignal,
 ): Promise<RelationshipPage> {
-  signal.throwIfAborted();
+  await checkDuolingoRateLimit(signal);
   const endpoint = duolingoEndpoints[list];
   const url = endpoint.url(userId);
 
@@ -58,6 +62,7 @@ async function getRelationshipPage(
   url.searchParams.set('viewerId', userId);
   url.searchParams.set('_', String(Date.now()));
 
+  assertDuolingoRateLimit();
   const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(12_000)]);
   const response = await fetch(url, {
     method: endpoint.method,
@@ -132,6 +137,7 @@ async function resolveDuolingoAccount(
   }
 
   const sessionUserId = await requireSessionUserId(signal);
+  await checkDuolingoRateLimit(signal);
 
   const endpoint = duolingoEndpoints.accountLookup;
   const url = endpoint.url();
@@ -148,9 +154,11 @@ async function resolveDuolingoAccount(
     redirect: 'error' as const,
     signal: AbortSignal.any([signal, AbortSignal.timeout(12_000)]),
   };
+  assertDuolingoRateLimit();
   let response = await fetch(url, options);
   if (includePicture && response.status === 400) {
     signal.throwIfAborted();
+    assertDuolingoRateLimit();
     const fallbackUrl = new URL(url);
     fallbackUrl.searchParams.set('fields', 'users{id,username}');
     response = await fetch(fallbackUrl, options);
@@ -372,6 +380,8 @@ export async function performUnfollow(
   signal.throwIfAborted();
 
   const endpoint = duolingoEndpoints.unfollow;
+  // The relationship check loaded the deadline. Keep the final session check and DELETE adjacent.
+  assertDuolingoRateLimit();
   onWriteStarted();
   const response = await fetch(endpoint.url(userId, targetUserId).href, {
     method: endpoint.method,
