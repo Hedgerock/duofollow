@@ -12,11 +12,14 @@ import {
   readExtensionLocale,
 } from '@duofollow/extension/src/extensionLocalization';
 import { privacyPath } from '@duofollow/extension/src/locales';
+import { createChromiumPlatform } from '@duofollow/extension/src/platform/chromium';
 import {
   isQuickUnfollowEnabled,
   QUICK_UNFOLLOW_CONSENT_KEY,
   QUICK_UNFOLLOW_CONSENT_VERSION,
 } from '@duofollow/extension/src/quickUnfollow';
+
+const platform = createChromiumPlatform();
 
 const grant = document.querySelector<HTMLButtonElement>('#grant-access')!;
 const revoke = document.querySelector<HTMLButtonElement>('#revoke-access')!;
@@ -50,7 +53,7 @@ language.addEventListener('change', async () => {
   languageError.hidden = true;
   const next = extensionLocale(language.value);
   try {
-    await chrome.storage.local.set({ [EXTENSION_LANGUAGE_KEY]: next });
+    await platform.storage.local.set({ [EXTENSION_LANGUAGE_KEY]: next });
     setLocale(next);
   } catch {
     language.value = locale;
@@ -71,7 +74,7 @@ let revision = 0;
 
 async function renderAccess(feedback?: string) {
   const current = ++revision;
-  const connected = await hasDuolingoAccess();
+  const connected = await hasDuolingoAccess(platform);
   if (revision !== current) return;
   showAccessStatus(feedback ?? (connected ? 'accessGranted' : 'accessDisconnected'));
   grant.hidden = connected;
@@ -94,17 +97,17 @@ async function changeAccess(update: () => Promise<string>) {
 grant.addEventListener('click', () => {
   void changeAccess(async () => {
     // Chrome must receive the permission request during the click.
-    const granted = await chrome.permissions.request(DUOLINGO_PERMISSIONS);
+    const granted = await platform.permissions.request(DUOLINGO_PERMISSIONS);
     if (!granted) return 'accessDenied';
-    await chrome.storage.local.set({ [ACCESS_CONSENT_KEY]: ACCESS_CONSENT_VERSION });
+    await platform.storage.local.set({ [ACCESS_CONSENT_KEY]: ACCESS_CONSENT_VERSION });
     return 'accessGrantedBack';
   });
 });
 
 revoke.addEventListener('click', () => {
   void changeAccess(async () => {
-    await chrome.storage.local.remove(ACCESS_CONSENT_KEY);
-    await chrome.permissions.remove(DUOLINGO_PERMISSIONS);
+    await platform.storage.local.remove(ACCESS_CONSENT_KEY);
+    await platform.permissions.remove(DUOLINGO_PERMISSIONS);
     return 'accessDisconnected';
   });
 });
@@ -127,7 +130,7 @@ function showQuickUnfollowStatus(key?: string) {
 async function refreshQuickUnfollow(feedback?: string) {
   const current = ++quickUnfollowRevision;
   try {
-    const enabled = await isQuickUnfollowEnabled();
+    const enabled = await isQuickUnfollowEnabled(platform);
     if (current !== quickUnfollowRevision) return;
     quickUnfollow.checked = enabled;
     quickUnfollow.disabled = false;
@@ -146,11 +149,11 @@ quickUnfollow.addEventListener('change', async () => {
   let feedback: string | undefined;
   try {
     if (quickUnfollow.checked) {
-      await chrome.storage.local.set({
+      await platform.storage.local.set({
         [QUICK_UNFOLLOW_CONSENT_KEY]: QUICK_UNFOLLOW_CONSENT_VERSION,
       });
     } else {
-      await chrome.storage.local.remove(QUICK_UNFOLLOW_CONSENT_KEY);
+      await platform.storage.local.remove(QUICK_UNFOLLOW_CONSENT_KEY);
     }
   } catch {
     feedback = 'quickUnfollowWriteError';
@@ -158,8 +161,8 @@ quickUnfollow.addEventListener('change', async () => {
   await refreshQuickUnfollow(feedback);
 });
 
-chrome.permissions.onRemoved.addListener(refreshAccess);
-chrome.storage.onChanged.addListener((changes, area) => {
+platform.events.permissionsRemoved.addListener(refreshAccess);
+platform.events.storageChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (EXTENSION_LANGUAGE_KEY in changes)
     setLocale(extensionLocale(changes[EXTENSION_LANGUAGE_KEY].newValue));

@@ -1,78 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="439" viewBox="0 0 1030 565" role="img" aria-labelledby="title desc" font-family="system-ui, sans-serif">
-  <title id="title">Карта зависимостей DuoFollow</title>
-  <desc id="desc">SiteLayout объединяет интерфейс и рабочие хуки. DuoFollowConnector отправляет сообщения фоновому процессу расширения. Фоновый процесс проверяет доступ и выполняет чтение и отписку через API Duolingo.</desc>
-  <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto" markerUnits="userSpaceOnUse">
-      <path fill="#84bcf3" d="m0 0 10 5-10 5z" />
-    </marker>
-  </defs>
-
-  <rect width="1030" height="565" rx="24" fill="#0b1220" />
-  <g fill="#141e2e" stroke="#29374b">
-    <rect x="28" y="28" width="432" height="505" rx="18" />
-    <rect x="479" y="28" width="523" height="385" rx="18" />
-  </g>
-  <g fill="#e8edf7" font-size="21" font-weight="650">
-    <text x="52" y="67">Сайт DuoFollow</text>
-    <text x="503" y="67">Расширение Chrome</text>
-  </g>
-
-  <g fill="none" stroke="#84bcf3" stroke-width="2" marker-end="url(#arrow)">
-    <path d="M244 152v20H141v19" />
-    <path d="M244 152v20h105v19" />
-    <path d="M141 250v37" />
-    <path d="M349 250v37" />
-    <path d="M349 367v37" />
-    <path d="M436 436h33V123h33" />
-    <path d="M740 152v21H607v19" />
-    <path d="M740 152v21h135v19" />
-    <path d="M771 224h-56" />
-    <path d="M607 255v42" />
-    <path d="M875 255v42" />
-    <path d="M607 255v19h130v197" />
-  </g>
-
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="472" viewBox="0 0 1120 660" role="img" aria-labelledby="title desc" font-family="system-ui, sans-serif">
+  <title id="title">Core, платформа и транспорт DuoFollow</title>
+  <desc id="desc">Клиент сайта проверяет протокол и обращается к заменяемому транспорту. Вход расширения связывает Chromium-адаптер и общий core. Core проверяет отправителя, сессию и одноразовое подтверждение. Браузерные возможности доступны через ExtensionPlatform.</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path fill="#84bcf3" d="m0 0 10 5-10 5z"/></marker></defs>
+  <rect width="1120" height="660" rx="24" fill="#0b1220"/>
+  <g fill="#141e2e" stroke="#29374b"><rect x="24" y="62" width="318" height="458" rx="18"/><rect x="360" y="62" width="736" height="458" rx="18"/></g>
+  <g fill="#e8edf7" font-size="21" font-weight="650"><text x="44" y="42">Сайт DuoFollow</text><text x="380" y="42">Расширение Chrome / Edge</text></g>
+  <rect x="372" y="175" width="380" height="329" rx="14" fill="#102334" stroke="#435771" stroke-dasharray="5 5"/>
   <g fill="#182436" stroke="#435771">
-    <rect x="52" y="94" width="384" height="58" rx="10" />
-    <rect x="52" y="192" width="178" height="58" rx="10" />
-    <rect x="262" y="192" width="174" height="58" rx="10" />
-    <rect x="52" y="288" width="178" height="66" rx="10" />
-    <rect x="262" y="288" width="174" height="79" rx="10" />
-    <rect x="262" y="405" width="174" height="62" rx="10" />
-    <rect x="503" y="94" width="475" height="58" rx="10" />
-    <rect x="503" y="193" width="208" height="62" rx="10" />
-    <rect x="771" y="193" width="207" height="62" rx="10" />
-    <rect x="503" y="298" width="208" height="68" rx="10" />
-    <rect x="771" y="298" width="207" height="68" rx="10" />
+    <rect x="46" y="111" width="274" height="80" rx="11"/><rect x="46" y="256" width="274" height="92" rx="11"/><rect x="46" y="410" width="274" height="92" rx="11"/>
+    <rect x="382" y="82" width="356" height="65" rx="11"/><rect x="390" y="200" width="346" height="70" rx="11"/><rect x="390" y="310" width="346" height="64" rx="11"/>
+    <rect x="390" y="416" width="162" height="73" rx="11"/><rect x="568" y="416" width="168" height="73" rx="11"/>
+    <rect x="812" y="190" width="260" height="90" rx="11"/><rect x="812" y="349" width="260" height="130" rx="11"/>
   </g>
-  <rect x="610" y="472" width="254" height="61" rx="10" fill="#1d3826" stroke="#37683d" />
-  <g fill="#e8edf7" font-size="15" font-weight="650" text-anchor="middle">
-    <text x="244" y="119">SiteLayout</text>
-    <text x="141" y="218">Workspace</text>
-    <text x="349" y="218">useWorkspace</text>
-    <text x="141" y="315">VirtualFollowingList</text>
-    <text x="349" y="314">Хуки сценариев</text>
-    <text x="349" y="431">DuoFollowConnector</text>
-    <text x="740" y="119">background.ts · service worker</text>
-    <text x="607" y="218">duolingo.ts</text>
-    <text x="875" y="218">unfollowRequests.ts</text>
-    <text x="607" y="325">Общая пауза</text>
-    <text x="875" y="325">Журнал операции</text>
-    <text x="737" y="497" fill="#98e66d">API Duolingo</text>
+  <rect x="390" y="550" width="346" height="68" rx="12" fill="#1d3826" stroke="#37683d"/>
+  <g fill="none" stroke="#84bcf3" stroke-width="2" marker-end="url(#arrow)">
+    <path d="M183 191v65"/><path d="M183 348v62"/>
+    <path d="M320 455h29V235h41"/><path d="M560 147v53"/><path d="M738 114h204v76"/>
+    <path d="M563 270v40"/><path d="M471 374v42"/><path d="M652 374v42"/><path d="M568 451h-16"/>
+    <path d="M736 342h40v65h36"/><path d="M736 454h76"/><path d="M942 280v69"/>
+    <path d="M471 489v61"/>
   </g>
-  <g fill="#b9c7db" font-size="12.5" text-anchor="middle">
-    <text x="244" y="137">Настройки и состояние сравнения</text>
-    <text x="141" y="236">Форма, статистика, список</text>
-    <text x="349" y="236">Координация сценариев</text>
-    <text x="141" y="335">Видимые строки</text>
-    <text x="349" y="334">Сессия, сравнение,</text>
-    <text x="349" y="350">отписка</text>
-    <text x="349" y="449">Команды Chrome Runtime</text>
-    <text x="740" y="137">Проверка источника команды и разрешений</text>
-    <text x="607" y="237">HTTP-запросы и сравнение</text>
-    <text x="875" y="237">Подтверждение и исход</text>
-    <text x="607" y="346">duolingoRateLimit.ts</text>
-    <text x="875" y="346">chrome.storage.session</text>
-    <text x="737" y="516">Профиль, Following, Followers</text>
+  <g fill="#e8edf7" text-anchor="middle" font-size="17" font-weight="650">
+    <text x="183" y="140">SiteLayout · useWorkspace</text><text x="183" y="288">DuoFollowConnector</text><text x="183" y="442">ConnectorTransport</text>
+    <text x="560" y="108">background.ts</text><text x="563" y="229">startConnector · core</text><text x="563" y="337">Сессия и общая пауза</text>
+    <text x="471" y="443">duolingo</text><text x="652" y="443">unfollowRequests</text><text x="942" y="220">Chromium-адаптер</text><text x="942" y="378">ExtensionPlatform</text>
+    <text x="563" y="579" fill="#98e66d">API Duolingo</text>
+  </g>
+  <g fill="#b9c7db" text-anchor="middle" font-size="14">
+    <text x="183" y="166">Настройки и сценарии интерфейса</text><text x="183" y="316">Валидация ответов · тайм-аут</text><text x="183" y="470">chromiumTransport</text>
+    <text x="560" y="132">Сборка core и адаптера</text><text x="563" y="252">Источник · согласие · документ</text><text x="563" y="360">Кеши принадлежат экземпляру</text>
+    <text x="471" y="469">HTTP и сравнение</text><text x="652" y="469">Журнал · исход</text><text x="942" y="248">SDK и доверенные метаданные</text>
+    <text x="942" y="404">Cookie · local / session storage</text><text x="942" y="430">Разрешения · окна · вкладки</text><text x="942" y="456">Доставка сообщений и событий</text>
+    <text x="563" y="602">Профиль · списки · один DELETE</text>
+    <text x="183" y="548">Транспорт заменяется через контракт</text><text x="942" y="548">Firefox: следующая итерация</text>
   </g>
 </svg>

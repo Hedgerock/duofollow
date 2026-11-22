@@ -6,12 +6,15 @@ import {
   localizeExtensionPage,
   readExtensionLocale,
 } from '@duofollow/extension/src/extensionLocalization';
+import { createChromiumPlatform } from '@duofollow/extension/src/platform/chromium';
 import {
   isQuickUnfollowEnabled,
   QUICK_UNFOLLOW_CONSENT_KEY,
 } from '@duofollow/extension/src/quickUnfollow';
 
 import type { UnfollowPreview } from '@duofollow/extension/src/dto/UnfollowConfirmation';
+
+const platform = createChromiumPlatform();
 
 const requestId = window.location.hash.slice(1);
 const status = document.querySelector<HTMLParagraphElement>('#status')!;
@@ -41,11 +44,11 @@ setLocale(locale);
 void readExtensionLocale().then(setLocale);
 
 async function send<T>(type: 'READ_UNFOLLOW_PREVIEW' | 'CANCEL_UNFOLLOW' | 'CONFIRM_UNFOLLOW') {
-  return (await chrome.runtime.sendMessage({ type, requestId })) as T | undefined;
+  return (await platform.sendInternal({ type, requestId })) as T | undefined;
 }
 
 async function refreshQuickUnfollowHint() {
-  const enabled = await isQuickUnfollowEnabled().catch(() => false);
+  const enabled = await isQuickUnfollowEnabled(platform).catch(() => false);
   quickUnfollowHint.hidden = enabled || confirm.hidden || confirm.disabled;
 }
 
@@ -97,7 +100,7 @@ confirm.addEventListener('click', async () => {
 });
 
 close.addEventListener('click', () => window.close());
-chrome.storage.onChanged.addListener((changes, area) => {
+platform.events.storageChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (EXTENSION_LANGUAGE_KEY in changes)
     setLocale(extensionLocale(changes[EXTENSION_LANGUAGE_KEY].newValue));

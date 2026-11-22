@@ -17,6 +17,11 @@ DuoFollow и открытая сессия Duolingo работают в одно
 Сборка проверяет типы и через esbuild собирает `background.ts`, `access.ts` и `unfollow-confirmation.ts` в ES-модули для Chrome и Microsoft Edge.
 В `extension/dist` также попадают манифест, экраны доступа и подтверждения, локали, MIT-лицензия и четыре PNG-иконки.
 
+`background.ts` выбирает общий адаптер Chrome/Edge и запускает независимые от SDK фабрики из `core`.
+Платформа передаёт браузерные метаданные отправителя отдельно от тела сообщения; допуск команд остаётся в core.
+Клиент сайта использует заменяемый транспорт с прежними проверками ответов и тайм-аутами.
+[Контракты платформы и транспорта](browser-adapter-contracts.md) · [ADR-0016](../decisions/records/0016-browser-core-and-adapters.md)
+
 ## Язык расширения
 
 Переключатель на странице доступа применяет английский, русский или украинский язык к настройкам,
@@ -204,7 +209,7 @@ HTML-страниц. Для локальных ресурсов разрешён
 2. Команда `npm --prefix extension run build` собирает расширение. Затем DuoFollow Connector перезагружается в `chrome://extensions`.
 3. Повтор действия на сайте позволяет сверить адрес, статус и ответ запроса во вкладке Network инспектора service worker.
 
-При изменении параметров запроса или полей ответа проверяются [обработчики](../../extension/src/duolingo.ts)
+При изменении параметров запроса или полей ответа проверяются [обработчики](../../extension/src/core/duolingo.ts)
 и [типы ответов](../../extension/src/dto/DuolingoFollowingDto.ts).
 Смена домена требует сверки `optional_host_permissions` в `extension/manifest.json` и `DUOLINGO_PERMISSIONS` в `duolingoAccess.ts`.
 

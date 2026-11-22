@@ -1,20 +1,13 @@
+import { UNCONFIRMED_UNFOLLOW } from '@duofollow/extension/src/core/duolingo';
 import {
   ConnectorError,
   describeConnectorError,
 } from '@duofollow/extension/src/dto/ConnectorError';
-import {
-  unfollowConfirmationMs,
-  unfollowConfirmationPage,
-} from '@duofollow/extension/src/dto/UnfollowConfirmation';
-import {
-  performUnfollow,
-  prepareUnfollow,
-  UNCONFIRMED_UNFOLLOW,
-  verifyUnfollowOutcome,
-} from '@duofollow/extension/src/duolingo';
+import { unfollowConfirmationMs } from '@duofollow/extension/src/dto/UnfollowConfirmation';
 import { ACCESS_REQUIRED, hasDuolingoAccess } from '@duofollow/extension/src/duolingoAccess';
 import { isQuickUnfollowEnabled } from '@duofollow/extension/src/quickUnfollow';
 
+import type { Duolingo, UnfollowTarget } from '@duofollow/extension/src/core/duolingo';
 import type { ConnectorFailure } from '@duofollow/extension/src/dto/ConnectorError';
 import type { UnfollowResult } from '@duofollow/extension/src/dto/DuolingoFollowingDto';
 import type {
@@ -22,7 +15,7 @@ import type {
   UnfollowRequestResult,
   UnfollowStatusResult,
 } from '@duofollow/extension/src/dto/UnfollowConfirmation';
-import type { UnfollowTarget } from '@duofollow/extension/src/duolingo';
+import type { ExtensionPlatform } from '@duofollow/extension/src/platform/ExtensionPlatform';
 
 const journalKey = 'unfollowAttempt';
 const statusGraceMs = 60_000;
@@ -63,18 +56,22 @@ function quickUnfollowDisabled() {
   return new ConnectorError('QUICK_UNFOLLOW_DISABLED', 'Быстрая отписка выключена.');
 }
 
-async function requireQuickUnfollow(signal: AbortSignal) {
-  signal.throwIfAborted();
-  if (!(await isQuickUnfollowEnabled())) throw quickUnfollowDisabled();
-  signal.throwIfAborted();
-}
-
 function failure(error: unknown): ConnectorFailure {
   return { success: false, ...describeConnectorError(error) };
 }
 
 /** Keeps confirmation in worker memory and uses the journal only to read a lost outcome. */
-export function createUnfollowRequests(withAccess: WithAccess) {
+export function createUnfollowRequests(
+  withAccess: WithAccess,
+  platform: Pick<ExtensionPlatform, 'storage' | 'permissions' | 'openConfirmation'>,
+  duolingo: Duolingo,
+) {
+  const { performUnfollow, prepareUnfollow, verifyUnfollowOutcome } = duolingo;
+  async function requireQuickUnfollow(signal: AbortSignal) {
+    signal.throwIfAborted();
+    if (!(await isQuickUnfollowEnabled(platform))) throw quickUnfollowDisabled();
+    signal.throwIfAborted();
+  }
   let accessRevision = 0;
   let quickController = new AbortController();
   let confirmation: Confirmation | undefined;
@@ -104,7 +101,7 @@ export function createUnfollowRequests(withAccess: WithAccess) {
       if (pending(confirmation.requestId))
         confirmation.result = failure(new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED));
     }
-    void chrome.storage.session.remove(journalKey).catch(() => {
+    void platform.storage.session.remove(journalKey).catch(() => {
       // Recovery still checks Chrome permissions, consent and the original session.
     });
   }
@@ -152,16 +149,9 @@ export function createUnfollowRequests(withAccess: WithAccess) {
         return action.result?.success === false ? action.result : confirmationUnavailable;
       action.expiresAt = Date.now() + unfollowConfirmationMs;
       if (action.quickSignal) return { success: true, requestId: action.requestId };
-      const url = chrome.runtime.getURL(unfollowConfirmationPage) + '#' + action.requestId;
-      const popup = await chrome.windows.create({
-        url,
-        type: 'popup',
-        focused: true,
-        width: 440,
-        height: 480,
-      });
-      if (popup?.id === undefined) throw new Error('Не удалось открыть окно Connector.');
-      action.windowId = popup.id;
+      const windowId = await platform.openConfirmation(action.requestId);
+      if (windowId === undefined) throw new Error('Не удалось открыть окно Connector.');
+      action.windowId = windowId;
       return { success: true, requestId: action.requestId };
     } catch (error) {
       if (confirmation === action) confirmation = undefined;
@@ -224,9 +214,9 @@ export function createUnfollowRequests(withAccess: WithAccess) {
           target,
           signal,
           async () => {
-            await chrome.storage.session.set({ [journalKey]: { ...receipt, target } });
+            await platform.storage.session.set({ [journalKey]: { ...receipt, target } });
             recorded = true;
-            if (!(await hasDuolingoAccess())) {
+            if (!(await hasDuolingoAccess(platform))) {
               throw new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED);
             }
             if (action.quickSignal) await requireQuickUnfollow(signal);
@@ -249,7 +239,7 @@ export function createUnfollowRequests(withAccess: WithAccess) {
             : details;
     }
     if (recorded && !action.revoked) {
-      await chrome.storage.session.set({ [journalKey]: { ...receipt, result } }).catch(() => {
+      await platform.storage.session.set({ [journalKey]: { ...receipt, result } }).catch(() => {
         // The journal still enables read-only recovery if the worker is restarted.
       });
     }
@@ -259,7 +249,7 @@ export function createUnfollowRequests(withAccess: WithAccess) {
   }
 
   async function recover(requestId: string, documentId: string): Promise<UnfollowResult> {
-    const stored = await chrome.storage.session.get(journalKey);
+    const stored = await platform.storage.session.get(journalKey);
     const attempt = stored[journalKey] as Attempt | undefined;
     if (
       attempt?.requestId !== requestId ||
@@ -275,7 +265,7 @@ export function createUnfollowRequests(withAccess: WithAccess) {
       verifyUnfollowOutcome(attempt.target, signal),
     ).catch(() => unconfirmed);
     if (revision === accessRevision) {
-      await chrome.storage.session
+      await platform.storage.session
         .set({
           [journalKey]: {
             requestId: attempt.requestId,

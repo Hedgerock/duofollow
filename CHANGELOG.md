@@ -25,6 +25,8 @@
 
 ### Changed
 
+- The extension uses an isolated core and one browser adapter for Chrome and Edge. The website protocol client accepts an injected transport; timeouts cancel waiting without retrying an unfollow write.
+
 - Docker browser tests reuse cached dependency and build layers, run isolated integration cases with two workers, and record container resource usage. Visual and load checks retain a one-worker limit.
 
 - Follow status markers use a normal cursor when tooltips are disabled and restore the help cursor when enabled. Tooltips remain enabled by default for new visitors.

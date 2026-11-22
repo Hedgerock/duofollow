@@ -1,0 +1,261 @@
+import { ConnectorError } from '@duofollow/extension/src/dto/ConnectorError';
+import { isRecord, isUserId } from '@duofollow/extension/src/dto/validation';
+import { normalizeDuolingoPicture } from '@duofollow/extension/src/duolingoAvatarUrl';
+import { duolingoEndpoints } from '@duofollow/extension/src/duolingoEndpoints';
+import { parseRelationshipPage } from '@duofollow/extension/src/duolingoPayload';
+
+import type { DuolingoRateLimit } from '@duofollow/extension/src/core/duolingoRateLimit';
+import type { DuolingoResponse } from '@duofollow/extension/src/core/duolingoResponse';
+import type {
+  ConnectedDuolingoAccount,
+  ConnectorAccessResult,
+  DuolingoSessionStatus,
+} from '@duofollow/extension/src/dto/ConnectorSession';
+import type { ExtensionPlatform } from '@duofollow/extension/src/platform/ExtensionPlatform';
+
+export function createDuolingoSession(
+  platform: Pick<ExtensionPlatform, 'readCookie'>,
+  rateLimit: DuolingoRateLimit,
+  response: DuolingoResponse,
+) {
+  const { assertDuolingoRateLimit, checkDuolingoRateLimit } = rateLimit;
+  const { assertDuolingoResponse, readDuolingoJson } = response;
+  function readSessionUserId(token: string | undefined): string | null {
+    const payload = token?.split('.')[1];
+    if (!payload) return null;
+
+    try {
+      const claims: { sub?: unknown; exp?: unknown } | null = JSON.parse(
+        atob(payload.replace(/-/g, '+').replace(/_/g, '/')),
+      );
+      const subject = claims?.sub;
+      if (typeof subject !== 'string' && typeof subject !== 'number') return null;
+
+      const userId = Number(subject);
+      if (!/^\d+$/.test(String(subject)) || !isUserId(userId)) return null;
+      if (typeof claims?.exp === 'number' && claims.exp * 1000 <= Date.now()) return null;
+
+      return String(userId);
+    } catch {
+      return null;
+    }
+  }
+
+  async function readSessionCookie(signal: AbortSignal): Promise<string | undefined> {
+    signal.throwIfAborted();
+    const cookie = await platform.readCookie(
+      duolingoEndpoints.accountLookup.url().origin,
+      'jwt_token',
+    );
+    signal.throwIfAborted();
+    return cookie;
+  }
+
+  async function getDuolingoSessionUserId(signal: AbortSignal): Promise<string | null> {
+    return readSessionUserId(await readSessionCookie(signal));
+  }
+
+  async function identifyUnfollowSession(
+    requestId: string,
+    signal: AbortSignal,
+  ): Promise<{ userId: string; fingerprint: string } | null> {
+    const token = await readSessionCookie(signal);
+    const userId = readSessionUserId(token);
+    if (!userId) return null;
+
+    // The request ID makes the digest specific to this attempted operation.
+    const bytes = new TextEncoder().encode(`${requestId}:${token}`);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    signal.throwIfAborted();
+    const fingerprint = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    return { userId, fingerprint };
+  }
+
+  const READY_TTL_MS = 60_000;
+
+  interface SessionVerification {
+    userId: string;
+    signal: AbortSignal;
+    readyAt?: number;
+    pending?: Promise<DuolingoSessionStatus>;
+    profile?: { account: ConnectedDuolingoAccount; checkedAt: number };
+    pendingProfile?: Promise<ConnectedDuolingoAccount | null>;
+  }
+
+  let verification: SessionVerification | undefined;
+
+  /**
+   * Checks the current Duolingo session after the worker has verified access.
+   * Concurrent callers share the probe for the same account and grant. Successful results expire after 60 seconds.
+   *
+   * @param signal The current access grant’s signal. Revoking access cancels the probe and invalidates its result.
+   */
+  async function checkDuolingoSession(
+    signal: AbortSignal,
+    includeAccount: boolean,
+  ): Promise<ConnectorAccessResult> {
+    const userId = await getDuolingoSessionUserId(signal);
+    if (!userId) {
+      if (verification?.signal === signal) verification = undefined;
+      return { session: 'signed-out' };
+    }
+
+    const lastRetryAt = await checkDuolingoRateLimit(signal);
+    if (verification?.userId !== userId || verification.signal !== signal) {
+      verification = { userId, signal };
+    }
+    const active = verification;
+    const ready =
+      active.readyAt !== undefined &&
+      active.readyAt >= lastRetryAt &&
+      Date.now() - active.readyAt < READY_TTL_MS;
+    const session = ready ? 'ready' : await verifyCurrentSession(active);
+    if (!includeAccount) {
+      return { session: session === 'session-changed' ? 'duolingo-unavailable' : session };
+    }
+    if (session !== 'ready') return { session };
+
+    const account = await readVerifiedAccount(active);
+    const change = await detectSessionChange(active);
+    if (change) return { session: change };
+
+    return { session, sessionUserId: Number(userId), account };
+  }
+
+  async function detectSessionChange(
+    active: SessionVerification,
+  ): Promise<'signed-out' | 'session-changed' | undefined> {
+    const userId = await getDuolingoSessionUserId(active.signal);
+    if (!userId) return 'signed-out';
+    if (userId !== active.userId || verification !== active) return 'session-changed';
+  }
+
+  function verifyCurrentSession(active: SessionVerification): Promise<DuolingoSessionStatus> {
+    const { userId, signal } = active;
+    active.pending ??= verifyDuolingoSession(userId, signal)
+      .then(async (status) => {
+        if (status === 'ready') await checkDuolingoRateLimit(signal);
+        const change = await detectSessionChange(active);
+        if (change) return change;
+        if (status === 'ready') active.readyAt = Date.now();
+        return status;
+      })
+      .finally(() => {
+        active.pending = undefined;
+      });
+    return active.pending;
+  }
+
+  function getCachedDuolingoAccount(
+    userId: string,
+    username: unknown,
+    signal: AbortSignal,
+  ): ConnectedDuolingoAccount | undefined {
+    const active = verification;
+    const profile = active?.profile;
+    if (
+      active?.userId === userId &&
+      active.signal === signal &&
+      profile &&
+      profile.account.username === username &&
+      Date.now() - profile.checkedAt < READY_TTL_MS
+    ) {
+      return profile.account;
+    }
+  }
+
+  function readVerifiedAccount(
+    active: SessionVerification,
+  ): Promise<ConnectedDuolingoAccount | null> {
+    if (active.profile && Date.now() - active.profile.checkedAt < READY_TTL_MS) {
+      return Promise.resolve(active.profile.account);
+    }
+
+    active.pendingProfile ??= fetchActiveAccount(active.userId, active.signal)
+      .then((account) => {
+        if (account) active.profile = { account, checkedAt: Date.now() };
+        return account;
+      })
+      .catch((error: unknown) => {
+        active.signal.throwIfAborted();
+        if (error instanceof ConnectorError && error.errorCode === 'RATE_LIMITED') throw error;
+        return null;
+      })
+      .finally(() => {
+        active.pendingProfile = undefined;
+      });
+    return active.pendingProfile;
+  }
+
+  async function fetchActiveAccount(
+    userId: string,
+    signal: AbortSignal,
+  ): Promise<ConnectedDuolingoAccount | null> {
+    const endpoint = duolingoEndpoints.activeAccount;
+    const url = endpoint.url(userId);
+    url.searchParams.set('fields', 'id,username,picture');
+
+    assertDuolingoRateLimit();
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(5_000)]);
+    const response = await fetch(url, {
+      method: endpoint.method,
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: requestSignal,
+    });
+    await assertDuolingoResponse(response, `Duolingo account returned HTTP ${response.status}`);
+    const data = await readDuolingoJson(
+      response,
+      'Duolingo returned an invalid account',
+      requestSignal,
+    );
+    if (!isRecord(data) || !isUserId(data.id) || String(data.id) !== userId) return null;
+    const username = typeof data.username === 'string' ? data.username.trim() : '';
+    if (!username || /[\s/@?#]/u.test(username)) return null;
+
+    return { userId: data.id, username, picture: normalizeDuolingoPicture(data.picture) };
+  }
+
+  async function verifyDuolingoSession(
+    userId: string,
+    signal: AbortSignal,
+  ): Promise<DuolingoSessionStatus> {
+    const endpoint = duolingoEndpoints.followers;
+    const url = endpoint.url(userId);
+    url.searchParams.set('viewerId', userId);
+    url.searchParams.set('pageSize', '1');
+
+    assertDuolingoRateLimit();
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(5_000)]);
+    const response = await fetch(url, {
+      method: endpoint.method,
+      credentials: 'include',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: requestSignal,
+    });
+
+    if (response.status === 401) return 'signed-out';
+    await assertDuolingoResponse(
+      response,
+      `Duolingo session check returned HTTP ${response.status}`,
+    );
+    const data = await readDuolingoJson(
+      response,
+      'Duolingo session check returned invalid JSON',
+      requestSignal,
+    );
+    parseRelationshipPage(data, 'followers');
+    return 'ready';
+  }
+  return {
+    getDuolingoSessionUserId,
+    identifyUnfollowSession,
+    checkDuolingoSession,
+    getCachedDuolingoAccount,
+  };
+}
+export type DuolingoSession = ReturnType<typeof createDuolingoSession>;

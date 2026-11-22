@@ -6,6 +6,7 @@ import {
 import { unfollowConfirmationMs } from '@duofollow/extension/src/dto/UnfollowConfirmation';
 import { isRecord, isUserId } from '@duofollow/extension/src/dto/validation';
 import { parseDuolingoAvatarUrl } from '@duofollow/extension/src/duolingoAvatarUrl';
+import { createChromiumTransport } from '@duofollow/src/api/extension/chromiumTransport';
 import { isFollowingComparison } from '@duofollow/src/api/extension/isFollowingComparison';
 
 import type {
@@ -20,6 +21,7 @@ import type {
   UnfollowRequestResult,
   UnfollowStatusResult,
 } from '@duofollow/extension/src/dto/UnfollowConfirmation';
+import type { ConnectorTransport } from '@duofollow/src/api/extension/ConnectorTransport';
 
 interface ConnectorResponse {
   success: boolean;
@@ -57,35 +59,15 @@ export type AccessChange = 'granted' | 'revoked' | 'disconnected';
  * Maps transport failures and incompatible responses into errors or connection states.
  */
 export class DuoFollowConnector {
-  constructor(private readonly extensionId: string) {}
+  private readonly transport: ConnectorTransport;
+  constructor(target: string | ConnectorTransport) {
+    this.transport = typeof target === 'string' ? createChromiumTransport(target) : target;
+  }
 
-  ping(): Promise<ConnectorResponse> {
-    return new Promise((resolve, reject) => {
-      if (!globalThis.chrome?.runtime?.sendMessage) {
-        reject(new Error('Chrome extension messaging is unavailable'));
-        return;
-      }
-
-      chrome.runtime.sendMessage(
-        this.extensionId,
-        { type: 'PING' },
-        (response: ConnectorResponse | undefined) => {
-          const error = chrome.runtime.lastError;
-
-          if (error) {
-            reject(new Error(error.message));
-            return;
-          }
-
-          if (!response) {
-            reject(new Error('Empty connector response'));
-            return;
-          }
-
-          resolve(response);
-        },
-      );
-    });
+  async ping(): Promise<ConnectorResponse> {
+    const response = await this.transport.request({ type: 'PING' });
+    if (!response) throw new Error('Empty connector response');
+    return response as ConnectorResponse;
   }
 
   async getConnectionStatus(): Promise<ConnectorConnection> {
@@ -135,31 +117,27 @@ export class DuoFollowConnector {
     onChange: (change: AccessChange) => void,
     onQuickUnfollowChange?: (enabled: boolean) => void,
   ): (() => void) | undefined {
-    const runtime = globalThis.chrome?.runtime;
-    if (!runtime?.connect || !this.extensionId) return;
-
+    let connected = true;
     try {
-      const port = runtime.connect(this.extensionId, { name: 'duofollow-access' });
-      let connected = true;
-      port.onMessage.addListener((message: unknown) => {
-        if (!connected || !message || typeof message !== 'object') return;
-        if ('access' in message && (message.access === 'granted' || message.access === 'revoked')) {
-          onChange(message.access);
-        }
-        if ('quickUnfollow' in message && typeof message.quickUnfollow === 'boolean') {
-          onQuickUnfollowChange?.(message.quickUnfollow);
-        }
-      });
-      port.onDisconnect.addListener(() => {
-        void runtime.lastError;
-        if (!connected) return;
-        connected = false;
-        onChange('disconnected');
-      });
+      const stop = this.transport.watch(
+        (message) => {
+          if (!connected || !message || typeof message !== 'object') return;
+          if ('access' in message && (message.access === 'granted' || message.access === 'revoked'))
+            onChange(message.access);
+          if ('quickUnfollow' in message && typeof message.quickUnfollow === 'boolean')
+            onQuickUnfollowChange?.(message.quickUnfollow);
+        },
+        () => {
+          if (!connected) return;
+          connected = false;
+          onChange('disconnected');
+        },
+      );
+      if (!stop) return;
       return () => {
         if (!connected) return;
         connected = false;
-        port.disconnect();
+        stop();
       };
     } catch {
       // The regular status check also detects missing permissions.
@@ -271,41 +249,21 @@ export class DuoFollowConnector {
       | { type: 'GET_UNFOLLOW_STATUS' | 'CONFIRM_QUICK_UNFOLLOW'; requestId: string },
     timeoutMs: number,
   ): Promise<Result> {
-    const runtime = globalThis.chrome?.runtime;
-
-    if (!runtime?.sendMessage) {
-      throw new ConnectorError(
-        'CONNECTOR_UNAVAILABLE',
-        'Chrome extension messaging is unavailable',
-      );
-    }
-
-    if (!this.extensionId) {
-      throw new ConnectorError('CONNECTOR_UNAVAILABLE', 'VITE_DUOFOLLOW_EXTENSION_ID is missing');
-    }
-
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
 
     try {
-      const response = new Promise<Result>((resolve, reject) => {
-        runtime.sendMessage(this.extensionId, message, (result: Result | undefined) => {
-          const error = runtime.lastError;
-
-          if (error || !result) {
-            const code = error ? 'CONNECTOR_UNAVAILABLE' : 'INVALID_RESPONSE';
-            reject(new ConnectorError(code, error?.message ?? 'Empty connector response'));
-            return;
-          }
-
-          resolve(result);
-        });
+      const response = this.transport.request(message, controller.signal).then((result) => {
+        if (!result) throw new ConnectorError('INVALID_RESPONSE', 'Empty connector response');
+        return result as Result;
       });
 
       const deadline = new Promise<never>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(new ConnectorError('TIMEOUT', 'Connector response timed out')),
-          timeoutMs,
-        );
+        timeout = setTimeout(() => {
+          const error = new ConnectorError('TIMEOUT', 'Connector response timed out');
+          controller.abort(error);
+          reject(error);
+        }, timeoutMs);
       });
 
       return await Promise.race([response, deadline]);

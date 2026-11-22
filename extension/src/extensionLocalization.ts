@@ -2,8 +2,11 @@ import english from '@duofollow/extension/_locales/en/messages.json';
 import russian from '@duofollow/extension/_locales/ru/messages.json';
 import ukrainian from '@duofollow/extension/_locales/uk/messages.json';
 import { locales, matchLocale } from '@duofollow/extension/src/locales';
+import { createChromiumPlatform } from '@duofollow/extension/src/platform/chromium';
 
 import type { Locale } from '@duofollow/extension/src/locales';
+
+const platform = createChromiumPlatform();
 
 const dictionaries = { en: english, ru: russian, uk: ukrainian } satisfies Record<
   Locale,
@@ -13,13 +16,11 @@ const dictionaries = { en: english, ru: russian, uk: ukrainian } satisfies Recor
 export const EXTENSION_LANGUAGE_KEY = 'duofollow.extensionLocale';
 
 export function extensionLocale(value?: unknown): Locale {
-  return (
-    locales.find((locale) => locale === value) ?? matchLocale(chrome.i18n.getUILanguage()) ?? 'en'
-  );
+  return locales.find((locale) => locale === value) ?? matchLocale(platform.uiLanguage()) ?? 'en';
 }
 
 export async function readExtensionLocale(): Promise<Locale> {
-  return chrome.storage.local.get(EXTENSION_LANGUAGE_KEY).then(
+  return platform.storage.local.get(EXTENSION_LANGUAGE_KEY).then(
     (settings) => extensionLocale(settings[EXTENSION_LANGUAGE_KEY]),
     () => extensionLocale(),
   );
