@@ -21,6 +21,9 @@
 Workflow Quality checks запускает Vitest, ESLint и Prettier. Workflow Browser tests выполняет интеграционные
 тесты Chromium и сверяет Linux-скриншоты через Docker с закреплённой версией Playwright.
 Отдельное задание проверяет интерфейс в Edge на Windows. Нагрузочный тест запускается отдельно.
+Тестовый образ кеширует зависимости и предварительные сборки. Compose использует два воркера для независимых
+интеграционных случаев, сохраняет одноворкерные визуальные и нагрузочные проверки и формирует отчёт о ресурсах.
+[ADR-0015](../decisions/records/0015-browser-test-container-resources.md)
 [ADR-0002](../decisions/records/0002-browser-tests-in-ci.md) · [ADR-0009](../decisions/records/0009-quality-checks-in-pr.md)
 
 ## Безопасная отписка

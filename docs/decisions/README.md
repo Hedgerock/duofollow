@@ -16,3 +16,4 @@
 - [ADR-0012. Поддержка Microsoft Edge](records/0012-microsoft-edge.md) — Accepted.
 - [ADR-0013. Границы прокрутки и подсказки интерфейса](records/0013-workspace-scroll-and-tooltips.md) — Accepted.
 - [ADR-0014. Настройка и жизненный цикл подсказок](records/0014-tooltip-preferences-and-lifecycle.md) — Accepted.
+- [ADR-0015. Ресурсы и параллельность браузерных тестов](records/0015-browser-test-container-resources.md) — Accepted.

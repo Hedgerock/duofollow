@@ -4,6 +4,9 @@ import { resolve } from 'node:path';
 
 import { chromium, expect, test } from 'playwright/test';
 
+// This file prepares a shared build when run outside the prebuilt container.
+test.describe.configure({ mode: 'default' });
+
 const mockNetwork = `
   globalThis.unfollowWrites = 0;
   globalThis.fetch = async (input, options) => {
@@ -31,7 +34,9 @@ const mockNetwork = `
 `;
 
 test.beforeAll(() => {
-  execFileSync(process.execPath, [resolve('extension/scripts/build.mjs')], { stdio: 'inherit' });
+  if (process.env.DUOFOLLOW_TEST_PREBUILT !== '1') {
+    execFileSync(process.execPath, [resolve('extension/scripts/build.mjs')], { stdio: 'inherit' });
+  }
 });
 
 test('uses a real Connector window to authorize an unfollow and verifies a lost response', async ({

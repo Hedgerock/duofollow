@@ -25,6 +25,8 @@
 
 ### Changed
 
+- Docker browser tests reuse cached dependency and build layers, run isolated integration cases with two workers, and record container resource usage. Visual and load checks retain a one-worker limit.
+
 - Follow status markers use a normal cursor when tooltips are disabled and restore the help cursor when enabled. Tooltips remain enabled by default for new visitors.
 
 - Tooltips return after a native sort menu closes, hand ownership between elements without overlapping fade animations, and let the pointer pass through every hint.

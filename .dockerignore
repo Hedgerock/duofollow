@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.npmrc
+**/node_modules
+**/dist
+**/test-results
+**/playwright-report
+**/coverage
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+e2e/snapshots
+docs
+README*
+CHANGELOG.md

@@ -1,16 +1,19 @@
 services:
   browser-tests:
-    image: mcr.microsoft.com/playwright:v1.57.0-noble
+    build:
+      context: .
+      dockerfile: Dockerfile.test
     platform: linux/amd64
     init: true
     ipc: host
     working_dir: /workspace
+    cpus: ${DUOFOLLOW_TEST_CPUS:-4}
+    mem_limit: ${DUOFOLLOW_TEST_MEMORY_LIMIT:-3g}
     environment:
       CI: 'true'
+      DUOFOLLOW_TEST_WORKERS: ${DUOFOLLOW_TEST_WORKERS:-2}
     volumes:
-      - .:/workspace
-      - browser-test-dependencies:/workspace/node_modules
-    command: ['sh', '-c', 'npm ci --no-audit --no-fund && npm run test:browser']
-
-volumes:
-  browser-test-dependencies:
+      - ./test-results:/workspace/test-results
+      - ./e2e/snapshots:/workspace/e2e/snapshots
+    entrypoint: ['node', 'scripts/run-browser-tests.mjs']
+    command: []

@@ -15,9 +15,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings 0",
-    "test:browser:docker": "docker compose -f compose.test.yml run --rm browser-tests",
-    "test:browser:docker:update-snapshots": "docker compose -f compose.test.yml run --rm browser-tests sh -c \"npm ci --no-audit --no-fund && npm run test:browser -- --project=visual --update-snapshots=all\"",
-    "test:load:docker": "docker compose -f compose.test.yml run --rm browser-tests sh -c \"npm ci --no-audit --no-fund && npm run test:load\""
+    "test:browser:docker": "docker compose -f compose.test.yml run --build --rm browser-tests",
+    "test:browser:docker:update-snapshots": "docker compose -f compose.test.yml run --build --rm browser-tests --project=visual --update-snapshots=all",
+    "test:load:docker": "docker compose -f compose.test.yml run --build --rm browser-tests --config=playwright.load.config.ts"
   },
   "dependencies": {
     "react": "^19.0.0",
