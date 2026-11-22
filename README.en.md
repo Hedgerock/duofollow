@@ -4,11 +4,13 @@
 
 DuoFollow compares an account’s follows and followers on Duolingo and shows non-mutual follows.
 
-Desktop Chrome and the **DuoFollow Connector** extension are required. Build and setup instructions are available under [Install from source](#install-from-source).
+Desktop Chrome or Microsoft Edge and the **DuoFollow Connector** extension are required. Build and setup instructions are available under [Install from source](#install-from-source).
+
+Microsoft Edge uses the same extension build; the installed extension ID can differ between browsers.
 
 ## How to use it
 
-1. [DuoFollow](https://hedgerock.github.io/duofollow/) requires an active Duolingo session in the same Chrome profile.
+1. [DuoFollow](https://hedgerock.github.io/duofollow/) requires an active Duolingo session in the same browser profile.
 2. The **Manage Duolingo access** page explains which data DuoFollow uses. **Open settings** opens the Connector settings, where **Grant access** enables access.
 3. On return to DuoFollow, the site detects the signed-in account and starts the comparison. **Refresh comparison** updates the result. If automatic detection fails, the form accepts the username of the signed-in account.
 4. The view controls switch between lists, and search finds profiles by name or `@username`. The sort control sits next to search. The arrow on each row opens the corresponding Duolingo profile.
@@ -32,11 +34,17 @@ npm --prefix extension ci
 npm --prefix extension run build
 ```
 
-Installation from `extension/dist` uses **Load unpacked** on `chrome://extensions` with **Developer mode** enabled. The extension ID goes into `.env.local` in the repository root.
+Installation from `extension/dist` uses **Load unpacked** on `chrome://extensions` (Chrome) or `edge://extensions` (Edge) with **Developer mode** enabled. The extension ID goes into `.env.local` in the repository root.
 
 ```dotenv
-VITE_DUOFOLLOW_EXTENSION_ID=<installed extension ID>
+VITE_DUOFOLLOW_EXTENSION_ID=<installed Chrome extension ID>
+# Optional when the Edge installation has a different ID:
+VITE_DUOFOLLOW_EDGE_EXTENSION_ID=<installed Edge extension ID>
 ```
+
+If the Edge ID is not configured, the site uses the default ID. These values are public build-time settings; changing them requires restarting Vite or rebuilding the site. GitHub Pages uses repository variables with the same names.
+
+`npm run test:edge` runs the UI integration suite in installed desktop Edge with a simulated Connector. Installing from source and checking the real Duolingo session remain separate checks. The extension does not share sessions or permissions between browser profiles.
 
 The command `npm run dev -- --strictPort` starts DuoFollow at [http://localhost:5173/duofollow/](http://localhost:5173/duofollow/).
 

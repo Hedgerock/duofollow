@@ -76,7 +76,7 @@ function getRelationshipCoverage(
 async function requireSessionUserId(signal: AbortSignal): Promise<string> {
   const userId = await getDuolingoSessionUserId(signal);
   signal.throwIfAborted();
-  if (!userId) throw new ConnectorError('SIGNED_OUT', 'Войди в Duolingo в этом профиле Chrome.');
+  if (!userId) throw new ConnectorError('SIGNED_OUT', 'Войди в Duolingo в этом профиле браузера.');
   return userId;
 }
 

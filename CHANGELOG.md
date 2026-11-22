@@ -4,6 +4,8 @@
 
 ### Added
 
+- Desktop Microsoft Edge uses the same extension build, an optional separate extension ID, browser-specific connection instructions, and a Windows UI integration job. The maintainer reported successful automated and manual checks.
+
 - DuoFollow detects the signed-in Duolingo account after access is granted and starts a comparison. The connected account card shows a skeleton during comparison. It provides a refresh action, and manual entry remains available if profile detection fails.
 - The extension settings and confirmation window support a saved choice of English, Russian, or Ukrainian.
 - Search briefly highlights the matching characters in a profile name or username. The results area keeps its height while filtering.

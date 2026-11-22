@@ -21,7 +21,10 @@ export default defineConfig({
   webServer: {
     command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 4173 --strictPort',
     url: `${baseURL}/duofollow/`,
-    env: { VITE_DUOFOLLOW_EXTENSION_ID: 'abcdefghijklmnopabcdefghijklmnop' },
+    env: {
+      VITE_DUOFOLLOW_EXTENSION_ID: 'abcdefghijklmnopabcdefghijklmnop',
+      VITE_DUOFOLLOW_EDGE_EXTENSION_ID: 'ponmlkjihgfedcbaponmlkjihgfedcba',
+    },
     reuseExistingServer: false,
   },
 });

@@ -32,6 +32,7 @@ jobs:
       - name: Build for GitHub Pages
         env:
           VITE_DUOFOLLOW_EXTENSION_ID: ${{ vars.VITE_DUOFOLLOW_EXTENSION_ID }}
+          VITE_DUOFOLLOW_EDGE_EXTENSION_ID: ${{ vars.VITE_DUOFOLLOW_EDGE_EXTENSION_ID }}
         run: |
           if [ -z "$VITE_DUOFOLLOW_EXTENSION_ID" ]; then
             echo "::error::Set the VITE_DUOFOLLOW_EXTENSION_ID repository variable to the distributed extension ID."

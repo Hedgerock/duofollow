@@ -15,7 +15,7 @@
     "message": "Доступ до Duolingo"
   },
   "accessSession": {
-    "message": "DuoFollow Connector використовує файл cookie сеансу на www.duolingo.com, щоб перевірити вхід у твоєму профілі Chrome."
+    "message": "DuoFollow Connector використовує файл cookie сеансу на www.duolingo.com, щоб перевірити вхід у тому самому профілі браузера."
   },
   "accessData": {
     "message": "Для порівняння розширення отримує профілі, аватари, підписки й підписників із Duolingo. Результати відображаються на сайті DuoFollow у браузері. Запит на відписку надсилається до Duolingo після окремого підтвердження."

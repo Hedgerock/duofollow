@@ -104,13 +104,16 @@ export async function openComparison(
       localStorage.setItem('duofollow.language', 'en');
       localStorage.setItem('duofollow.theme', theme);
       const commands: string[] = [];
+      const extensionIds: string[] = [];
       let unfollowTarget: number | undefined;
       Object.defineProperty(window, '__duofollowTestCommands', { value: commands });
+      Object.defineProperty(window, '__duofollowTestExtensionIds', { value: extensionIds });
       const chrome = Reflect.get(window, 'chrome') ?? {};
       Object.defineProperty(chrome, 'runtime', {
         configurable: true,
         value: {
-          connect() {
+          connect(id: string) {
+            extensionIds.push(id);
             let listener: ((message: unknown) => void) | undefined;
             const onPreference = (event: Event) => {
               quickUnfollow = (event as CustomEvent<boolean>).detail;
@@ -130,10 +133,11 @@ export async function openComparison(
             };
           },
           sendMessage(
-            _id: string,
+            id: string,
             message: { type: string; targetUserId?: number },
             reply: (response: unknown) => void,
           ) {
+            extensionIds.push(id);
             commands.push(message.type);
             queueMicrotask(() => {
               switch (message.type) {
@@ -162,6 +166,9 @@ export async function openComparison(
                 }
                 case 'GET_QUICK_UNFOLLOW':
                   reply({ success: true, enabled: quickUnfollow, confirmation: 'website' });
+                  return;
+                case 'OPEN_DUOLINGO_SETTINGS':
+                  reply({ success: true });
                   return;
                 case 'REQUEST_UNFOLLOW':
                 case 'REQUEST_QUICK_UNFOLLOW':

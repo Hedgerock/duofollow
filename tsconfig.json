@@ -15,5 +15,5 @@
       "@duofollow/*": ["./*"]
     }
   },
-  "include": ["src", "e2e", "vite.config.ts", "playwright.config.ts", "playwright.load.config.ts"]
+  "include": ["src", "e2e", "vite.config.ts", "playwright*.config.ts"]
 }

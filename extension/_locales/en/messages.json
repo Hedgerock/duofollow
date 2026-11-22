@@ -15,7 +15,7 @@
     "message": "Duolingo access"
   },
   "accessSession": {
-    "message": "DuoFollow Connector uses the session cookie on www.duolingo.com to check the sign-in in your Chrome profile."
+    "message": "DuoFollow Connector uses the session cookie on www.duolingo.com to check the sign-in in the same browser profile."
   },
   "accessData": {
     "message": "To compare follows, the extension retrieves profiles, avatars, follows and followers from Duolingo. The results appear in your browser on DuoFollow. An unfollow request is sent to Duolingo after you confirm it."

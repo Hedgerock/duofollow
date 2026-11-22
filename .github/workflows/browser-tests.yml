@@ -30,3 +30,26 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
+  edge:
+    name: Playwright Microsoft Edge
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install msedge
+      - run: npm run test:edge
+      - name: Upload Edge failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-edge-test-results
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 7

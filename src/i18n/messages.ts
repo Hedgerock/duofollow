@@ -2,11 +2,14 @@ import {
   type ConnectorErrorCode,
   isConnectorErrorCode,
 } from '@duofollow/extension/src/dto/ConnectorError';
+import { getBrowserInfo } from '@duofollow/src/browser';
 
 import type { ConnectorStatus } from '@duofollow/extension/src/dto/ConnectorSession';
 import type { Locale } from '@duofollow/extension/src/locales';
 
 type ConnectionIssue = Exclude<ConnectorStatus, 'ready'>;
+
+const browser = getBrowserInfo();
 
 const ru = {
   language: 'Язык',
@@ -29,7 +32,7 @@ const ru = {
   manageAccess: 'Управлять доступом к Duolingo',
   backToHome: 'К сравнению',
   accessHelp: (grant: string, revoke: string) =>
-    `В настройках Connector можно нажать «${grant}» или «${revoke}». Chrome подтверждает выдачу разрешений в отдельном окне.`,
+    `В настройках Connector можно нажать «${grant}» или «${revoke}». ${browser.name} подтверждает выдачу разрешений в отдельном окне.`,
   pageNotFound: 'Страница не найдена',
   lightTheme: 'Включить светлую тему',
   darkTheme: 'Включить тёмную тему',
@@ -100,14 +103,13 @@ const ru = {
     stillUnavailable: 'Подключение пока не восстановлено.',
     openSettings: 'Открыть настройки',
     installHelp: 'Как установить из проекта',
-    install:
-      'На странице chrome://extensions включи режим разработчика и загрузи папку extension/dist через «Загрузить распакованное расширение». После установки обнови DuoFollow.',
+    install: `На странице ${browser.extensionsUrl} включи режим разработчика и загрузи папку extension/dist через «Загрузить распакованное расширение». После установки обнови DuoFollow.`,
     openDuolingo: 'Открыть Duolingo',
     issues: {
       'connector-unavailable': {
         title: 'DuoFollow Connector недоступен',
         steps: [
-          'Открой chrome://extensions и включи DuoFollow Connector.',
+          `Открой ${browser.extensionsUrl} и включи DuoFollow Connector.`,
           'Вернись в DuoFollow и нажми «Проверить снова».',
         ],
       },
@@ -115,20 +117,20 @@ const ru = {
         title: 'Обнови DuoFollow Connector',
         steps: [
           'Установи последнюю версию Connector.',
-          'Перезагрузи расширение на странице chrome://extensions и нажми «Проверить снова».',
+          `Перезагрузи расширение на странице ${browser.extensionsUrl} и нажми «Проверить снова».`,
         ],
       },
       'consent-required': {
         title: 'Подключи Duolingo',
         steps: [
           'Открой настройки Connector и прочитай, какие данные он использует.',
-          'Нажми кнопку выдачи доступа, подтверди запрос Chrome и вернись на эту вкладку.',
+          `Нажми кнопку выдачи доступа, подтверди запрос ${browser.name} и вернись на эту вкладку.`,
         ],
       },
       'signed-out': {
         title: 'Войди в Duolingo',
         steps: [
-          'Войди в Duolingo в том же профиле Chrome.',
+          `Войди в Duolingo в том же профиле ${browser.name}.`,
           'Вернись в DuoFollow и нажми «Проверить снова».',
         ],
       },
@@ -155,7 +157,7 @@ const ru = {
   },
   connectorErrors: {
     ACCESS_REQUIRED: 'Разреши доступ в настройках DuoFollow Connector.',
-    SIGNED_OUT: 'Войди в Duolingo в том же профиле Chrome.',
+    SIGNED_OUT: `Войди в Duolingo в том же профиле ${browser.name}.`,
     ACCESS_DENIED: 'Duolingo отклонил запрос. Проверь, что открыт нужный аккаунт.',
     RATE_LIMITED: 'Duolingo ограничил частоту запросов. Подожди перед повторной попыткой.',
     TIMEOUT: 'Запрос занял слишком много времени. Попробуй ещё раз.',
@@ -175,7 +177,7 @@ const ru = {
     label: 'Уведомления',
     close: (title: string) => `Закрыть уведомление «${title}»`,
     settingsError: 'Не удалось открыть настройки',
-    settingsHint: 'Выбери DuoFollow Connector в меню расширений Chrome.',
+    settingsHint: `Выбери DuoFollow Connector в меню расширений ${browser.name}.`,
     comparing: 'Сравниваем подписки',
     loadingAccount: (name: string) => `Загружаем данные для ${name}.`,
     complete: 'Сравнение завершено',
@@ -208,7 +210,7 @@ const en = {
   manageAccess: 'Manage Duolingo access',
   backToHome: 'Back to comparison',
   accessHelp: (grant: string, revoke: string) =>
-    `In the Connector settings, select “${grant}” or “${revoke}”. Chrome asks you to confirm new permissions in a separate dialog.`,
+    `In the Connector settings, select “${grant}” or “${revoke}”. ${browser.name} asks you to confirm new permissions in a separate dialog.`,
   pageNotFound: 'Page not found',
   lightTheme: 'Switch to light theme',
   darkTheme: 'Switch to dark theme',
@@ -279,14 +281,13 @@ const en = {
     stillUnavailable: 'Still unable to connect.',
     openSettings: 'Open settings',
     installHelp: 'Install from the project',
-    install:
-      'Open chrome://extensions, turn on Developer mode, and use Load unpacked to select extension/dist. Then refresh DuoFollow.',
+    install: `Open ${browser.extensionsUrl}, turn on Developer mode, and use Load unpacked to select extension/dist. Then refresh DuoFollow.`,
     openDuolingo: 'Open Duolingo',
     issues: {
       'connector-unavailable': {
         title: 'DuoFollow Connector is unavailable',
         steps: [
-          'Open chrome://extensions and enable DuoFollow Connector.',
+          `Open ${browser.extensionsUrl} and enable DuoFollow Connector.`,
           'Return to DuoFollow and select “Check again”.',
         ],
       },
@@ -294,20 +295,20 @@ const en = {
         title: 'Update DuoFollow Connector',
         steps: [
           'Install the latest version of the Connector.',
-          'Reload the extension at chrome://extensions, then select “Check again”.',
+          `Reload the extension at ${browser.extensionsUrl}, then select “Check again”.`,
         ],
       },
       'consent-required': {
         title: 'Connect Duolingo',
         steps: [
           'Open the Connector settings and review what data it uses.',
-          'Select the button to grant access, confirm the Chrome prompt, and return to this tab.',
+          `Select the button to grant access, confirm the ${browser.name} prompt, and return to this tab.`,
         ],
       },
       'signed-out': {
         title: 'Sign in to Duolingo',
         steps: [
-          'Sign in to Duolingo in the same Chrome profile.',
+          `Sign in to Duolingo in the same ${browser.name} profile.`,
           'Return to DuoFollow and select “Check again”.',
         ],
       },
@@ -334,7 +335,7 @@ const en = {
   },
   connectorErrors: {
     ACCESS_REQUIRED: 'Grant Duolingo access in the DuoFollow Connector settings.',
-    SIGNED_OUT: 'Sign in to Duolingo in the same Chrome profile.',
+    SIGNED_OUT: `Sign in to Duolingo in the same ${browser.name} profile.`,
     ACCESS_DENIED: 'Duolingo refused the request. Check which account is signed in.',
     RATE_LIMITED: 'Duolingo is limiting requests. Wait before trying again.',
     TIMEOUT: 'The request took too long. Try again.',
@@ -356,7 +357,7 @@ const en = {
     label: 'Notifications',
     close: (title: string) => `Dismiss notification “${title}”`,
     settingsError: 'Could not open settings',
-    settingsHint: 'Select DuoFollow Connector from the Chrome extensions menu.',
+    settingsHint: `Select DuoFollow Connector from the ${browser.name} extensions menu.`,
     comparing: 'Comparing follows',
     loadingAccount: (name: string) => `Loading data for ${name}.`,
     complete: 'Comparison complete',
@@ -389,7 +390,7 @@ const uk = {
   manageAccess: 'Керувати доступом до Duolingo',
   backToHome: 'До порівняння',
   accessHelp: (grant: string, revoke: string) =>
-    `У налаштуваннях Connector вибери «${grant}» або «${revoke}». Chrome просить підтвердити нові дозволи в окремому вікні.`,
+    `У налаштуваннях Connector вибери «${grant}» або «${revoke}». ${browser.name} просить підтвердити нові дозволи в окремому вікні.`,
   pageNotFound: 'Сторінку не знайдено',
   lightTheme: 'Увімкнути світлу тему',
   darkTheme: 'Увімкнути темну тему',
@@ -460,14 +461,13 @@ const uk = {
     stillUnavailable: 'Підключення ще не відновлено.',
     openSettings: 'Відкрити налаштування',
     installHelp: 'Як встановити з проєкту',
-    install:
-      'Відкрий chrome://extensions, увімкни режим розробника та завантаж папку extension/dist як розпаковане розширення. Після встановлення онови DuoFollow.',
+    install: `Відкрий ${browser.extensionsUrl}, увімкни режим розробника та завантаж папку extension/dist як розпаковане розширення. Після встановлення онови DuoFollow.`,
     openDuolingo: 'Відкрити Duolingo',
     issues: {
       'connector-unavailable': {
         title: 'DuoFollow Connector недоступний',
         steps: [
-          'Відкрий chrome://extensions і ввімкни DuoFollow Connector.',
+          `Відкрий ${browser.extensionsUrl} і ввімкни DuoFollow Connector.`,
           'Повернися в DuoFollow й натисни «Перевірити знову».',
         ],
       },
@@ -475,20 +475,20 @@ const uk = {
         title: 'Онови DuoFollow Connector',
         steps: [
           'Установи останню версію Connector.',
-          'Перезавантаж розширення на сторінці chrome://extensions і натисни «Перевірити знову».',
+          `Перезавантаж розширення на сторінці ${browser.extensionsUrl} і натисни «Перевірити знову».`,
         ],
       },
       'consent-required': {
         title: 'Підключи Duolingo',
         steps: [
           'Відкрий налаштування Connector і прочитай, які дані він використовує.',
-          'Натисни кнопку надання доступу, підтвердь запит Chrome і повернися до цієї вкладки.',
+          `Натисни кнопку надання доступу, підтвердь запит ${browser.name} і повернися до цієї вкладки.`,
         ],
       },
       'signed-out': {
         title: 'Увійди в Duolingo',
         steps: [
-          'Увійди в Duolingo в тому самому профілі Chrome.',
+          `Увійди в Duolingo в тому самому профілі ${browser.name}.`,
           'Повернися в DuoFollow й натисни «Перевірити знову».',
         ],
       },
@@ -515,7 +515,7 @@ const uk = {
   },
   connectorErrors: {
     ACCESS_REQUIRED: 'Надай доступ до Duolingo в налаштуваннях DuoFollow Connector.',
-    SIGNED_OUT: 'Увійди в Duolingo в тому самому профілі Chrome.',
+    SIGNED_OUT: `Увійди в Duolingo в тому самому профілі ${browser.name}.`,
     ACCESS_DENIED: 'Duolingo відхилив запит. Перевір, у який акаунт ти ввійшов.',
     RATE_LIMITED: 'Duolingo обмежив частоту запитів. Зачекай перед повторною спробою.',
     TIMEOUT: 'Запит тривав надто довго. Спробуй ще раз.',
@@ -536,7 +536,7 @@ const uk = {
     label: 'Сповіщення',
     close: (title: string) => `Закрити сповіщення «${title}»`,
     settingsError: 'Не вдалося відкрити налаштування',
-    settingsHint: 'Вибери DuoFollow Connector у меню розширень Chrome.',
+    settingsHint: `Вибери DuoFollow Connector у меню розширень ${browser.name}.`,
     comparing: 'Порівнюємо підписки',
     loadingAccount: (name: string) => `Завантажуємо дані для ${name}.`,
     complete: 'Порівняння завершено',
