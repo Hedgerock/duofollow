@@ -7,12 +7,14 @@ import {
   getProfileIdentifier,
 } from '@duofollow/src/following/profiles';
 import { RelationshipMarker } from '@duofollow/src/following/RelationshipMarker';
+import { useFollowingPanelHeight } from '@duofollow/src/following/useFollowingPanelHeight';
 import {
   FOLLOWING_ROW_HEIGHT,
   useFollowingRemovalAnimation,
   useFollowingViewport,
 } from '@duofollow/src/following/useFollowingViewport';
 import { ProfileAvatar } from '@duofollow/src/ProfileAvatar';
+import { Tooltip } from '@duofollow/src/Tooltip';
 
 import type {
   ComparedFollowingUser,
@@ -100,69 +102,75 @@ const FollowingRow = memo(function FollowingRow({
         />
       )}
       <ProfileAvatar name={displayName || username} picture={user.picture} lazy />
-      <div className="user-info profile-card-text">
-        <strong title={name}>
-          <bdi>
-            {highlightTerm && (displayName || username) ? (
-              <HighlightedSearchText
-                key={highlightTerm}
-                text={name}
-                term={highlightTerm}
-                active={highlighting}
-              />
-            ) : (
-              name
-            )}
-          </bdi>
-        </strong>
-        <span title={identifier}>
-          <bdi>
-            {highlightTerm && username ? (
-              <HighlightedSearchText
-                key={highlightTerm}
-                text={identifier}
-                term={highlightTerm}
-                active={highlighting}
-              />
-            ) : (
-              identifier
-            )}
-          </bdi>
-        </span>
-      </div>
+      <Tooltip label={`${name}\n${identifier}`} onlyWhenTruncated>
+        <div className="user-info profile-card-text" tabIndex={0}>
+          <strong>
+            <bdi>
+              {highlightTerm && (displayName || username) ? (
+                <HighlightedSearchText
+                  key={highlightTerm}
+                  text={name}
+                  term={highlightTerm}
+                  active={highlighting}
+                />
+              ) : (
+                name
+              )}
+            </bdi>
+          </strong>
+          <span>
+            <bdi>
+              {highlightTerm && username ? (
+                <HighlightedSearchText
+                  key={highlightTerm}
+                  text={identifier}
+                  term={highlightTerm}
+                  active={highlighting}
+                />
+              ) : (
+                identifier
+              )}
+            </bdi>
+          </span>
+        </div>
+      </Tooltip>
       {relationship === 'non-mutual' && (
-        <button
-          type="button"
-          className="profile-card-unfollow"
-          aria-label={(isUnfollowing ? messages.unfollowingProfile : messages.unfollowProfile)(
-            `${name} (${identifier})`,
-          )}
-          aria-busy={isUnfollowing || undefined}
-          aria-disabled={unfollowingId !== null}
-          data-tooltip={isUnfollowing ? messages.unfollowing : messages.unfollow}
-          onClick={() => {
-            if (unfollowingId === null) onUnfollow(user);
-          }}
+        <Tooltip
+          label={isUnfollowing ? messages.unfollowing : messages.unfollow}
+          placement="inline-start"
         >
-          {isUnfollowing ? (
-            <span className="unfollow-spinner" aria-hidden="true" />
-          ) : (
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.65"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="9" cy="8" r="3.25" />
-              <path d="M2.5 20v-1a4.75 4.75 0 0 1 4.75-4.75h3.5A4.75 4.75 0 0 1 15.5 19v1M16.5 9H22" />
-            </svg>
-          )}
-        </button>
+          <button
+            type="button"
+            className="profile-card-unfollow"
+            aria-label={(isUnfollowing ? messages.unfollowingProfile : messages.unfollowProfile)(
+              `${name} (${identifier})`,
+            )}
+            aria-busy={isUnfollowing || undefined}
+            aria-disabled={unfollowingId !== null}
+            onClick={() => {
+              if (unfollowingId === null) onUnfollow(user);
+            }}
+          >
+            {isUnfollowing ? (
+              <span className="unfollow-spinner" aria-hidden="true" />
+            ) : (
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.65"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="9" cy="8" r="3.25" />
+                <path d="M2.5 20v-1a4.75 4.75 0 0 1 4.75-4.75h3.5A4.75 4.75 0 0 1 15.5 19v1M16.5 9H22" />
+              </svg>
+            )}
+          </button>
+        </Tooltip>
       )}
     </li>
   );
@@ -193,6 +201,7 @@ export const VirtualFollowingList = memo(function VirtualFollowingList({
     viewKey,
     rowHeight,
   );
+  useFollowingPanelHeight(viewportRef, rowHeight);
   useFollowingRemovalAnimation(viewportRef, removingId, onRemovalComplete);
 
   return (

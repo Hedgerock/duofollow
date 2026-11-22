@@ -41,7 +41,8 @@ test('keeps the header controls inside the viewport with a long result username'
     await page.setViewportSize({ width, height: 700 });
     await expectNoInlineOverflow(page.locator('html'));
     await expectNoInlineOverflow(controls);
-    await expect(username).toHaveAttribute('title', '@' + identity.accountUsername);
+    await expect(username).toHaveText('@' + identity.accountUsername);
+    await expect(username).not.toHaveAttribute('title');
     await expect(header.getByRole('link', { name: 'Налаштування' })).toBeInViewport();
   }
 });
@@ -61,10 +62,9 @@ test('wraps the translated list heading beside a five-digit search total', async
 
   const row = panel.locator('[data-following-id="4"]');
   await expect(row).toHaveAttribute('aria-setsize', '1');
-  await expect(row.locator('.profile-card-text strong')).toHaveAttribute(
-    'title',
-    identity.profile.displayName,
-  );
+  await expect(row.locator('.profile-card-text strong')).toHaveText(identity.profile.displayName);
+  await row.locator('.profile-card-text').focus();
+  await expect(page.getByRole('tooltip')).toContainText(identity.profile.displayName);
   await expect(row.locator('.profile-card-text span')).toHaveCSS('text-overflow', 'ellipsis');
   await expect(row.getByRole('button', { name: /^Отписаться/ })).toBeVisible();
 });

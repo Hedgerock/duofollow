@@ -10,17 +10,23 @@ interface Appearance {
   fontSize: FontSize;
   fontFamily: FontFamily;
   colorVision: boolean;
+  tooltips: boolean;
 }
 
 const storageKey = 'duofollow.appearance';
-const defaults: Appearance = { fontSize: 'standard', fontFamily: 'system', colorVision: false };
+const defaults: Appearance = {
+  fontSize: 'standard',
+  fontFamily: 'system',
+  colorVision: false,
+  tooltips: true,
+};
 
 function readAppearance(): Appearance {
   try {
     const saved = JSON.parse(
       window.localStorage.getItem(storageKey) ?? 'null',
     ) as Partial<Appearance> | null;
-    const { fontSize, fontFamily, colorVision } = saved ?? {};
+    const { fontSize, fontFamily, colorVision, tooltips } = saved ?? {};
     return {
       fontSize:
         typeof fontSize === 'string' && Object.hasOwn(fontSizes, fontSize)
@@ -29,6 +35,7 @@ function readAppearance(): Appearance {
       fontFamily:
         fontFamily && fontFamilies.includes(fontFamily) ? fontFamily : defaults.fontFamily,
       colorVision: colorVision === true,
+      tooltips: tooltips !== false,
     };
   } catch {
     return defaults;

@@ -28,6 +28,7 @@ const users: ComparedFollowingUser[] = Array.from({ length: 10_000 }, (_, index)
 function mountList(showRelationships = false) {
   const renderer = createRenderer();
   const viewport = {
+    closest: () => null,
     clientHeight: 480,
     scrollTop: 0,
     querySelector: vi.fn(),

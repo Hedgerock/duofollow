@@ -22,7 +22,7 @@ Colored bars in the all-received view show each profile’s status. If the follo
 
 When the extension is disabled or the Duolingo session is missing, the dialog describes the steps to restore the connection. **Check again** updates the connection status.
 
-The lock in the header opens the access page, which links to the Connector settings. **Disconnect** in those settings revokes access. The extension icon also opens the settings. The header contains site language and theme controls. The extension has its own language setting. **Settings** provides text size, typeface, and follow status pattern options.
+The lock in the header opens the access page, which links to the Connector settings. **Disconnect** in those settings revokes access. The extension icon also opens the settings. The header contains site language and theme controls. The extension has its own language setting. **Settings** provides text size, typeface, follow status pattern options, and a switch to turn tooltips off.
 
 ## Install from source
 

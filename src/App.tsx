@@ -15,6 +15,7 @@ import { FOLLOWING_ROW_HEIGHT } from '@duofollow/src/following/useFollowingViewp
 import { NotificationViewport } from '@duofollow/src/notifications';
 import { ProfileAvatar } from '@duofollow/src/ProfileAvatar';
 import { LanguageSelect, SiteContent, SiteHeader } from '@duofollow/src/SiteLayout';
+import { Tooltip } from '@duofollow/src/Tooltip';
 import { UnfollowDialog } from '@duofollow/src/UnfollowDialog';
 import { fontSizes } from '@duofollow/src/useAppearance';
 import { type SitePreferences, useSite, useWorkspaceState } from '@duofollow/src/useSite';
@@ -105,51 +106,52 @@ export function Workspace({
         languageControl={languageControl}
         profile={
           comparison && (
-            <a
-              className="topbar-profile"
-              href={getDuolingoProfileUrl(comparison.accountUsername)}
-              target="_blank"
-              rel="noopener noreferrer"
-              inert={!isReady}
-              aria-label={messages.resultProfile(comparison.accountUsername)}
-            >
-              <ProfileAvatar
-                name={comparison.accountUsername}
-                picture={comparison.accountPicture}
-              />
-              <div className="topbar-profile-text">
-                <small>{messages.resultFor}</small>
-                <strong title={`@${comparison.accountUsername}`}>
-                  @{comparison.accountUsername}
-                </strong>
-              </div>
-              <span className="topbar-profile-arrow" aria-hidden="true">
-                ↗
-              </span>
-            </a>
+            <Tooltip label={`@${comparison.accountUsername}`}>
+              <a
+                className="topbar-profile"
+                href={getDuolingoProfileUrl(comparison.accountUsername)}
+                target="_blank"
+                rel="noopener noreferrer"
+                inert={!isReady}
+                aria-label={messages.resultProfile(comparison.accountUsername)}
+              >
+                <ProfileAvatar
+                  name={comparison.accountUsername}
+                  picture={comparison.accountPicture}
+                />
+                <div className="topbar-profile-text">
+                  <small>{messages.resultFor}</small>
+                  <strong>@{comparison.accountUsername}</strong>
+                </div>
+                <span className="topbar-profile-arrow" aria-hidden="true">
+                  ↗
+                </span>
+              </a>
+            </Tooltip>
           )
         }
       >
         {canManageAccess && (
-          <Link
-            to="/access/"
-            className="theme-toggle site-control-link"
-            aria-label={messages.manageAccess}
-            title={messages.manageAccess}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="20"
-              height="20"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              aria-hidden="true"
+          <Tooltip label={messages.manageAccess}>
+            <Link
+              to="/access/"
+              className="theme-toggle site-control-link"
+              aria-label={messages.manageAccess}
             >
-              <rect x="5" y="10" width="14" height="11" rx="2" />
-              <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3" />
-            </svg>
-          </Link>
+              <svg
+                viewBox="0 0 24 24"
+                width="20"
+                height="20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                aria-hidden="true"
+              >
+                <rect x="5" y="10" width="14" height="11" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3" />
+              </svg>
+            </Link>
+          </Tooltip>
         )}
       </SiteHeader>
       <SiteContent label={messages.heading}>
@@ -169,7 +171,7 @@ export function Workspace({
             )}
           </div>
         )}
-        <main inert={!isReady}>
+        <main className="comparison-page" inert={!isReady}>
           <section className="hero">
             <div className="hero-copy">
               <h1>{messages.heading}</h1>
@@ -356,19 +358,20 @@ export function Workspace({
                         className="following-sort-control"
                         data-custom-order={sort !== 'received'}
                       >
-                        <select
-                          className="following-sort"
-                          aria-label={messages.sortLabel}
-                          title={messages.sortLabel}
-                          value={sort}
-                          onChange={(event) =>
-                            followingList.setSort(event.currentTarget.value as FollowingSortOrder)
-                          }
-                        >
-                          <option value="received">{messages.sortReceived}</option>
-                          <option value="name-asc">{messages.sortNameAsc}</option>
-                          <option value="name-desc">{messages.sortNameDesc}</option>
-                        </select>
+                        <Tooltip label={messages.sortLabel}>
+                          <select
+                            className="following-sort"
+                            aria-label={messages.sortLabel}
+                            value={sort}
+                            onChange={(event) =>
+                              followingList.setSort(event.currentTarget.value as FollowingSortOrder)
+                            }
+                          >
+                            <option value="received">{messages.sortReceived}</option>
+                            <option value="name-asc">{messages.sortNameAsc}</option>
+                            <option value="name-desc">{messages.sortNameDesc}</option>
+                          </select>
+                        </Tooltip>
                         <svg
                           className="following-sort-icon"
                           width="20"

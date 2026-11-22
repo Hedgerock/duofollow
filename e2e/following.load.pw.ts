@@ -63,17 +63,12 @@ test('10,000 follows keep the virtual DOM and retained heap bounded', async ({
     await expect(list.locator('[data-following-id="2"]')).toHaveCount(1);
   }
 
-  const cdp = await page.context().newCDPSession(page);
-  for (let cycle = 0; cycle < warmupCycles; cycle += 1) await runCycle(cycle);
-  const baseline = await snapshot(cdp);
-  const samples = [baseline];
-  for (let batch = 0; batch < batches; batch += 1) {
-    for (let cycle = 0; cycle < cyclesPerBatch; cycle += 1) {
-      await runCycle(warmupCycles + batch * cyclesPerBatch + cycle);
-    }
+  async function visitSettings() {
     await list.locator('[data-following-id="2"] .relationship-marker').hover();
     await expect(page.getByRole('tooltip')).toHaveText('Mutual');
     await page.getByRole('link', { name: 'Settings' }).click();
+    // The new header can show its own Settings tooltip under the pointer.
+    await page.mouse.move(0, 0);
     await expect(page.getByRole('tooltip')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await page.getByRole('link', { name: 'Back to comparison' }).click();
@@ -85,6 +80,19 @@ test('10,000 follows keep the virtual DOM and retained heap bounded', async ({
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
+  }
+
+  const cdp = await page.context().newCDPSession(page);
+  for (let cycle = 0; cycle < warmupCycles; cycle += 1) await runCycle(cycle);
+  // Warm the portal event delegation and route before measuring retained resources.
+  await visitSettings();
+  const baseline = await snapshot(cdp);
+  const samples = [baseline];
+  for (let batch = 0; batch < batches; batch += 1) {
+    for (let cycle = 0; cycle < cyclesPerBatch; cycle += 1) {
+      await runCycle(warmupCycles + batch * cyclesPerBatch + cycle);
+    }
+    await visitSettings();
     samples.push(await snapshot(cdp));
   }
 

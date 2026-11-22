@@ -175,10 +175,7 @@ function mountApp(saved?: string, blockStorage = false, browserLanguage = 'ru-RU
 
 function visibleAccounts(tree: unknown) {
   const header = renderChild(findElement(tree, (node) => node.type === SiteHeader));
-  return findElements(
-    header,
-    (node) => node.type === 'strong' && typeof node.props.title === 'string',
-  )
+  return findElements(header, (node) => node.type === 'strong')
     .map((node) => node.props.children)
     .flat()
     .filter((value) => typeof value === 'string');

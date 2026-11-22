@@ -14,3 +14,5 @@
 - [ADR-0010. Валидация ответов Duolingo и Connector](records/0010-response-validation.md) — Accepted.
 - [ADR-0011. Автоматическое подключение аккаунта Duolingo](records/0011-active-duolingo-account.md) — Accepted.
 - [ADR-0012. Поддержка Microsoft Edge](records/0012-microsoft-edge.md) — Accepted.
+- [ADR-0013. Границы прокрутки и подсказки интерфейса](records/0013-workspace-scroll-and-tooltips.md) — Accepted.
+- [ADR-0014. Настройка и жизненный цикл подсказок](records/0014-tooltip-preferences-and-lifecycle.md) — Accepted.

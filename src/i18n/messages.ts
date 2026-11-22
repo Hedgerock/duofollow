@@ -19,6 +19,8 @@ const ru = {
     fontFamily: 'Шрифт',
     families: { system: 'Системный', wide: 'Широкий', serif: 'С засечками' },
     colorVision: 'Режим для дальтоников',
+    tooltips: 'Показывать подсказки',
+    tooltipsHelp: 'Пояснения при наведении, фокусе с клавиатуры и касании статуса подписки.',
     colorVisionHelp:
       'Статусы подписок различаются по цвету и узору: сплошная линия, штрихи или точки.',
   },
@@ -199,6 +201,8 @@ const en = {
     fontFamily: 'Typeface',
     families: { system: 'System', wide: 'Wide sans serif', serif: 'Serif' },
     colorVision: 'Color vision mode',
+    tooltips: 'Show tooltips',
+    tooltipsHelp: 'Hints on hover, keyboard focus, and tapping a follow status marker.',
     colorVisionHelp: 'Follow status markers use a solid, dashed, or dotted line as well as color.',
   },
   subtitle: 'Subscription Manager',
@@ -377,6 +381,8 @@ const uk = {
     fontFamily: 'Шрифт',
     families: { system: 'Системний', wide: 'Широкий', serif: 'Із зарубками' },
     colorVision: 'Режим для дальтоніків',
+    tooltips: 'Показувати підказки',
+    tooltipsHelp: 'Пояснення при наведенні, фокусі з клавіатури й торканні статусу підписки.',
     colorVisionHelp:
       'Статуси підписок відрізняються за кольором і візерунком: суцільна лінія, риски або крапки.',
   },

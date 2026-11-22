@@ -4,6 +4,8 @@
 
 ### Added
 
+- Settings can turn website tooltips off and on. The choice is saved with appearance preferences and supports English, Russian, and Ukrainian.
+
 - Desktop Microsoft Edge uses the same extension build, an optional separate extension ID, browser-specific connection instructions, and a Windows UI integration job. The maintainer reported successful automated and manual checks.
 
 - DuoFollow detects the signed-in Duolingo account after access is granted and starts a comparison. The connected account card shows a skeleton during comparison. It provides a refresh action, and manual entry remains available if profile detection fails.
@@ -23,6 +25,12 @@
 
 ### Changed
 
+- Follow status markers use a normal cursor when tooltips are disabled and restore the help cursor when enabled. Tooltips remain enabled by default for new visitors.
+
+- Tooltips return after a native sort menu closes, hand ownership between elements without overlapping fade animations, and let the pointer pass through every hint.
+
+- The comparison list fits the available content area and removes excess space at the end of the main scroll. Header controls and profile text use keyboard-accessible tooltips. The home link reacts to hover and focus and respects reduced motion.
+
 - DuoFollow rejects inconsistent comparison data and keeps the previous result when a refresh returns an invalid reply.
 
 - Unfollows require final confirmation in the Connector window. After a lost response, the Connector checks the follow again using a read-only request and keeps the profile in the list when the outcome remains unknown.
@@ -40,6 +48,10 @@
 - The developer guide links to separate pages for the Connector, comparison, release checks, and roadmap.
 
 ### Fixed
+
+- Profile text tooltips appear only when the name or username is visually truncated.
+
+- The unfollow tooltip appears beside its button and does not intercept the pointer or cover the next row’s action.
 
 - Returning to comparison from a directly opened privacy page restores the Connector connection.
 

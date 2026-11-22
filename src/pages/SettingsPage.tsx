@@ -56,7 +56,7 @@ export function SettingsPage() {
                 </select>
               </label>
             </div>
-            <div className="settings-color-vision">
+            <div className="settings-option">
               <label>
                 <input
                   type="checkbox"
@@ -71,6 +71,18 @@ export function SettingsPage() {
                 relationships={['mutual', 'non-mutual', 'unknown']}
                 messages={messages}
               />
+            </div>
+            <div className="settings-option">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={appearance.tooltips}
+                  aria-describedby="tooltips-help"
+                  onChange={(event) => updateAppearance({ tooltips: event.target.checked })}
+                />
+                {copy.tooltips}
+              </label>
+              <p id="tooltips-help">{copy.tooltipsHelp}</p>
             </div>
           </section>
           <div className="information-actions">

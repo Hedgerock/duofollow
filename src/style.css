@@ -709,7 +709,7 @@ main[inert] {
   }
 }
 
-.relationship-tooltip {
+.ui-tooltip {
   position: fixed;
   z-index: 30;
   inset: 0 auto auto 0;
@@ -721,6 +721,8 @@ main[inert] {
   color: var(--text);
   font-size: 0.75rem;
   pointer-events: none;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
   visibility: hidden;
   opacity: 0;
   transition:
@@ -728,14 +730,33 @@ main[inert] {
     visibility 0s linear 160ms;
 }
 
-.relationship-tooltip[data-open='true'] {
+.ui-tooltip[data-open='true'] {
   visibility: visible;
   opacity: 1;
   transition-delay: 0s;
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  .ui-tooltip[data-open='true'][data-continuous='false'] {
+    animation: tooltip-enter 160ms ease-out both;
+  }
+}
+
+@keyframes tooltip-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.comparison-page {
+  padding-block-end: 16px;
+}
+
 .live-following {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 
 .live-following .toolbar input {
@@ -1171,6 +1192,45 @@ footer a,
   text-underline-offset: 3px;
 }
 
+.site-home-link {
+  border-radius: 12px;
+  transition: color 180ms ease;
+}
+
+.site-home-link .brand-icon {
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+.site-home-link:is(:hover, :focus-visible) {
+  color: var(--accent-text);
+}
+
+.site-home-link:is(:hover, :focus-visible) .brand-icon {
+  transform: translateY(-2px) rotate(-5deg);
+  filter: drop-shadow(0 3px 6px var(--page-glow));
+}
+
+.site-home-link:active .brand-icon {
+  transform: scale(0.96);
+}
+
+.site-home-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 5px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-home-link,
+  .site-home-link .brand-icon {
+    transition: none;
+  }
+  .site-home-link:is(:hover, :focus-visible, :active) .brand-icon {
+    transform: none;
+  }
+}
+
 .site-home-link,
 .site-control-link {
   color: inherit;
@@ -1247,7 +1307,7 @@ footer a,
 }
 
 .settings-panel h1,
-.settings-color-vision p {
+.settings-option p {
   margin: 0;
 }
 
@@ -1277,12 +1337,12 @@ footer a,
   font-weight: 400;
 }
 
-.settings-color-vision {
+.settings-option {
   padding-block-start: 0.75rem;
   border-block-start: 1px solid var(--border);
 }
 
-.settings-color-vision label {
+.settings-option label {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -1292,7 +1352,7 @@ footer a,
   cursor: pointer;
 }
 
-.settings-color-vision input {
+.settings-option input {
   flex: none;
   inline-size: 1.1rem;
   block-size: 1.1rem;
@@ -1624,6 +1684,12 @@ footer a,
   pointer-events: none;
 }
 
+.profile-card-text:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
 .following-search-match {
   border-radius: 3px;
   background: transparent;
@@ -1695,6 +1761,10 @@ footer a,
   cursor: help;
 }
 
+.page[data-tooltips='false'] .relationship-marker {
+  cursor: default;
+}
+
 .relationship-marker::before {
   content: '';
   inline-size: 4px;
@@ -1731,26 +1801,6 @@ footer a,
   border-color: var(--danger-border);
   background: var(--danger-hover);
   color: var(--danger-text);
-}
-
-.profile-card-unfollow[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  inset-inline-end: calc(100% + 7px);
-  padding: 5px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 7px;
-  background: var(--input-bg);
-  color: var(--text);
-  font-size: 0.75rem;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.profile-card-unfollow[aria-disabled='false']:is(:hover, :focus-visible)::after {
-  opacity: 1;
 }
 
 .profile-card-unfollow[aria-disabled='true'] {
@@ -2127,14 +2177,17 @@ footer a,
 
 @media (prefers-reduced-motion: reduce) {
   .profile-card-unfollow,
-  .profile-card-unfollow::after,
-  .relationship-tooltip,
+  .ui-tooltip,
   .app-dialog,
   .app-dialog::backdrop,
   .connection-install,
   .connection-disclosure svg,
   .connection-dialog-actions :is(button, a) {
     transition: none;
+  }
+
+  .ui-tooltip {
+    animation: none;
   }
 
   .connection-dialog-actions :is(button, a):not([aria-disabled='true']):active {

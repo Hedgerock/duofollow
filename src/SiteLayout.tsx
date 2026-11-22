@@ -5,6 +5,8 @@ import { locales, matchLocale, privacyPath } from '@duofollow/extension/src/loca
 import { ComparisonLink } from '@duofollow/src/ComparisonLink';
 import { useWorkspace } from '@duofollow/src/following/useWorkspace';
 import { ThemeToggle } from '@duofollow/src/ThemeToggle';
+import { Tooltip } from '@duofollow/src/Tooltip';
+import { TooltipProvider } from '@duofollow/src/TooltipProvider';
 import { type SitePreferences, useSitePreferences } from '@duofollow/src/useSite';
 
 const languageNames = { ru: 'Русский', en: 'English', uk: 'Українська' };
@@ -51,36 +53,39 @@ export function SiteHeader({
 }) {
   return (
     <header className="topbar">
-      <ComparisonLink className="brand site-home-link">
-        <img className="brand-icon" src={`${import.meta.env.BASE_URL}duofollow.svg`} alt="" />
-        <span>
-          DuoFollow <small>{site.messages.subtitle}</small>
-        </span>
-      </ComparisonLink>
+      <Tooltip label={site.messages.backToHome}>
+        <ComparisonLink className="brand site-home-link">
+          <img className="brand-icon" src={`${import.meta.env.BASE_URL}duofollow.svg`} alt="" />
+          <span>
+            DuoFollow <small>{site.messages.subtitle}</small>
+          </span>
+        </ComparisonLink>
+      </Tooltip>
       {profile}
       <div className="topbar-controls">
         {children}
         <ThemeToggle theme={site.theme} onToggle={site.toggleTheme} messages={site.messages} />
-        <NavLink
-          to="/settings/"
-          end
-          className="theme-toggle settings-link"
-          aria-label={site.messages.appearance.title}
-          title={site.messages.appearance.title}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            aria-hidden="true"
+        <Tooltip label={site.messages.appearance.title}>
+          <NavLink
+            to="/settings/"
+            end
+            className="theme-toggle settings-link"
+            aria-label={site.messages.appearance.title}
           >
-            <path d="M5 3v4m0 4v10M12 3v10m0 4v4M19 3v4m0 4v10M2 7h6m1 6h6m1-6h6" />
-          </svg>
-        </NavLink>
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              <path d="M5 3v4m0 4v10M12 3v10m0 4v4M19 3v4m0 4v10M2 7h6m1 6h6m1-6h6" />
+            </svg>
+          </NavLink>
+        </Tooltip>
         {languageControl}
       </div>
     </header>
@@ -146,19 +151,22 @@ export function SiteLayout() {
   }, [title]);
 
   return (
-    <div
-      className="page"
-      data-theme={site.theme}
-      data-font-size={site.appearance.fontSize}
-      data-font-family={site.appearance.fontFamily}
-      data-color-vision={site.appearance.colorVision}
-    >
-      <Outlet context={{ site, workspace, openedOnComparison }} />
-      <footer>
-        <span>{site.messages.independent}</span>
-        <Link to={`/${privacyPath(site.locale)}`}>{site.messages.privacy}</Link>
-        <Link to="/access/">{site.messages.manageAccess}</Link>
-      </footer>
-    </div>
+    <TooltipProvider enabled={site.appearance.tooltips}>
+      <div
+        className="page"
+        data-theme={site.theme}
+        data-font-size={site.appearance.fontSize}
+        data-font-family={site.appearance.fontFamily}
+        data-color-vision={site.appearance.colorVision}
+        data-tooltips={site.appearance.tooltips}
+      >
+        <Outlet context={{ site, workspace, openedOnComparison }} />
+        <footer>
+          <span>{site.messages.independent}</span>
+          <Link to={`/${privacyPath(site.locale)}`}>{site.messages.privacy}</Link>
+          <Link to="/access/">{site.messages.manageAccess}</Link>
+        </footer>
+      </div>
+    </TooltipProvider>
   );
 }
