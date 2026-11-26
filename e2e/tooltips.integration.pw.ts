@@ -1,17 +1,40 @@
-import { expect, test } from 'playwright/test';
-
 import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
+import {
+  dismissNativeSelectByBlur,
+  focusWithKeyboard,
+  nativeSelectState,
+  openNativeSelect,
+} from '@duofollow/e2e/keyboard';
+import { expect, test } from '@duofollow/e2e/test';
+
+const nativeKeysLimitation =
+  'Playwright 1.57 cannot route these keys to Firefox native select UI. See https://github.com/microsoft/playwright/issues/28860 and the Firefox manual acceptance checklist.';
+
+test.afterEach(async ({ page }, info) => {
+  if (info.status === info.expectedStatus || page.isClosed()) return;
+  try {
+    const select = page.getByRole('combobox', { name: 'Sort follows' });
+    if (await select.count())
+      await info.attach('native-select-state', {
+        body: JSON.stringify(await nativeSelectState(select), null, 2),
+        contentType: 'application/json',
+      });
+  } catch {
+    // The original failure remains authoritative when the page or browser has already closed.
+  }
+});
 
 for (const closeKey of ['Escape', 'Enter']) {
   test(`restores the select hint after native picker ${closeKey} without moving the pointer`, async ({
     page,
+    browserName,
   }) => {
+    test.skip(browserName === 'firefox', nativeKeysLimitation);
     const panel = await openComparison(page);
     const select = panel.getByRole('combobox', { name: 'Sort follows' });
     await select.hover();
     await expect(page.getByRole('tooltip')).toHaveText('Sort follows');
-    await select.click();
-    await expect.poll(() => select.evaluate((element) => element.matches(':open'))).toBe(true);
+    await openNativeSelect(select, 'pointer');
     // Keep the native popup open beyond the tooltip removal animation.
     await page.waitForTimeout(250);
     await expect(page.getByRole('tooltip')).toHaveCount(0);
@@ -23,18 +46,55 @@ for (const closeKey of ['Escape', 'Enter']) {
   });
 }
 
-test('restores a keyboard select hint and dismisses it again with Escape', async ({ page }) => {
+test('restores a keyboard select hint and dismisses it again with Escape', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'firefox', nativeKeysLimitation);
   const panel = await openComparison(page);
   const select = panel.getByRole('combobox', { name: 'Sort follows' });
   await page.mouse.move(0, 0);
-  await select.focus();
+  await focusWithKeyboard(page, select);
   await expect(page.getByRole('tooltip')).toHaveText('Sort follows');
-  await select.press('Alt+ArrowDown');
-  await expect.poll(() => select.evaluate((element) => element.matches(':open'))).toBe(true);
+  await openNativeSelect(select, 'keyboard');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveText('Sort follows');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip')).toHaveCount(0);
+});
+
+test('restores the pointer hint after native select blur without moving the pointer', async ({
+  page,
+}) => {
+  const panel = await openComparison(page);
+  const select = panel.getByRole('combobox', { name: 'Sort follows' });
+  await select.hover();
+  await expect(page.getByRole('tooltip')).toHaveText('Sort follows');
+  await openNativeSelect(select, 'pointer');
+  // Exercise restoration after the previous hint has finished leaving the DOM.
+  await page.waitForTimeout(250);
+  await expect(page.locator('.ui-tooltip')).toHaveCount(0);
+  await dismissNativeSelectByBlur(select);
+  await expect(page.getByRole('tooltip')).toHaveText('Sort follows');
+  await expect(select).toHaveValue('received');
+});
+
+test('restores the keyboard hint after native select blur and refocus, then handles Escape', async ({
+  page,
+}) => {
+  const panel = await openComparison(page);
+  const select = panel.getByRole('combobox', { name: 'Sort follows' });
+  await page.mouse.move(0, 0);
+  await focusWithKeyboard(page, select);
+  await expect(page.getByRole('tooltip')).toHaveText('Sort follows');
+  await openNativeSelect(select, 'keyboard');
+  await page.waitForTimeout(250);
+  await expect(page.locator('.ui-tooltip')).toHaveCount(0);
+  await dismissNativeSelectByBlur(select, { restoreFocus: true });
+  await expect(select).toBeFocused();
+  await expect(page.getByRole('tooltip')).toHaveText('Sort follows');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.ui-tooltip')).toHaveCount(0);
 });
 
 test('hands the hint to the next marker without overlapping portals or restarting its entrance', async ({

@@ -26,6 +26,7 @@ export interface ExtensionSender {
   id?: string;
   url?: string;
   frameId?: number;
+  /** Browser document ID, or the Firefox isolated content-script token bound to its native sender. */
   documentId?: string;
   tab?: ExtensionTab;
 }

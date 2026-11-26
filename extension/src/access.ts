@@ -12,14 +12,14 @@ import {
   readExtensionLocale,
 } from '@duofollow/extension/src/extensionLocalization';
 import { privacyPath } from '@duofollow/extension/src/locales';
-import { createChromiumPlatform } from '@duofollow/extension/src/platform/chromium';
+import { createPlatform } from '@duofollow/extension/src/platform/current';
 import {
   isQuickUnfollowEnabled,
   QUICK_UNFOLLOW_CONSENT_KEY,
   QUICK_UNFOLLOW_CONSENT_VERSION,
 } from '@duofollow/extension/src/quickUnfollow';
 
-const platform = createChromiumPlatform();
+const platform = createPlatform();
 
 const grant = document.querySelector<HTMLButtonElement>('#grant-access')!;
 const revoke = document.querySelector<HTMLButtonElement>('#revoke-access')!;
@@ -96,7 +96,7 @@ async function changeAccess(update: () => Promise<string>) {
 
 grant.addEventListener('click', () => {
   void changeAccess(async () => {
-    // Chrome must receive the permission request during the click.
+    // The browser must receive the permission request during the click.
     const granted = await platform.permissions.request(DUOLINGO_PERMISSIONS);
     if (!granted) return 'accessDenied';
     await platform.storage.local.set({ [ACCESS_CONSENT_KEY]: ACCESS_CONSENT_VERSION });

@@ -18,7 +18,8 @@ import { fileURLToPath, URL } from 'node:url';
 import { buildSync } from 'esbuild';
 
 const extensionRoot = fileURLToPath(new URL('../', import.meta.url));
-const dist = join(extensionRoot, 'dist');
+const firefox = process.argv.includes('--firefox');
+const dist = join(extensionRoot, firefox ? 'dist-firefox' : 'dist');
 const manifest = join(extensionRoot, 'manifest.json');
 const require = createRequire(import.meta.url);
 
@@ -30,16 +31,63 @@ function build(output, { development = false } = {}) {
   });
   buildSync({
     absWorkingDir: extensionRoot,
-    entryPoints: ['src/background.ts', 'src/access.ts', 'src/unfollow-confirmation.ts'],
+    entryPoints: firefox
+      ? {
+          background: 'src/firefox-background.ts',
+          content: 'src/firefox-content.ts',
+          access: 'src/access.ts',
+          'unfollow-confirmation': 'src/unfollow-confirmation.ts',
+        }
+      : ['src/background.ts', 'src/access.ts', 'src/unfollow-confirmation.ts'],
+    alias: firefox
+      ? {
+          '@duofollow/extension/src/platform/current': join(
+            extensionRoot,
+            'src/platform/firefoxCurrent.ts',
+          ),
+        }
+      : {},
     outdir: output,
     bundle: true,
-    format: 'esm',
+    format: firefox ? 'iife' : 'esm',
     platform: 'browser',
     target: 'es2022',
     tsconfig: 'tsconfig.json',
   });
   const config = JSON.parse(readFileSync(manifest, 'utf8'));
-  if (development) {
+  if (firefox) {
+    delete config.externally_connectable;
+    config.background = { scripts: ['background.js'] };
+    config.content_scripts = [
+      {
+        matches: ['https://hedgerock.github.io/duofollow/*'],
+        js: ['content.js'],
+        run_at: 'document_start',
+        all_frames: false,
+      },
+    ];
+    config.browser_specific_settings = {
+      gecko: {
+        id: 'duofollow@hedgerock.github.io',
+        strict_min_version: '140.0',
+        data_collection_permissions: {
+          required: [
+            'authenticationInfo',
+            'personallyIdentifyingInfo',
+            'websiteContent',
+            'websiteActivity',
+          ],
+        },
+      },
+      gecko_android: { strict_min_version: '142.0' },
+    };
+  }
+  if (development && firefox) {
+    config.content_scripts[0].matches.push(
+      'http://localhost/duofollow/*',
+      'http://127.0.0.1/duofollow/*',
+    );
+  } else if (development) {
     config.externally_connectable.matches.push('http://localhost/*', 'http://127.0.0.1/*');
   }
   writeFileSync(join(output, 'manifest.json'), JSON.stringify(config, null, 2) + '\n');
@@ -63,7 +111,7 @@ function createZip() {
     throw new Error('Expected a numeric extension version in manifest.json');
   }
 
-  const filename = `duofollow-connector-${version}.zip`;
+  const filename = `duofollow-connector-${firefox ? 'firefox-' : ''}${version}.zip`;
   mkdirSync(dist, { recursive: true });
   const temporaryDirectory = mkdtempSync(join(dist, '.package-'));
 
@@ -82,7 +130,7 @@ function createZip() {
     }
 
     renameSync(archive, join(dist, filename));
-    console.log(`Created extension/dist/${filename}`);
+    console.log(`Created ${firefox ? 'extension/dist-firefox' : 'extension/dist'}/${filename}`);
   } finally {
     removePackageDirectory(temporaryDirectory);
   }

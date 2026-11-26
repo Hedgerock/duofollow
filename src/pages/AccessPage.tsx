@@ -5,14 +5,14 @@ import english from '@duofollow/extension/_locales/en/messages.json';
 import russian from '@duofollow/extension/_locales/ru/messages.json';
 import ukrainian from '@duofollow/extension/_locales/uk/messages.json';
 import { privacyPath } from '@duofollow/extension/src/locales';
-import { getConnectorExtensionId } from '@duofollow/src/api/extension/connectorConfig';
+import { createSiteTransport } from '@duofollow/src/api/extension/createSiteTransport';
 import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 import { BackToComparisonLink } from '@duofollow/src/pages/BackToComparisonLink';
 import { SiteContent, SiteHeader } from '@duofollow/src/SiteLayout';
 import { useSite } from '@duofollow/src/useSite';
 
 const access = { en: english, ru: russian, uk: ukrainian };
-const connector = new DuoFollowConnector(getConnectorExtensionId());
+const connector = new DuoFollowConnector(createSiteTransport());
 
 export function AccessPage() {
   const site = useSite();

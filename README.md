@@ -8,6 +8,8 @@ DuoFollow сравнивает подписки и подписчиков акк
 
 Microsoft Edge использует ту же сборку расширения. Установка и проверки описаны в [плане совместимости](docs/guidelines/browser-device-compatibility.md#проверка-microsoft-edge).
 
+Экспериментальная сборка Firefox и порядок проверки описаны в [инструкции Firefox](docs/guidelines/firefox.md).
+
 ## Как пользоваться
 
 1. Для работы нужна активная сессия Duolingo в том же профиле браузера, где открыт [DuoFollow](https://hedgerock.github.io/duofollow/).

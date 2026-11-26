@@ -18,3 +18,5 @@
 - [ADR-0014. Настройка и жизненный цикл подсказок](records/0014-tooltip-preferences-and-lifecycle.md) — Accepted.
 - [ADR-0015. Ресурсы и параллельность браузерных тестов](records/0015-browser-test-container-resources.md) — Accepted.
 - [ADR-0016. Общая логика и браузерные адаптеры](records/0016-browser-core-and-adapters.md) — Accepted.
+
+- [ADR-0017. Сборка Firefox и канал через content script](records/0017-firefox-bridge-and-build.md) — Accepted.

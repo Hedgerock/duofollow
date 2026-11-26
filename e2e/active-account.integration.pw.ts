@@ -1,6 +1,5 @@
-import { expect, test } from 'playwright/test';
-
 import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
+import { expect, test } from '@duofollow/e2e/test';
 
 test('automatically compares the connected account and refreshes it at 320 px', async ({
   page,

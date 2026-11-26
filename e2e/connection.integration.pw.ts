@@ -1,4 +1,4 @@
-import { expect, test } from 'playwright/test';
+import { expect, test } from '@duofollow/e2e/test';
 
 test.use({
   viewport: { width: 500, height: 640 },
@@ -50,12 +50,12 @@ for (const method of ['Close', 'Escape'] as const) {
     await dialog.evaluate(async (element) => {
       await Promise.all(element.getAnimations().map(({ finished }) => finished));
       const observer = new MutationObserver(() => {
-        if (element.hasAttribute('open')) return;
+        if (element.getAttribute('data-closing') !== 'true') return;
         const { display, flexDirection } = getComputedStyle(element);
         element.setAttribute('data-exit-layout', `${display} ${flexDirection}`);
         observer.disconnect();
       });
-      observer.observe(element, { attributes: true, attributeFilter: ['open'] });
+      observer.observe(element, { attributes: true, attributeFilter: ['data-closing'] });
     });
 
     if (method === 'Close')

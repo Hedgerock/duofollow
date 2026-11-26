@@ -102,7 +102,7 @@ export function createUnfollowRequests(
         confirmation.result = failure(new ConnectorError('ACCESS_REQUIRED', ACCESS_REQUIRED));
     }
     void platform.storage.session.remove(journalKey).catch(() => {
-      // Recovery still checks Chrome permissions, consent and the original session.
+      // Recovery still checks browser permissions, consent and the original session.
     });
   }
 

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="350" viewBox="0 0 1120 490" role="img" aria-labelledby="title desc">
+<title id="title">Канал Firefox DuoFollow</title><desc id="desc">Сайт передаёт команды через Window в изолированный content script. Проверенный нативный порт связывает документ с адаптером и общим core.</desc>
+<rect width="1120" height="490" rx="24" fill="#0b1220"/>
+<g font-family="Arial,sans-serif" font-size="21" fill="#e6edf7">
+<text x="42" y="48" font-size="27" font-weight="700">Firefox: границы сообщений и документа</text>
+<g stroke="#47617c" stroke-width="2" fill="#192638"><rect x="40" y="95" width="290" height="115" rx="18"/><rect x="415" y="95" width="290" height="115" rx="18"/><rect x="790" y="95" width="290" height="115" rx="18"/></g>
+<text x="72" y="136">Сайт DuoFollow</text><text x="72" y="174" fill="#9eb4cc">Firefox transport</text>
+<text x="443" y="136">Content script</text><text x="443" y="174" fill="#9eb4cc">Закрытый ID документа</text>
+<text x="818" y="136">Адаптер → core</text><text x="818" y="174" fill="#9eb4cc">Согласие, сессия, API</text>
+<g stroke="#84bcf7" stroke-width="3"><path d="M337 148h64m-12-8 12 8-12 8"/><path d="M712 148h64m-12-8 12 8-12 8"/></g>
+<text x="42" y="270" fill="#84bcf7">Window: source, origin, канал, корреляция и список команд</text>
+<text x="42" y="309" fill="#84bcf7">Нативный порт: extension ID, верхний фрейм, tab ID и origin</text>
+<text x="42" y="348" fill="#a9dd7b">Core: точный маршрут, доступ, документ и одноразовое подтверждение</text>
+<text x="42" y="407" fill="#9eb4cc">Переподключение сохраняет документ. Перезагрузка создаёт новый ID.</text>
+<text x="42" y="445" fill="#9eb4cc">Отмена ожидания освобождает обработчики и не повторяет запись.</text>
+</g></svg>

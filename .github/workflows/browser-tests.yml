@@ -62,3 +62,31 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  firefox:
+    name: Firefox bridge, extension and interface
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps firefox
+      - run: npm run extension:firefox:lint
+      - run: npm run test:firefox:extension
+      - run: npm run test:firefox
+      - name: Upload Firefox failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-firefox-test-results
+          path: |
+            test-results/
+            firefox-test-results/
+          if-no-files-found: ignore
+          retention-days: 7

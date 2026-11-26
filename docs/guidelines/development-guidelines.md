@@ -37,6 +37,9 @@ ID Edge выбирается по сведениям браузера; при п
 ## Браузерные проверки в Docker
 
 Общий код расширения находится в `extension/src/core`, браузерные операции — в `extension/src/platform`.
+Firefox имеет отдельную сборку и канал через content script. Команды установки, web-ext и проверки собраны
+в [руководстве Firefox](firefox.md). Переменная с ID магазина для Firefox не требуется.
+
 Chrome и Edge используют `createChromiumPlatform`. Клиент протокола принимает `ConnectorTransport`.
 Изменения этих границ проверяются [контрактными тестами](browser-adapter-contracts.md#проверки) и повторным прогоном установленной сборки.
 

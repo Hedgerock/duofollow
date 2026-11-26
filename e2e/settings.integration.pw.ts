@@ -1,6 +1,5 @@
-import { expect, test } from 'playwright/test';
-
 import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
+import { expect, test } from '@duofollow/e2e/test';
 
 test('applies appearance to the comparison and remembers it across reloads at 320 px', async ({
   page,

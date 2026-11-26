@@ -1,4 +1,4 @@
-import { expect, test } from 'playwright/test';
+import { expect, test } from '@duofollow/e2e/test';
 
 test.use({ javaScriptEnabled: false });
 

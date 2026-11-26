@@ -1,6 +1,8 @@
 import { vi } from 'vitest';
 
+import { FIREFOX_PORT } from '@duofollow/extension/src/bridge/protocol';
 import { createChromiumPlatform } from '@duofollow/extension/src/platform/chromium';
+import { createFirefoxPlatform } from '@duofollow/extension/src/platform/firefox';
 
 import type {
   ExtensionMessageListener,
@@ -21,7 +23,7 @@ class Event<Listener extends (...args: never[]) => unknown> {
 }
 
 /** One conformance fixture: direct capabilities and the real Chromium adapter over a fake SDK. */
-export function extensionPlatformHarness(adapter: 'memory' | 'chromium') {
+export function extensionPlatformHarness(adapter: 'memory' | 'chromium' | 'firefox') {
   const events = {
     message: new Event<ExtensionMessageListener>(),
     externalMessage: new Event<ExtensionMessageListener>(),
@@ -61,7 +63,10 @@ export function extensionPlatformHarness(adapter: 'memory' | 'chromium') {
   let userId = 101;
   const token = () =>
     `fixture.${btoa(JSON.stringify({ sub: userId, exp: 4_000_000_000 }))}.signature`;
-  const extensionUrl = (file: string) => `chrome-extension://fixture/${file}`;
+  const extensionUrl = (file: string) =>
+    adapter === 'firefox'
+      ? 'moz-extension://fixture/' + file
+      : `chrome-extension://fixture/${file}`;
   const localStore = storage(local, 'local'),
     sessionStore = storage(session, 'session');
   const openSettings = vi.fn(async () => {});
@@ -92,11 +97,19 @@ export function extensionPlatformHarness(adapter: 'memory' | 'chromium') {
     permissions: { ...permissionApi, onRemoved: events.permissionsRemoved },
     storage: { local: localStore, session: sessionStore, onChanged: events.storageChanged },
     windows: { create: createWindow, onRemoved: events.windowRemoved },
-    tabs: { create: vi.fn(async () => ({})) },
+    tabs: {
+      create: vi.fn(async () => ({})),
+      query: vi.fn(async () => []),
+      get: async (id: number) => ({ id, index: 0, windowId: 1 }),
+    },
     i18n: { getUILanguage: () => 'en' },
     runtime: {
       id: 'fixture',
-      getManifest: () => ({ externally_connectable: { matches: platform.sitePatterns } }),
+      getManifest: () => ({
+        externally_connectable: { matches: platform.sitePatterns },
+        content_scripts: [{ matches: platform.sitePatterns }],
+      }),
+      onConnect: new Event<(port: unknown) => void>(),
       getURL: extensionUrl,
       getContexts: async () => [],
       openOptionsPage: openSettings,
@@ -120,11 +133,50 @@ export function extensionPlatformHarness(adapter: 'memory' | 'chromium') {
     });
     return keepOpen === true ? pending : immediate;
   }
+  let currentPlatform =
+    adapter === 'memory'
+      ? platform
+      : adapter === 'chromium'
+        ? createChromiumPlatform(() => sdk as unknown as typeof chrome)
+        : createFirefoxPlatform(() => sdk as unknown as typeof browser);
+  const documents = new Map<string, string>();
+  function firefoxExternal(message: unknown, source: ExtensionSender): Promise<unknown> {
+    return new Promise((resolve) => {
+      const messages = new Event<(message: unknown) => void>();
+      const disconnected = new Event<() => void>();
+      const port = {
+        name: FIREFOX_PORT,
+        sender: { ...source, id: 'fixture', tab: { id: 8, index: 0, windowId: 1 } },
+        onMessage: messages,
+        onDisconnect: disconnected,
+        disconnect() {
+          disconnected.emit();
+          resolve(undefined);
+        },
+        postMessage(response: unknown) {
+          if (
+            typeof response === 'object' &&
+            response !== null &&
+            'kind' in response &&
+            response.kind === 'reply'
+          ) {
+            resolve('response' in response ? (response.response ?? undefined) : undefined);
+            disconnected.emit();
+          }
+        },
+      };
+      sdk.runtime.onConnect.emit(port);
+      if (!messages.listeners.length) return;
+      const key = source.documentId ?? 'missing';
+      if (!documents.has(key)) documents.set(key, crypto.randomUUID());
+      messages.emit({ kind: 'hello', document: documents.get(key) });
+      messages.emit({ kind: 'request', id: crypto.randomUUID(), url: source.url, message });
+    });
+  }
   return {
-    platform:
-      adapter === 'memory'
-        ? platform
-        : createChromiumPlatform(() => sdk as unknown as typeof chrome),
+    get platform() {
+      return currentPlatform;
+    },
     events,
     local,
     session,
@@ -139,9 +191,15 @@ export function extensionPlatformHarness(adapter: 'memory' | 'chromium') {
     },
     restartEvents() {
       for (const event of Object.values(events)) event.listeners.length = 0;
+      if (adapter === 'firefox') {
+        sdk.runtime.onConnect.listeners.length = 0;
+        currentPlatform = createFirefoxPlatform(() => sdk as unknown as typeof browser);
+      }
     },
     external: (message: unknown, sender: ExtensionSender) =>
-      deliver(events.externalMessage, message, sender),
+      adapter === 'firefox'
+        ? firefoxExternal(message, sender)
+        : deliver(events.externalMessage, message, sender),
     internal: (message: unknown, sender: ExtensionSender) =>
       deliver(events.message, message, sender),
   };

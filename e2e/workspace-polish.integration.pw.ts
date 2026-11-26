@@ -1,6 +1,6 @@
-import { expect, test } from 'playwright/test';
-
 import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
+import { focusWithKeyboard } from '@duofollow/e2e/keyboard';
+import { expect, test } from '@duofollow/e2e/test';
 
 for (const viewport of [
   { width: 1100, height: 940 },
@@ -76,13 +76,13 @@ test('header tooltips support hover, keyboard, Escape and normal navigation', as
   await page.keyboard.press('Escape');
   await expect(tooltip).toBeHidden();
   await page.mouse.move(0, 0);
-  await settings.focus();
+  await focusWithKeyboard(page, settings);
   await expect(page.getByRole('tooltip')).toHaveText('Settings');
   await expect(settings).toHaveAttribute('aria-describedby', /\S+/);
   await settings.press('Enter');
   await expect(page).toHaveURL(/\/settings\/$/);
   await expect(page.getByRole('tooltip')).toHaveCount(0);
-  await page.locator('.site-home-link').focus();
+  await focusWithKeyboard(page, page.locator('.site-home-link'));
   await expect(page.getByRole('tooltip')).toHaveText('Back to comparison');
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/duofollow\/$/);

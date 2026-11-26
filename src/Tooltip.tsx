@@ -54,6 +54,8 @@ export function Tooltip({
   const hovered = useRef(false);
   const pointerFocus = useRef(false);
   const pickerFrame = useRef<number | undefined>(undefined);
+  const pickerFocus = useRef<(() => void) | null>(null);
+  const pickerKeyboardIntent = useRef(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const removeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [state, setState] = useState<{ open: boolean; continuous: boolean } | null>(null);
@@ -61,6 +63,8 @@ export function Tooltip({
   const cancelPicker = useCallback(() => {
     if (pickerFrame.current !== undefined) cancelAnimationFrame(pickerFrame.current);
     pickerFrame.current = undefined;
+    if (pickerFocus.current) window.removeEventListener('focus', pickerFocus.current);
+    pickerFocus.current = null;
   }, []);
   const remove = useCallback(() => {
     clearTimeout(closeTimer.current);
@@ -97,16 +101,36 @@ export function Tooltip({
     return CSS.supports('selector(select:open)') && element.matches(':open');
   }
   function watchPicker(element: HTMLElement) {
+    const keyboardIntent =
+      focused.current ||
+      ((pickerFrame.current !== undefined || pickerFocus.current !== null) &&
+        pickerKeyboardIntent.current);
     cancelPicker();
     if (element.tagName !== 'SELECT' || !CSS.supports('selector(select:open)')) return;
+    pickerKeyboardIntent.current = keyboardIntent;
+    const restore = () => {
+      if (pickerFocus.current) window.removeEventListener('focus', pickerFocus.current);
+      pickerFocus.current = null;
+      hovered.current = element.matches(':hover');
+      // The native popup may blur the select and return focus without :focus-visible.
+      focused.current = keyboardIntent && document.activeElement === element;
+      if (
+        document.visibilityState !== 'hidden' &&
+        document.hasFocus() &&
+        (hovered.current || focused.current)
+      )
+        show(element);
+    };
     const check = () => {
       if (pickerOpen(element)) {
         pickerFrame.current = requestAnimationFrame(check);
         return;
       }
       pickerFrame.current = undefined;
-      hovered.current = element.matches(':hover');
-      if (hovered.current || focused.current) show(element);
+      if (document.visibilityState !== 'hidden' && !document.hasFocus()) {
+        pickerFocus.current = restore;
+        window.addEventListener('focus', restore, { once: true });
+      } else restore();
     };
     pickerFrame.current = requestAnimationFrame(check);
   }
@@ -148,12 +172,16 @@ export function Tooltip({
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') dismiss();
+      if (
+        event.key === 'Escape' &&
+        pickerFrame.current === undefined &&
+        pickerFocus.current === null
+      )
+        dismiss();
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('resize', dismiss);
     const onWindowBlur = () => {
-      cancelPicker();
       dismiss();
     };
     window.addEventListener('blur', onWindowBlur);
@@ -164,7 +192,7 @@ export function Tooltip({
       window.removeEventListener('blur', onWindowBlur);
       window.removeEventListener('scroll', dismiss, true);
     };
-  }, [open, dismiss, cancelPicker]);
+  }, [open, dismiss]);
   useEffect(() => {
     if (!enabled) remove();
   }, [enabled, remove]);
@@ -230,13 +258,19 @@ export function Tooltip({
       children.props.onBlur?.(event);
       focused.current = false;
       pointerFocus.current = false;
-      cancelPicker();
+      // Native popups can temporarily blur the control; the monitor verifies focus when they close.
       if (!hovered.current) dismiss();
     },
     onKeyDown(event) {
       children.props.onKeyDown?.(event);
       pointerFocus.current = false;
       if (event.key === 'Escape') {
+        // Native popup cancellation can also reach the DOM in Firefox. Keep watching until it closes.
+        if (
+          event.currentTarget.tagName === 'SELECT' &&
+          (pickerFrame.current !== undefined || pickerFocus.current !== null)
+        )
+          return;
         cancelPicker();
         dismiss();
       } else if (
@@ -250,6 +284,11 @@ export function Tooltip({
     },
     onClick(event) {
       children.props.onClick?.(event);
+      if (event.currentTarget.tagName === 'SELECT') {
+        dismiss();
+        watchPicker(event.currentTarget);
+        return;
+      }
       const native = event.nativeEvent;
       if (
         followPointer &&

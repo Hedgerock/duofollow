@@ -28,7 +28,7 @@ import type {
   ExtensionSender,
 } from '@duofollow/extension/src/platform/ExtensionPlatform';
 
-/** Starts one isolated worker core against browser-owned capabilities. */
+/** Starts one isolated extension core against browser-owned capabilities. */
 export function startConnector(platform: ExtensionPlatform) {
   const rateLimit = createDuolingoRateLimit(platform.storage.session);
   const response = createDuolingoResponse(rateLimit);
@@ -95,7 +95,7 @@ export function startConnector(platform: ExtensionPlatform) {
     }
     cancelAccess();
     void platform.storage.local.remove(ACCESS_CONSENT_KEY).catch(() => {
-      // Access is also checked against Chrome permissions before each command.
+      // Access is also checked against browser permissions before each command.
     });
   });
 

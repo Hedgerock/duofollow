@@ -1,6 +1,5 @@
-import { expect, test } from 'playwright/test';
-
 import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
+import { expect, test } from '@duofollow/e2e/test';
 
 test('filters received profiles and switches views without comparing again', async ({ page }) => {
   const panel = await openComparison(page);

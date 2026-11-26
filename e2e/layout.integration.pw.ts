@@ -1,6 +1,5 @@
-import { expect, test } from 'playwright/test';
-
 import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
+import { expect, test } from '@duofollow/e2e/test';
 
 for (const width of [1100, 320]) {
   test(`keeps the header and footer fixed across routes at ${width} px`, async ({ page }) => {

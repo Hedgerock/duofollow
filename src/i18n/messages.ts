@@ -105,7 +105,10 @@ const ru = {
     stillUnavailable: 'Подключение пока не восстановлено.',
     openSettings: 'Открыть настройки',
     installHelp: 'Как установить из проекта',
-    install: `На странице ${browser.extensionsUrl} включи режим разработчика и загрузи папку extension/dist через «Загрузить распакованное расширение». После установки обнови DuoFollow.`,
+    install:
+      browser.id === 'firefox'
+        ? 'Для временной установки открой about:debugging#/runtime/this-firefox, выбери «Загрузить временное дополнение» и файл extension/dist-firefox/manifest.json. Затем обнови DuoFollow. Управление расширением доступно на about:addons.'
+        : `На странице ${browser.extensionsUrl} включи режим разработчика и загрузи папку extension/dist через «Загрузить распакованное расширение». После установки обнови DuoFollow.`,
     openDuolingo: 'Открыть Duolingo',
     issues: {
       'connector-unavailable': {
@@ -285,7 +288,10 @@ const en = {
     stillUnavailable: 'Still unable to connect.',
     openSettings: 'Open settings',
     installHelp: 'Install from the project',
-    install: `Open ${browser.extensionsUrl}, turn on Developer mode, and use Load unpacked to select extension/dist. Then refresh DuoFollow.`,
+    install:
+      browser.id === 'firefox'
+        ? 'For a temporary install, open about:debugging#/runtime/this-firefox, select Load Temporary Add-on and extension/dist-firefox/manifest.json. Then refresh DuoFollow. Manage the extension at about:addons.'
+        : `Open ${browser.extensionsUrl}, turn on Developer mode, and use Load unpacked to select extension/dist. Then refresh DuoFollow.`,
     openDuolingo: 'Open Duolingo',
     issues: {
       'connector-unavailable': {
@@ -467,7 +473,10 @@ const uk = {
     stillUnavailable: 'Підключення ще не відновлено.',
     openSettings: 'Відкрити налаштування',
     installHelp: 'Як встановити з проєкту',
-    install: `Відкрий ${browser.extensionsUrl}, увімкни режим розробника та завантаж папку extension/dist як розпаковане розширення. Після встановлення онови DuoFollow.`,
+    install:
+      browser.id === 'firefox'
+        ? 'Для тимчасового встановлення відкрий about:debugging#/runtime/this-firefox, вибери «Завантажити тимчасовий додаток» і файл extension/dist-firefox/manifest.json. Потім онови DuoFollow. Керування розширенням доступне на about:addons.'
+        : `Відкрий ${browser.extensionsUrl}, увімкни режим розробника та завантаж папку extension/dist як розпаковане розширення. Після встановлення онови DuoFollow.`,
     openDuolingo: 'Відкрити Duolingo',
     issues: {
       'connector-unavailable': {

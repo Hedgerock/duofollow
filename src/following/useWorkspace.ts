@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 
-import { getConnectorExtensionId } from '@duofollow/src/api/extension/connectorConfig';
+import { createSiteTransport } from '@duofollow/src/api/extension/createSiteTransport';
 import { DuoFollowConnector } from '@duofollow/src/api/extension/DuoFollowConnector';
 import { useConnectorStatus } from '@duofollow/src/connection/useConnectorStatus';
 import { useFollowingComparison } from '@duofollow/src/following/useFollowingComparison';
@@ -9,7 +9,7 @@ import { useNotifications } from '@duofollow/src/notifications';
 
 import type { Locale } from '@duofollow/extension/src/locales';
 
-const connector = new DuoFollowConnector(getConnectorExtensionId());
+const connector = new DuoFollowConnector(createSiteTransport());
 
 /**
  * Coordinates connection status, comparison, unfollow actions, and notifications.

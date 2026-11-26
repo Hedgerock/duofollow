@@ -3,3 +3,6 @@ dist/
 coverage/
 .vite/
 package-lock.json
+extension/dist-firefox/
+web-ext-artifacts/
+firefox-test-results/

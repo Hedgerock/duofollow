@@ -16,10 +16,10 @@ const files = (directory: string): string[] =>
   );
 
 describe('browser dependency boundaries', () => {
-  it('keeps SDK globals out of the extension outside the Chromium adapter and out of the protocol client', () => {
+  it('keeps SDK globals out of the extension outside browser adapters and out of the protocol client', () => {
     const sources = [
       ...files(resolve(root, 'extension/src')).filter(
-        (file) => !file.endsWith('platform\\chromium.ts') && !file.endsWith('platform/chromium.ts'),
+        (file) => !/[\\/]platform[\\/](chromium|firefox)\.ts$/.test(file),
       ),
       resolve(root, 'src/api/extension/DuoFollowConnector.ts'),
     ];
@@ -53,15 +53,26 @@ describe('browser dependency boundaries', () => {
         true,
       );
       for (const statement of ast.statements) {
-        if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
+        if (
+          !(ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) ||
+          !statement.moduleSpecifier ||
+          !ts.isStringLiteral(statement.moduleSpecifier)
+        )
           continue;
         const value = statement.moduleSpecifier.text;
         if (!value.startsWith('@duofollow/')) continue;
         if (
-          value.includes('/platform/chromium') ||
-          ['/background', '/access', '/unfollow-confirmation', '/extensionLocalization'].some(
-            (suffix) => value.endsWith(suffix),
-          )
+          ['/platform/chromium', '/platform/firefox', '/platform/current'].some((part) =>
+            value.includes(part),
+          ) ||
+          [
+            '/background',
+            '/firefox-background',
+            '/firefox-content',
+            '/access',
+            '/unfollow-confirmation',
+            '/extensionLocalization',
+          ].some((suffix) => value.endsWith(suffix))
         )
           violations.push(file + ' -> ' + value);
         const dependency = resolve(root, value.slice('@duofollow/'.length) + '.ts');

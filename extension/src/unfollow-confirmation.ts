@@ -6,7 +6,7 @@ import {
   localizeExtensionPage,
   readExtensionLocale,
 } from '@duofollow/extension/src/extensionLocalization';
-import { createChromiumPlatform } from '@duofollow/extension/src/platform/chromium';
+import { createPlatform } from '@duofollow/extension/src/platform/current';
 import {
   isQuickUnfollowEnabled,
   QUICK_UNFOLLOW_CONSENT_KEY,
@@ -14,7 +14,7 @@ import {
 
 import type { UnfollowPreview } from '@duofollow/extension/src/dto/UnfollowConfirmation';
 
-const platform = createChromiumPlatform();
+const platform = createPlatform();
 
 const requestId = window.location.hash.slice(1);
 const status = document.querySelector<HTMLParagraphElement>('#status')!;

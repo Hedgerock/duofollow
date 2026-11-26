@@ -1,6 +1,6 @@
-import { expect, type Locator, test } from 'playwright/test';
-
 import { connectorCommands, openComparison } from '@duofollow/e2e/connector-fixture';
+import { focusWithKeyboard } from '@duofollow/e2e/keyboard';
+import { expect, type Locator, test } from '@duofollow/e2e/test';
 
 const identity = {
   accountUsername: 'test_profile_'.repeat(6),
@@ -63,7 +63,7 @@ test('wraps the translated list heading beside a five-digit search total', async
   const row = panel.locator('[data-following-id="4"]');
   await expect(row).toHaveAttribute('aria-setsize', '1');
   await expect(row.locator('.profile-card-text strong')).toHaveText(identity.profile.displayName);
-  await row.locator('.profile-card-text').focus();
+  await focusWithKeyboard(page, row.locator('.profile-card-text'));
   await expect(page.getByRole('tooltip')).toContainText(identity.profile.displayName);
   await expect(row.locator('.profile-card-text span')).toHaveCSS('text-overflow', 'ellipsis');
   await expect(row.getByRole('button', { name: /^Отписаться/ })).toBeVisible();

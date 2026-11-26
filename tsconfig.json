@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client", "chrome", "node"],
+    "types": ["vite/client", "chrome", "firefox-webext-browser", "node"],
     "paths": {
       "@duofollow/*": ["./*"]
     }

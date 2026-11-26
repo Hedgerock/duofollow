@@ -1853,11 +1853,6 @@ footer a,
   transition:
     opacity 180ms ease,
     transform 180ms ease;
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease,
-    display 180ms allow-discrete,
-    overlay 180ms allow-discrete;
 }
 
 .app-dialog[open] {
@@ -1867,10 +1862,7 @@ footer a,
 
 .app-dialog::backdrop {
   background: transparent;
-  transition:
-    background-color 180ms ease,
-    display 180ms allow-discrete,
-    overlay 180ms allow-discrete;
+  transition: background-color 180ms ease;
 }
 
 .app-dialog[open]::backdrop {
@@ -1886,6 +1878,15 @@ footer a,
   .app-dialog[open]::backdrop {
     background: transparent;
   }
+}
+
+.app-dialog[open][data-closing='true'] {
+  opacity: 0;
+  transform: translateY(8px) scale(0.98);
+}
+
+.app-dialog[open][data-closing='true']::backdrop {
+  background: transparent;
 }
 
 .app-dialog h2 {

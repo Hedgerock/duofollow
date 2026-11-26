@@ -10,6 +10,14 @@ afterEach(() => {
 });
 
 describe('browser-specific Connector configuration', () => {
+  it('recognizes desktop Firefox without a Chrome store ID', () => {
+    expect(getBrowserInfo({ userAgent: 'Gecko/20100101 Firefox/144.0' })).toEqual({
+      id: 'firefox',
+      name: 'Firefox',
+      extensionsUrl: 'about:addons',
+    });
+  });
+
   it('recognizes Edge client hints even when its user agent includes Chrome', () => {
     expect(
       getBrowserInfo({
@@ -40,6 +48,17 @@ describe('browser-specific Connector configuration', () => {
     vi.stubEnv('VITE_DUOFOLLOW_EDGE_EXTENSION_ID', edgeId);
     expect(getConnectorExtensionId()).toBe(expected);
   });
+
+  it.each(['en', 'ru', 'uk'] as const)(
+    'uses Firefox installation instructions in %s',
+    async (locale) => {
+      vi.stubGlobal('navigator', { userAgent: 'Firefox/144.0' });
+      const { translations } = await import('@duofollow/src/i18n/messages');
+      expect(translations[locale].connection.install).toContain('about:debugging');
+      expect(translations[locale].connection.install).toContain('dist-firefox');
+      expect(JSON.stringify(translations[locale])).not.toContain('chrome://extensions');
+    },
+  );
 
   it.each(['en', 'ru', 'uk'] as const)(
     'uses Edge instructions throughout the %s UI',

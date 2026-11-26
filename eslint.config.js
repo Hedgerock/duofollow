@@ -5,7 +5,17 @@ import simpleImportSort from 'eslint-plugin-simple-import-sort';
 import tseslint from 'typescript-eslint';
 
 export default [
-  { ignores: ['**/dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**'] },
+  {
+    ignores: [
+      '**/dist/**',
+      '**/dist-firefox/**',
+      'web-ext-artifacts/**',
+      'firefox-test-results/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- The maintainer reported successful manual checks in Firefox 161.0 on Windows 11 on November 26, 2026, including connection, comparison, privacy-page return, native select cancellation/selection, and keyboard-only tooltip behavior. No defects were observed in that run.
+
+- Separated native select key checks from popup lifecycle checks. Firefox reports three explicit Playwright native-input exclusions; real popup blur/refocus checks and a manual Escape/Enter checklist cover the remaining boundary.
+
+- Fixed select tooltip restoration across native popup blur and delayed window focus. Firefox UI tests preserve native picker checks and attach focus diagnostics on failure.
+
+- Fixed cross-browser modal exit transitions and tooltip keyboard/picker tests. The Firefox installation test waits for process shutdown before removing its owned profile.
+
+- Added a separate Firefox build, native browser adapter and content-script bridge bound to the document.
+- Added pinned web-ext tooling, Firefox CI, adapter contracts and an isolated installation test.
+- Added Firefox setup instructions in English, Russian and Ukrainian. Extended compatibility checks, AMO signing and distribution remain release requirements.
+
 ### Added
 
 - Settings can turn website tooltips off and on. The choice is saved with appearance preferences and supports English, Russian, and Ukrainian.

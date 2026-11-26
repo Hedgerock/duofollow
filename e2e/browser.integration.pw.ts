@@ -1,6 +1,5 @@
-import { expect, test } from 'playwright/test';
-
 import { openComparison } from '@duofollow/e2e/connector-fixture';
+import { expect, test } from '@duofollow/e2e/test';
 
 test('comparison and access settings use the ID configured for the current browser', async ({
   page,
@@ -10,8 +9,9 @@ test('comparison and access settings use the ID configured for the current brows
   await page.getByRole('button', { name: 'Open settings', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Open settings', exact: true })).toBeEnabled();
   await expect(page.getByRole('alert')).toHaveCount(0);
-  const { ids, isEdge, commands } = await page.evaluate(() => ({
+  const { ids, isEdge, isFirefox, commands } = await page.evaluate(() => ({
     ids: Reflect.get(window, '__duofollowTestExtensionIds') as string[],
+    isFirefox: /\bFirefox\//.test(navigator.userAgent),
     isEdge: /\bEdg\//.test(navigator.userAgent),
     commands: Reflect.get(window, '__duofollowTestCommands') as string[],
   }));
@@ -19,7 +19,13 @@ test('comparison and access settings use the ID configured for the current brows
   expect(commands).toContain('OPEN_DUOLINGO_SETTINGS');
   expect(ids.length).toBeGreaterThan(2);
   expect(new Set(ids)).toEqual(
-    new Set([isEdge ? 'ponmlkjihgfedcbaponmlkjihgfedcba' : 'abcdefghijklmnopabcdefghijklmnop']),
+    new Set([
+      isFirefox
+        ? 'firefox-content-bridge'
+        : isEdge
+          ? 'ponmlkjihgfedcbaponmlkjihgfedcba'
+          : 'abcdefghijklmnopabcdefghijklmnop',
+    ]),
   );
 });
 
@@ -34,7 +40,10 @@ for (const locale of ['en', 'ru', 'uk']) {
     const dialog = page.locator('.connection-dialog');
     await expect(dialog).toBeVisible();
     const isEdge = await page.evaluate(() => /\bEdg\//.test(navigator.userAgent));
-    await expect(dialog).toContainText(isEdge ? 'edge://extensions' : 'chrome://extensions');
+    const isFirefox = await page.evaluate(() => /\bFirefox\//.test(navigator.userAgent));
+    await expect(dialog).toContainText(
+      isFirefox ? 'about:addons' : isEdge ? 'edge://extensions' : 'chrome://extensions',
+    );
     await expect(dialog).not.toContainText(isEdge ? 'chrome://extensions' : 'edge://extensions');
     const bounds = await dialog.boundingBox();
     expect(bounds).not.toBeNull();

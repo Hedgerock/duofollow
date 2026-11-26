@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="472" viewBox="0 0 1120 660" role="img" aria-labelledby="title desc" font-family="system-ui, sans-serif">
   <title id="title">Core, платформа и транспорт DuoFollow</title>
-  <desc id="desc">Клиент сайта проверяет протокол и обращается к заменяемому транспорту. Вход расширения связывает Chromium-адаптер и общий core. Core проверяет отправителя, сессию и одноразовое подтверждение. Браузерные возможности доступны через ExtensionPlatform.</desc>
+  <desc id="desc">Клиент сайта проверяет протокол и обращается к заменяемому транспорту. Точки входа связывают браузерный адаптер и общий core. Core проверяет отправителя, сессию и одноразовое подтверждение. Браузерные возможности доступны через ExtensionPlatform.</desc>
   <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto" markerUnits="userSpaceOnUse"><path fill="#84bcf3" d="m0 0 10 5-10 5z"/></marker></defs>
   <rect width="1120" height="660" rx="24" fill="#0b1220"/>
   <g fill="#141e2e" stroke="#29374b"><rect x="24" y="62" width="318" height="458" rx="18"/><rect x="360" y="62" width="736" height="458" rx="18"/></g>
-  <g fill="#e8edf7" font-size="21" font-weight="650"><text x="44" y="42">Сайт DuoFollow</text><text x="380" y="42">Расширение Chrome / Edge</text></g>
+  <g fill="#e8edf7" font-size="21" font-weight="650"><text x="44" y="42">Сайт DuoFollow</text><text x="380" y="42">Расширение Chrome / Edge / Firefox</text></g>
   <rect x="372" y="175" width="380" height="329" rx="14" fill="#102334" stroke="#435771" stroke-dasharray="5 5"/>
   <g fill="#182436" stroke="#435771">
     <rect x="46" y="111" width="274" height="80" rx="11"/><rect x="46" y="256" width="274" height="92" rx="11"/><rect x="46" y="410" width="274" height="92" rx="11"/>
@@ -22,16 +22,16 @@
   </g>
   <g fill="#e8edf7" text-anchor="middle" font-size="17" font-weight="650">
     <text x="183" y="140">SiteLayout · useWorkspace</text><text x="183" y="288">DuoFollowConnector</text><text x="183" y="442">ConnectorTransport</text>
-    <text x="560" y="108">background.ts</text><text x="563" y="229">startConnector · core</text><text x="563" y="337">Сессия и общая пауза</text>
-    <text x="471" y="443">duolingo</text><text x="652" y="443">unfollowRequests</text><text x="942" y="220">Chromium-адаптер</text><text x="942" y="378">ExtensionPlatform</text>
+    <text x="560" y="108">Браузерная точка входа</text><text x="563" y="229">startConnector · core</text><text x="563" y="337">Сессия и общая пауза</text>
+    <text x="471" y="443">duolingo</text><text x="652" y="443">unfollowRequests</text><text x="942" y="220">Chromium / Firefox</text><text x="942" y="378">ExtensionPlatform</text>
     <text x="563" y="579" fill="#98e66d">API Duolingo</text>
   </g>
   <g fill="#b9c7db" text-anchor="middle" font-size="14">
-    <text x="183" y="166">Настройки и сценарии интерфейса</text><text x="183" y="316">Валидация ответов · тайм-аут</text><text x="183" y="470">chromiumTransport</text>
+    <text x="183" y="166">Настройки и сценарии интерфейса</text><text x="183" y="316">Валидация ответов · тайм-аут</text><text x="183" y="470">Chromium / Firefox transport</text>
     <text x="560" y="132">Сборка core и адаптера</text><text x="563" y="252">Источник · согласие · документ</text><text x="563" y="360">Кеши принадлежат экземпляру</text>
     <text x="471" y="469">HTTP и сравнение</text><text x="652" y="469">Журнал · исход</text><text x="942" y="248">SDK и доверенные метаданные</text>
     <text x="942" y="404">Cookie · local / session storage</text><text x="942" y="430">Разрешения · окна · вкладки</text><text x="942" y="456">Доставка сообщений и событий</text>
     <text x="563" y="602">Профиль · списки · один DELETE</text>
-    <text x="183" y="548">Транспорт заменяется через контракт</text><text x="942" y="548">Firefox: следующая итерация</text>
+    <text x="183" y="548">Транспорт заменяется через контракт</text><text x="942" y="548">Firefox: адаптер и content script</text>
   </g>
 </svg>

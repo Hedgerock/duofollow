@@ -8,6 +8,8 @@ Desktop Chrome or Microsoft Edge and the **DuoFollow Connector** extension are r
 
 Microsoft Edge uses the same extension build; the installed extension ID can differ between browsers.
 
+An experimental Firefox build is available. See the [Firefox setup and verification guide](docs/guidelines/firefox.md).
+
 ## How to use it
 
 1. [DuoFollow](https://hedgerock.github.io/duofollow/) requires an active Duolingo session in the same browser profile.

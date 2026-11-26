@@ -2,11 +2,11 @@ import english from '@duofollow/extension/_locales/en/messages.json';
 import russian from '@duofollow/extension/_locales/ru/messages.json';
 import ukrainian from '@duofollow/extension/_locales/uk/messages.json';
 import { locales, matchLocale } from '@duofollow/extension/src/locales';
-import { createChromiumPlatform } from '@duofollow/extension/src/platform/chromium';
+import { createPlatform } from '@duofollow/extension/src/platform/current';
 
 import type { Locale } from '@duofollow/extension/src/locales';
 
-const platform = createChromiumPlatform();
+const platform = createPlatform();
 
 const dictionaries = { en: english, ru: russian, uk: ukrainian } satisfies Record<
   Locale,
