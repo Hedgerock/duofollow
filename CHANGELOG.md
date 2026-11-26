@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Documented a performance-first continuation plan: real-React regression checks and baseline measurements, notification state isolation, and Workspace decomposition. The implementation and before/after validation remain planned work.
+
 - GitHub Pages upload and deployment use the same artifact name scoped to the workflow run and attempt, so a retry does not select an earlier attempt's artifact.
 
 - The maintainer reported successful manual checks in Firefox 161.0 on Windows 11 on November 26, 2026, including connection, comparison, privacy-page return, native select cancellation/selection, and keyboard-only tooltip behavior. No defects were observed in that run.
