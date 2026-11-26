@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- GitHub Pages upload and deployment use the same artifact name scoped to the workflow run and attempt, so a retry does not select an earlier attempt's artifact.
+
 - The maintainer reported successful manual checks in Firefox 161.0 on Windows 11 on November 26, 2026, including connection, comparison, privacy-page return, native select cancellation/selection, and keyboard-only tooltip behavior. No defects were observed in that run.
 
 - Separated native select key checks from popup lifecycle checks. Firefox reports three explicit Playwright native-input exclusions; real popup blur/refocus checks and a manual Escape/Enter checklist cover the remaining boundary.

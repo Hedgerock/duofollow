@@ -304,6 +304,30 @@ Vite сохраняет отдельные HTML-точки входа для п�
 `externally_connectable.matches` в манифесте и `pagePaths` в service worker. Артефакт GitHub Pages берётся из `dist` сайта.
 Сборка Connector сохраняется в `extension/dist`.
 
+### Артефакт публикации и повторный запуск
+
+Job `deploy` задаёт `PAGES_ARTIFACT_NAME` в формате `github-pages-<run_id>-<run_attempt>`.
+Шаг `upload-pages-artifact` получает это значение через `name`, а `deploy-pages` — через `artifact_name`.
+ID запуска отделяет разные запуски, номер попытки отделяет повторные выполнения одного запуска.
+Оба шага используют одну переменную; артефакты предыдущих попыток не выбираются для новой публикации.
+Имя environment остаётся `github-pages`.
+
+Ошибка `Multiple artifacts named "github-pages"` означает неоднозначный выбор артефакта на этапе
+публикации. Наличие двух артефактов само по себе не указывает, какой шаг или повторный запуск создал дубликат.
+Предупреждение `punycode` не является причиной этой ошибки.
+
+После исправления workflow выполняется новый запуск с новым commit: push в `main` либо
+**Actions → Test and deploy → Run workflow** для обновлённой ветки `main`.
+Повтор старого запуска использует его исходные SHA и ref, поэтому не применяет workflow из нового commit.
+В логах загрузки и публикации ожидается одно и то же имя с текущими ID запуска и номером попытки.
+Для выбранного имени должен находиться ровно один артефакт; затем проверяется результат `deploy-pages`
+и доступность главной страницы, настроек и политики по HTTPS.
+
+- [Параметры загрузки Pages-артефакта](https://github.com/actions/upload-pages-artifact/blob/v3/action.yml).
+- [Параметры публикации Pages](https://github.com/actions/deploy-pages/blob/v4/action.yml).
+- [ID запуска и номер попытки](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context).
+- [Повторное выполнение workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
+
 - [Vite — переменные окружения](https://vite.dev/guide/env-and-mode)
 - [GitHub Actions — переменные репозитория](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-variables)
 - [Chrome — стабильный ID расширения](https://developer.chrome.com/docs/extensions/reference/manifest/key)
